@@ -8,7 +8,7 @@ public enum CaseMode
 
 public class Pattern
 {
-    public List<TermSet> TermSets { get; set; } = new();
+    public List<TermSet> TermSets { get; } = new();
     public bool OnlyInv { get; set; }
 }
 
@@ -568,7 +568,7 @@ public static class FuzzySearcher
     public static int GetScore(ReadOnlySpan<char> text, Pattern pattern, Slab slab)
     {
         slab.Reset();
-        if (pattern.TermSets == null || pattern.TermSets.Count == 0)
+        if (pattern.TermSets.Count == 0)
         {
             return 1;
         }
@@ -806,16 +806,6 @@ public static class FuzzySearcher
             pattern = pattern.Slice(0, pattern.Length - 1);
         }
         return pattern;
-    }
-    
-    private static ReadOnlySpan<char> TrimWhitespaceLeft(ReadOnlySpan<char> input)
-    {
-        int startIndex = 0;
-        while (startIndex < input.Length && char.IsWhiteSpace(input[startIndex]))
-        {
-            startIndex++;
-        }
-        return input[startIndex..];
     }
 
     private static string TrimSuffixSpaces(string input)
