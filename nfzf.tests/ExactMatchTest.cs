@@ -15,10 +15,10 @@ public class ExactMatchTest
     [Test]
     public void FzfExactMatchNaive()
     {
-        var _input = "thisaaatext";
-        var _pattern = "aaa";
-        var inputSpan = _input.AsSpan();
-        var patternSpan = _pattern.AsSpan();
+        var input = "thisaaatext";
+        var pattern = "aaa";
+        var inputSpan = input.AsSpan();
+        var patternSpan = pattern.AsSpan();
         var pos = new List<int>();
         FuzzySearcher.FzfExactMatchNaive(true, inputSpan, patternSpan, _slab, pos);
         Assert.That(3, Is.EqualTo(pos.Count));

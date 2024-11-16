@@ -44,14 +44,14 @@ public struct FzfResult
 
 public static class FuzzySearcher
 {
-    private const int ScoreMatch = 16;
-    private const int ScoreGapStart = -3;
-    private const int ScoreGapExtension = -1;
-    private const int BoundaryBonus = ScoreMatch / 2;
-    private const int NonWordBonus = ScoreMatch / 2;
-    private const int CamelCaseBonus = BoundaryBonus + ScoreGapExtension;
-    private const int BonusConsecutive = -(ScoreGapStart + ScoreGapExtension);
-    private const int BonusFirstCharMultiplier = 2;
+    public const int ScoreMatch = 16;
+    public const int ScoreGapStart = -3;
+    public const int ScoreGapExtension = -1;
+    public const int BoundaryBonus = ScoreMatch / 2;
+    public const int NonWordBonus = ScoreMatch / 2;
+    public const int CamelCaseBonus = BoundaryBonus + ScoreGapExtension;
+    public const int BonusConsecutive = -(ScoreGapStart + ScoreGapExtension);
+    public const int BonusFirstCharMultiplier = 2;
     
     enum CharClass
     {
@@ -228,7 +228,7 @@ public static class FuzzySearcher
 
         if (patternSize * textSize > slab.Cap)
         {
-            return FuzzyMatchV1(text, pattern, caseSensitive, pos);
+            return FuzzyMatchV1(caseSensitive, text, pattern, slab, pos);
         }
 
         var firstIndexOf = FuzzyIndexOf(text, pattern, caseSensitive);
@@ -551,7 +551,7 @@ public static class FuzzySearcher
             int bp = bestPos;
             int sidx = bp - M + 1;
             int eidx = bp + 1;
-            int score = CalculateScore(caseSensitive, text, pattern, sidx, eidx, pos);
+            int score = CalculateScore(caseSensitive, text, pattern, sidx, eidx, null);
             if (pos != null)
             {
                 for (var i = sidx; i < eidx; i++)
@@ -637,13 +637,12 @@ public static class FuzzySearcher
         }
 
         var trimmedLen = 0;
-        var trimmedText = text;
         if (!char.IsWhiteSpace(pattern[0]))
         {
             trimmedLen = LeadingWhiteSpace(text);
         }
 
-        if (trimmedText.Length < pattern.Length)
+        if (text.Length - trimmedLen < pattern.Length)
         {
             return new FzfResult { End = -1, Start = -1, Score = 0 };
         }
@@ -667,7 +666,7 @@ public static class FuzzySearcher
 
         int start = trimmedLen;
         int end = trimmedLen + pattern.Length;
-        int score = CalculateScore(caseSensitive, text, pattern, start, end, pos);
+        int score = CalculateScore(caseSensitive, text, pattern, start, end, null);
         if (pos != null)
         {
             for (var i = start; i < end; i++)
@@ -720,11 +719,11 @@ public static class FuzzySearcher
         }
 
         int start = trimmedText.Length - pattern.Length;
-        int end = trimmedText.Length - 1;
-        int score = CalculateScore(caseSensitive, trimmedText, pattern, start, end, pos);
+        int end = trimmedText.Length;
+        int score = CalculateScore(caseSensitive, trimmedText, pattern, start, end, null);
         if (pos != null)
         {
-            for (var i = start; i <= end; i++)
+            for (var i = start; i < end; i++)
             {
                 pos.Add(i);
             }
@@ -733,11 +732,17 @@ public static class FuzzySearcher
     }
     
     public static FzfResult FuzzyMatchV1(
+        bool caseSensitive,
         ReadOnlySpan<char> text,
         ReadOnlySpan<char> pattern,
-        bool caseSensitive,
+        Slab slab,
         List<int>? pos)
     {
+        if (pattern.Length == 0)
+        {
+            return new FzfResult { End = 0, Start = 0, Score = 0 };
+        }
+        
         if (FuzzyIndexOf(text, pattern, caseSensitive) < 0)
         {
             return new FzfResult { End = 0, Start = 0, Score = 0 };
@@ -780,14 +785,15 @@ public static class FuzzySearcher
                 if (caseSensitive)
                 {
                     currentChar = char.ToLower(currentChar);
-                    if (currentChar == pattern[patternIndex])
+                }
+
+                if (currentChar == pattern[patternIndex])
+                {
+                    patternIndex--;
+                    if (patternIndex < 0)
                     {
-                        patternIndex--;
-                        if (patternIndex < 0)
-                        {
-                            startIndex = i;
-                            break;
-                        }
+                        startIndex = i;
+                        break;
                     }
                 }
             }
@@ -961,7 +967,7 @@ public static class FuzzySearcher
             {
                 if (pos != null)
                 {
-                    pos[patternIndex] = i;
+                    pos.Add(i);
                 }
                 score += ScoreMatch;
                 var bonus = CalculateBonus(prevClass, currentClass);

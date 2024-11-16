@@ -15,10 +15,10 @@ public class SuffixMatchTest
     [Test]
     public void Case1()
     {
-        var _input = "aaa";      // Input string of length 10,000
-        var _pattern = "aa";     // Pattern string of length 1,000
-        var inputSpan = _input.AsSpan();
-        var patternSpan = _pattern.AsSpan();
+        var input = "aaa";
+        var pattern = "aa";
+        var inputSpan = input.AsSpan();
+        var patternSpan = pattern.AsSpan();
         var pos = new List<int>();
         FuzzySearcher.FzfSuffixMatch(true, inputSpan, patternSpan, _slab, pos);
         Assert.That(2, Is.EqualTo(pos.Count));

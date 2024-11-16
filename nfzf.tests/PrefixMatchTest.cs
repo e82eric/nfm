@@ -15,10 +15,10 @@ public class PrefixMatchTest
     [Test]
     public void Case1()
     {
-        var _input = "aaa";      // Input string of length 10,000
-        var _pattern = "aa";     // Pattern string of length 1,000
-        var inputSpan = _input.AsSpan();
-        var patternSpan = _pattern.AsSpan();
+        var input = "aaa";
+        var pattern = "aa";
+        var inputSpan = input.AsSpan();
+        var patternSpan = pattern.AsSpan();
         var pos = new List<int>();
         FuzzySearcher.FzfPrefixMatch(true, inputSpan, patternSpan, _slab, pos);
         Assert.That(pos.Count, Is.EqualTo(2));

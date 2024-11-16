@@ -168,7 +168,7 @@ public class AsciiFuzzyIndexBenchmarks
     //[Benchmark]
     public void UsingSpan()
     {
-        nfzf.FuzzySearcher.FuzzyMatchV1(_input, _pattern, _caseSensitive, null);
+        nfzf.FuzzySearcher.FuzzyMatchV1(true, _input, _pattern, _slab, null);
     }
 
     //[Benchmark]
