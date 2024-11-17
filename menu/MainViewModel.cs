@@ -310,23 +310,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             while (localQueue.Count > 0)
             {
                 var entry = localQueue.Dequeue();
-                if (globalQueue.Count < MaxItems)
-                {
-                    globalQueue.Enqueue(entry, entry.Score);
-                }
-                else
-                {
-                    var lowest = globalQueue.Peek();
-                    if (entry.Score > lowest.Score)
-                    {
-                        globalQueue.Dequeue();
-                        globalQueue.Enqueue(entry, entry.Score);
-                    }
-                    else if(entry.Score == lowest.Score)
-                    {
-                        globalQueue.Enqueue(entry, entry.Score);
-                    }
-                }
+                ProcessNewScore(entry, globalQueue);
             }
         }
 
@@ -363,39 +347,44 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Searching = false;
         ShowResults = DisplayItems.Count > 0;
     }
-
-    private static void ProcessNewScore(string line, int score, ThreadLocalData localData)
+    
+    private static void ProcessNewScore(Entry entry, PriorityQueue<Entry, int> queue)
     {
-        var entry = new Entry(line, score);
-        if (localData.Queue.Count < MaxItems)
+        if (queue.Count < MaxItems)
         {
-            localData.Queue.Enqueue(entry, score);
+            queue.Enqueue(entry, entry.Score);
         }
         else
         {
-            var lowest = localData.Queue.Peek();
-            if (score > lowest.Score)
+            var lowest = queue.Peek();
+            if (entry.Score > lowest.Score)
             {
-                localData.Queue.Dequeue();
-                localData.Queue.Enqueue(entry, score);
+                queue.Dequeue();
+                queue.Enqueue(entry, entry.Score);
             }
-            else if (score == lowest.Score)
+            else if (entry.Score == lowest.Score)
             {
-                if (line.Length < lowest.Line.Length)
+                if (entry.Line.Length < lowest.Line.Length)
                 {
-                    localData.Queue.Dequeue();
-                    localData.Queue.Enqueue(entry, score);
+                    queue.Dequeue();
+                    queue.Enqueue(entry, entry.Score);
                 }
-                else if(line.Length == lowest.Line.Length)
+                else if(entry.Line.Length == lowest.Line.Length)
                 {
-                    if (string.Compare(line, lowest.Line, StringComparison.Ordinal) < 0)
+                    if (string.Compare(entry.Line, lowest.Line, StringComparison.Ordinal) < 0)
                     {
-                        localData.Queue.Dequeue();
-                        localData.Queue.Enqueue(entry, score);
+                        queue.Dequeue();
+                        queue.Enqueue(entry, entry.Score);
                     }
                 }
             }
         }
+    }
+
+    private static void ProcessNewScore(string line, int score, ThreadLocalData localData)
+    {
+        var entry = new Entry(line, score);
+        ProcessNewScore(entry, localData.Queue);
     }
 
     private void ReadStream(Stream stream)
