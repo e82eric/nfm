@@ -5,13 +5,15 @@
         xmlns:menu="clr-namespace:nfm.menu"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         Height="750"
-        Width="900"
+        Width="1200"
         Background="Transparent"
         SystemDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
         FontFamily="Consolas, Courier New, Liberation Mono, Menlo, monospace"
         WindowStartupLocation="Manual"
         x:Class="nfm.menu.MainWindow"
+        x:DataType="menu:MainViewModel"
+        IsVisible="{Binding IsVisible}"
         Title="menu">
 
     <Design.DataContext>
@@ -94,15 +96,18 @@
         </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid
+        x:DataType="menu:MainViewModel"
+        x:Name="Root"
+        IsVisible="{Binding IsVisible}"
+        RowDefinitions="Auto,Auto">
 	    <Border
 		    Background="Black"
 		    Margin="10" 
 		    BorderThickness="2"
 		    BorderBrush="#3c3836"
 		    Grid.Row="0"
-		    CornerRadius="5"
-		    >
+		    CornerRadius="5" >
             <Grid ColumnDefinitions="*, auto">
                 <TextBox
 				    Padding="10"
@@ -168,14 +173,15 @@
             </Grid>
 	    </Border>
         <Border
+            x:Name="ListBoxContainer"
             Background="Black"
             BorderThickness="2"
             BorderBrush="#3c3836"
             CornerRadius="5"
             x:DataType="menu:MainViewModel"
-            IsVisible="{Binding ShowResults}"
             Grid.Row="1"
             Padding="5"
+            MaxHeight="500"
             Margin="10,0,10,10">
             
             <ListBox x:DataType="menu:MainViewModel"
@@ -183,14 +189,14 @@
                      Padding="5"
                      FontSize="16"
                      BorderThickness="0"
-                     Background="Black"
-                     SelectedIndex="{Binding SelectedIndex}"
-                     ItemsSource="{Binding DisplayItems}">
+                     Background="Black">
+                     <!-- SelectedIndex="{Binding SelectedIndex, Mode=OneWay}" -->
+                     <!-- ItemsSource="{Binding DisplayItems}"> -->
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <TextBlock>
                             <TextBlock.Inlines>
-                                <MultiBinding Converter="{x:Static menu:HighlightedTextConverter.Instance}">
+                                <MultiBinding x:DataType="menu:HighlightedText" Converter="{x:Static menu:HighlightedTextConverter.Instance}">
                                     <Binding Path="Text" />
                                     <Binding Path="HighlightIndexes" />
                                 </MultiBinding>

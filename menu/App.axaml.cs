@@ -1,16 +1,17 @@
 using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 
 namespace nfm.menu;
 
-public partial class App : Application
+public class App : Application
 {
-    private readonly MainViewModel _viewModel = new MainViewModel();
-    
-    public App()
+    private readonly string _command;
+    private readonly MainViewModel _viewModel;
+
+    public App(string command, MainViewModel viewModel)
     {
-        _viewModel.StartRead();
+        _command = command;
+        _viewModel = viewModel;
     }
     
     public override void Initialize()
@@ -18,14 +19,17 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
-    public override void OnFrameworkInitializationCompleted()
+    public void Show()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            desktop.MainWindow = new nfm.menu.MainWindow(_viewModel);
-            desktop.MainWindow.DataContext = _viewModel;
-        }
-
-        base.OnFrameworkInitializationCompleted();
+        var window  = new MainWindow(_viewModel);
+        _viewModel.StartRead(_command, 50);
+        window.Show();
+    }
+    
+    public void ShowListWindows()
+    {
+        var window  = new MainWindow(_viewModel);
+        _viewModel.ReadEnumerable(ListWindows.Run(), 0);
+        window.Show();
     }
 }

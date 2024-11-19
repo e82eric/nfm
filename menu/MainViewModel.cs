@@ -3,19 +3,21 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Input;
-using Avalonia.Threading;
 using nfzf;
 
 namespace nfm.menu;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    private readonly IResultHandler _resultHandler;
+
     private readonly struct Entry(string line, int score)
     {
         public readonly string Line = line;
@@ -44,16 +46,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _showResults;
     private ObservableCollection<HighlightedText> _displayItems = new();
     private readonly Slab _positionsSlab;
+    private bool _isVisible;
+    private int _minScore;
 
     public ObservableCollection<HighlightedText> DisplayItems
     {
         get => _displayItems;
-        set
-        {
-            if (Equals(value, _displayItems)) return;
-            _displayItems = value;
-            OnPropertyChanged();
-        }
+        set => _displayItems = value;
     }
 
     public bool ShowResults
@@ -61,7 +60,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => _showResults;
         set
         {
-            if (value == _showResults) return;
             _showResults = value;
             OnPropertyChanged();
         }
@@ -76,6 +74,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 _searchText = value;
                 _restartSearchSignal.Set();
+                OnPropertyChanged();
             }
         }
     }
@@ -144,8 +143,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-    public MainViewModel()
+    
+    public bool IsVisible
     {
+        get => _isVisible;
+        set
+        {
+            if (value == _isVisible) return;
+            _isVisible = value;
+            OnPropertyChanged();
+        }
+    }
+    
+    public MainViewModel(IResultHandler resultHandler)
+    {
+        IsVisible = false;
+        _resultHandler = resultHandler;
         _positionsSlab = Slab.MakeDefault();
         _cancellation = new CancellationTokenSource();
         
@@ -168,7 +181,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var firstChunk = new Chunk();
         _chunks.Add(firstChunk);
         SelectedIndex = -1;
-        _searchText = string.Empty;
+        SearchText = string.Empty;
     }
 
     private void SetIsWorking()
@@ -178,10 +191,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void StartRead()
     {
+        IsVisible = true;
+        DisplayItems.Clear();
         Task.Run(() =>
         {
             var stream = Console.OpenStandardInput();
             ReadStream(stream);
+        });
+    }
+    
+    public void StartRead(string command, int minScore)
+    {
+        _minScore = minScore;
+        SearchText = string.Empty;
+        IsVisible = true;
+        DisplayItems = new ObservableCollection<HighlightedText>();
+        Task.Run(() =>
+        {
+            using (var process = new Process())
+            {
+                process.StartInfo.FileName = "cmd.exe";
+                process.StartInfo.Arguments = $"/C {command}";
+                process.StartInfo.RedirectStandardOutput = true;
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.CreateNoWindow = true;
+
+                process.Start();
+
+                using (var stream = process.StandardOutput.BaseStream)
+                {
+                    ReadStream(stream);
+                }
+
+                process.WaitForExit();
+            }
         });
     }
 
@@ -218,10 +261,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _slabPool.Add(slab);
     }
     
-    private async Task Render(CancellationToken ct)
+    private Task Render(CancellationToken ct)
     {
         var searchString = _searchText;
-        var pattern = nfzf.FuzzySearcher.ParsePattern(CaseMode.CaseSmart, searchString, true);
+        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, searchString, true);
         Searching = true;
         var globalQueue = new PriorityQueue<Entry, int>();
 
@@ -263,8 +306,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         {
                             var item = cache[i];
                             var line = chunk.Items[item.Index];
-                            var score = nfzf.FuzzySearcher.GetScore(line, pattern, localData.Slab);
-                            if (score > 50)
+                            var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
+                            if (score > _minScore)
                             {
                                 Interlocked.Increment(ref numberOfItemsWithScores);
                                 ProcessNewScore(line, score, localData);
@@ -284,8 +327,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     for (var i = 0; i < chunk.Items.Length; i++)
                     {
                         var line = chunk.Items[i];
-                        var score = nfzf.FuzzySearcher.GetScore(line, pattern, localData.Slab);
-                        if (score > 50)
+                        var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
+                        if (score > _minScore)
                         {
                             chunk.SetResultCacheItemNoReset(i, score, added);
                             Interlocked.Increment(ref numberOfItemsWithScores);
@@ -325,31 +368,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return new HighlightedText(e.Element.Line, pos);
             }).ToList();
              
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        var previousIndex = SelectedIndex;
+        DisplayItems.Clear();
+        foreach (var item in topEntries)
         {
-            var previousIndex = SelectedIndex;
-            DisplayItems.Clear();
-            foreach (var item in topEntries)
-            {
-                DisplayItems.Add(item);
-            }
-            if (DisplayItems.Any() && previousIndex < 0)
-            {
-                previousIndex = 0;
-            }
-            else if (previousIndex > 0 && previousIndex > DisplayItems.Count - 1)
-            {
-                previousIndex = 0;
-            }
+            DisplayItems.Add(item);
+        }
+        if (DisplayItems.Any() && previousIndex < 0)
+        {
+            previousIndex = 0;
+        }
+        else if (previousIndex > 0 && previousIndex > DisplayItems.Count - 1)
+        {
+            previousIndex = 0;
+        }
 
-            SelectedIndex = previousIndex;
-        }, DispatcherPriority.Background);
+        OnPropertyChanged(nameof(DisplayItems));
+
         Searching = false;
         ShowResults = DisplayItems.Count > 0;
+
+        if (previousIndex > -1 && DisplayItems.Count - 1 >= previousIndex)
+        {
+            SelectedIndex = previousIndex;
+        }
+
+        return Task.CompletedTask;
     }
     
     private static void ProcessNewScore(Entry entry, PriorityQueue<Entry, int> queue)
     {
+        if (entry.Line == null)
+        {
+            return;
+        }
+        
         if (queue.Count < MaxItems)
         {
             queue.Enqueue(entry, entry.Score);
@@ -386,34 +439,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var entry = new Entry(line, score);
         ProcessNewScore(entry, localData.Queue);
     }
-
-    private void ReadStream(Stream stream)
+    
+    public void ReadEnumerable(IEnumerable<string> lines, int minScore)
+    {
+        _minScore = minScore;
+        SearchText = string.Empty;
+        IsVisible = true;
+        DisplayItems = new ObservableCollection<HighlightedText>();
+        ReadFromSource(lines);
+    }
+    
+    private void ReadFromSource(IEnumerable<string> lines)
     {
         var numberOfItems = 0;
         NumberOfItems = 0;
         Reading = true;
+
         var currentChunk = _chunks.Last();
-        using (var reader = new StreamReader(stream))
+
+        foreach (var line in lines)
         {
-            string? line;
-            while ((line = reader.ReadLine()) != null)
+            numberOfItems++;
+            if (!currentChunk.TryAdd(line))
             {
-                numberOfItems++;
+                currentChunk = new Chunk();
+                _chunks.Add(currentChunk);
+                Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
+                if (lastFullChunk != null)
+                {
+                    _restartSearchSignal.Set();
+                }
+
                 if (!currentChunk.TryAdd(line))
                 {
-                    currentChunk = new Chunk();
-                    _chunks.Add(currentChunk);
-                    Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
-                    if (lastFullChunk != null)
-                    {
-                        _restartSearchSignal.Set();
-                    }
-                    if (!currentChunk.TryAdd(line))
-                    {
-                        throw new Exception("Could not add line to Chunk");
-                    }
-                    NumberOfItems = numberOfItems;
+                    throw new Exception("Could not add line to Chunk");
                 }
+
+                NumberOfItems = numberOfItems;
             }
         }
 
@@ -421,8 +483,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Reading = false;
 
         currentChunk.SetComplete();
-        
         _restartSearchSignal.Set();
+    }
+    
+    private IEnumerable<string> ReadLines(StreamReader reader)
+    {
+        string? line;
+        while ((line = reader.ReadLine()) != null)
+        {
+            yield return line;
+        }
+    }
+
+    private void ReadStream(Stream stream)
+    {
+        using (var reader = new StreamReader(stream))
+        {
+            ReadFromSource(ReadLines(reader));
+        }
     }
 
     public void HandleKey(Key eKey)
@@ -438,15 +516,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 SelectedIndex = previousIndex;
                 break;
             case Key.Escape:
-                Environment.Exit(0);
+                Close();
                 break;
             case Key.Enter:
                 if (SelectedIndex >= 0 && SelectedIndex < DisplayItems.Count)
                 {
-                    Console.WriteLine(DisplayItems[SelectedIndex].Text);
-                    Environment.Exit(0);
+                    Close();
+                    _resultHandler.Handle(DisplayItems[SelectedIndex].Text);
                 }
                 break;
         }
+    }
+
+    public void Close()
+    {
+        ShowResults = false;
+        IsVisible = false;
+        _chunks.Clear();
+        _chunks.Add(new Chunk());
     }
 }

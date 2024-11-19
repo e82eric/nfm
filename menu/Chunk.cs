@@ -12,7 +12,7 @@ class Chunk
     public readonly string[] Items;
     private const int MaxSize = 1000;
     private bool _manualComplete;
-    private string _queryString;
+    private string? _queryString;
     private readonly ItemScoreResult[] _resultCache;
     private int _resultCacheSize;
 
@@ -22,12 +22,16 @@ class Chunk
         _manualComplete = false;
         Items = new string[MaxSize];
         _resultCache = new ItemScoreResult[MaxSize];
-        _queryString = string.Empty;
+        _queryString = null;
     }
     
     public void SetQueryStringNoReset(string queryString)
     {
         _queryString = queryString;
+        if (string.IsNullOrEmpty(queryString))
+        {
+            _resultCacheSize = 0;
+        }
     }
 
     public bool TryGetResultCache(string queryString, ref ItemScoreResult[]? resultCache, out int size)
