@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Avalonia.Threading;
 
 namespace nfm.menu;
 
@@ -10,6 +12,8 @@ public class GlobalKeyHandler
     private const int VK_RWIN = 0x5C;
     private const int VK_O = 0x4F;
     private const int VK_I = 0x49;
+    private const int VK_U = 0x55;
+    private const int VK_L = 0x4c;
     private const int WH_KEYBOARD_LL = 13;
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_SYSKEYDOWN = 0x0104;
@@ -17,10 +21,17 @@ public class GlobalKeyHandler
     private static IntPtr _hookID = IntPtr.Zero;
     private static bool isWinKeyPressed;
     private static App _app;
+    private static Dictionary<(Modifiers, int), Action> _keyBindings;
+    
 
     public static void SetHook(App app)
     {
         _app = app;
+        _keyBindings = new Dictionary<(Modifiers, int), Action>();
+        _keyBindings.Add((Modifiers.LAlt, VK_O), _app.Show);
+        _keyBindings.Add((Modifiers.LAlt, VK_I), _app.ShowListWindows);
+        _keyBindings.Add((Modifiers.LAlt, VK_U), _app.ShowProcesses);
+        _keyBindings.Add((Modifiers.LAlt, VK_L), _app.ShowFiles);
         using (Process curProcess = Process.GetCurrentProcess())
         using (ProcessModule curModule = curProcess.MainModule)
         {
@@ -93,26 +104,13 @@ public class GlobalKeyHandler
     {
         if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
         {
+            var modifiers = GetModifiersPressed();
             int vkCode = Marshal.ReadInt32(lParam);
-            if (vkCode == VK_O)
+            if (_keyBindings.TryGetValue((modifiers, vkCode), out var action))
             {
-                var modifiers = GetModifiersPressed();
-                if (modifiers == Modifiers.LAlt || modifiers == Modifiers.RAlt)
-                {
-                    _app.Show();
-                    return 1;
-                }
+                Dispatcher.UIThread.Post(() => action());
+                return 1;
             }
-            if (vkCode == VK_I)
-            {
-                var modifiers = GetModifiersPressed();
-                if (modifiers == Modifiers.LAlt || modifiers == Modifiers.RAlt)
-                {
-                    _app.ShowListWindows();
-                    return 1;
-                }
-            }
-
         }
 
         return CallNextHookEx(_hookID, nCode, wParam, lParam);

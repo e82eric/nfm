@@ -9,7 +9,7 @@ public class ProcessLister
         public int Pid;
         public ulong WorkingSet;
         public ulong PrivateBytes;
-        public long Cpu; // in seconds
+        public long Cpu;
         public string FileName;
     }
 
@@ -17,7 +17,7 @@ public class ProcessLister
     {
         try
         {
-            Process p = Process.GetProcessById(process.Pid);
+            var p = Process.GetProcessById(process.Pid);
             process.WorkingSet = (ulong)(p.WorkingSet64 / 1024);
             process.PrivateBytes = (ulong)(p.PrivateMemorySize64 / 1024);
             process.Cpu = (long)p.TotalProcessorTime.TotalSeconds;
@@ -59,6 +59,22 @@ public class ProcessLister
         return String.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
             process.FileName, process.Pid, workingSetStr, privateBytesStr, cpuSecondsStr);
     }
+    
+    static IEnumerable<string> Run2(bool sort, Comparison<ProcessInfo> sortFunc)
+    {
+        string header = String.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
+            "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)");
+        //yield return header;
+        foreach (Process p in Process.GetProcesses())
+        {
+            ProcessInfo processInfo = new ProcessInfo();
+            processInfo.Pid = p.Id;
+            processInfo.FileName = p.ProcessName;
+            FillProcessStats(processInfo);
+            string line = FormatProcessLine(processInfo);
+            yield return line;
+        }
+    }
 
     static IEnumerable<string> Run(bool sort, Comparison<ProcessInfo> sortFunc)
     {
@@ -96,7 +112,7 @@ public class ProcessLister
 
     public static IEnumerable<string> RunNoSort()
     {
-        return Run(false, null);
+        return Run2(false, null);
     }
 
     public static IEnumerable<string> RunSortedByCpu()

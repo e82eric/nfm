@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TempConsole", "TempConsole\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ListProcesses", "ListProcesses\ListProcesses.csproj", "{C07A2D2F-D786-474A-A083-08064FD214E4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileSystem", "FileSystem\FileSystem.csproj", "{8631A04D-86D0-4BBB-A762-56D9BE8587C6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -54,5 +56,9 @@ Global
 		{C07A2D2F-D786-474A-A083-08064FD214E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C07A2D2F-D786-474A-A083-08064FD214E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C07A2D2F-D786-474A-A083-08064FD214E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8631A04D-86D0-4BBB-A762-56D9BE8587C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8631A04D-86D0-4BBB-A762-56D9BE8587C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8631A04D-86D0-4BBB-A762-56D9BE8587C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8631A04D-86D0-4BBB-A762-56D9BE8587C6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

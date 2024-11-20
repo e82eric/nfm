@@ -5,9 +5,15 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <!-- Enable Native AOT -->
+        <PublishAot>true</PublishAot>
+
+        <!-- Optional: Remove unused code to minimize executable size -->
+        <TrimMode>Full</TrimMode>
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\FileSystem\FileSystem.csproj" />
       <ProjectReference Include="..\ListProcesses\ListProcesses.csproj" />
       <ProjectReference Include="..\ListWindows\ListWindows.csproj" />
     </ItemGroup>

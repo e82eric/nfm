@@ -1,20 +1,29 @@
-﻿using nfm.menu;
-using nfzf.ListProcesses;
+﻿using System.Threading.Channels;
+using nfzf.FileSystem;
 
 namespace TempConsole;
 
 class Program
 {
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
-        foreach(var window in ListWindows.Run())
+        var scanner = new StreamingWin32DriveScanner2();
+        var reader = scanner.ScanAsync(@"C:\");
+
+// Read results
+        await foreach (var file in reader.ReadAllAsync())
         {
-            Console.WriteLine(window);
+            Console.WriteLine(file);
         }
-        
-        foreach(var window in ProcessLister.RunNoSort())
-        {
-            Console.WriteLine(window);
-        }
+
+// Wait for scanning to complete
+        //await scanTask;
+        //var channel = 
+        //
+        //var scanner = new StreamingWin32DriveScanner2();
+        //await foreach (var file in scanner.ScanAsync(@"C:\"))
+        //{
+        //    Console.WriteLine(file);
+        //}
     }
 }

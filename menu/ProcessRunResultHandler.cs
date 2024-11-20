@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace nfm.menu;
 
@@ -13,5 +14,11 @@ public class ProcessRunResultHandler : IResultHandler
         };
 
         Process.Start(startInfo);
+    }
+
+    public Task HandleAsync(string output)
+    {
+        Handle(output);
+        return Task.CompletedTask;
     }
 }

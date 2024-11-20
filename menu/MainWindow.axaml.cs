@@ -97,7 +97,10 @@ public partial class MainWindow : Window
             else
             {
                 BringToForeground();
-                TextBox.Focus();
+                Dispatcher.UIThread.Invoke(() =>
+                {
+                    TextBox.Focus();
+                });
             }
         }
 
@@ -127,9 +130,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void TextBoxOnKeyUp(object? sender, KeyEventArgs e)
+    private async void TextBoxOnKeyUp(object? sender, KeyEventArgs e)
     {
-        _viewModel.HandleKey(e.Key);
+        await _viewModel.HandleKey(e.Key, e.KeyModifiers);
     }
 
     private void ListBox_GotFocus(object? sender, GotFocusEventArgs e)
@@ -148,7 +151,6 @@ public partial class MainWindow : Window
             keybd_event(0x12, 0, 0, UIntPtr.Zero);
             keybd_event(0x12, 0, 0x0002, UIntPtr.Zero);
             SetForegroundWindow(hwnd.Value);
-            TextBox?.Focus();
         }
     }
 

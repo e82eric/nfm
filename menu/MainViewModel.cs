@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using nfzf;
@@ -16,7 +17,8 @@ namespace nfm.menu;
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
-    private readonly IResultHandler _resultHandler;
+    private readonly Dictionary<(KeyModifiers, Key), Action<string>> _globalKeyBindings;
+    private IResultHandler _resultHandler;
 
     private readonly struct Entry(string line, int score)
     {
@@ -47,7 +49,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private ObservableCollection<HighlightedText> _displayItems = new();
     private readonly Slab _positionsSlab;
     private bool _isVisible;
-    private int _minScore;
+    private string? _header;
+    private bool _isHeaderVisible;
+    private MenuDefinition _definition;
+
+    public bool IsHeaderVisible
+    {
+        get => _isHeaderVisible;
+        set
+        {
+            _isHeaderVisible = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? Header
+    {
+        get => _header;
+        set
+        {
+            _header = value;
+            OnPropertyChanged();
+        }
+    }
 
     public ObservableCollection<HighlightedText> DisplayItems
     {
@@ -155,10 +179,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
     
-    public MainViewModel(IResultHandler resultHandler)
+    public MainViewModel(Dictionary<(KeyModifiers, Key), Action<string>> globalKeyBindings)
     {
+        _globalKeyBindings = globalKeyBindings;
         IsVisible = false;
-        _resultHandler = resultHandler;
         _positionsSlab = Slab.MakeDefault();
         _cancellation = new CancellationTokenSource();
         
@@ -189,6 +213,67 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsWorking = Reading || Searching;
     }
 
+    public void RunDefinition(MenuDefinition definition)
+    {
+        _definition = definition;
+        IsVisible = true;
+        DisplayItems.Clear();
+        SearchText = string.Empty;
+        IsHeaderVisible = definition.Header != null;
+        Header = definition.Header;
+        SelectedIndex = 0;
+        
+        if (definition.Command != null)
+        {
+            StartRead(definition.Command);
+        }
+        else if (definition.Function != null)
+        {
+            var enumerable = definition.Function();
+            Task.Run(() =>
+            {
+                ReadEnumerable(enumerable);
+            });
+        }
+        else if (definition.AsyncFunction != null)
+        {
+            Task.Run(async () =>
+            {
+                var reader = definition.AsyncFunction();
+                await ReadFromSourceAsync(reader);
+            });
+        }
+    }
+    
+    public async Task RunDefinitionAsync(MenuDefinition definition)
+    {
+        _definition = definition;
+        IsVisible = true;
+        DisplayItems.Clear();
+        SearchText = string.Empty;
+        IsHeaderVisible = definition.Header != null;
+        Header = definition.Header;
+        SelectedIndex = 0;
+        
+        if (definition.Command != null)
+        {
+            StartRead(definition.Command);
+        }
+        else if (definition.Function != null)
+        {
+            var enumerable = definition.Function();
+            Task.Run(() =>
+            {
+                ReadEnumerable(enumerable);
+            });
+        }
+        else if (definition.AsyncFunction != null)
+        {
+            var reader = definition.AsyncFunction();
+            await ReadFromSourceAsync(reader);
+        }
+    }
+    
     public void StartRead()
     {
         IsVisible = true;
@@ -200,9 +285,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         });
     }
     
-    public void StartRead(string command, int minScore)
+    private void StartRead(string command)
     {
-        _minScore = minScore;
+        //_minScore = minScore;
         SearchText = string.Empty;
         IsVisible = true;
         DisplayItems = new ObservableCollection<HighlightedText>();
@@ -260,7 +345,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         _slabPool.Add(slab);
     }
-    
+
     private Task Render(CancellationToken ct)
     {
         var searchString = _searchText;
@@ -307,7 +392,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                             var item = cache[i];
                             var line = chunk.Items[item.Index];
                             var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
-                            if (score > _minScore)
+                            if (score > _definition.MinScore)
                             {
                                 Interlocked.Increment(ref numberOfItemsWithScores);
                                 ProcessNewScore(line, score, localData);
@@ -328,7 +413,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     {
                         var line = chunk.Items[i];
                         var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
-                        if (score > _minScore)
+                        if (score > _definition.MinScore)
                         {
                             chunk.SetResultCacheItemNoReset(i, score, added);
                             Interlocked.Increment(ref numberOfItemsWithScores);
@@ -440,13 +525,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ProcessNewScore(entry, localData.Queue);
     }
     
-    public void ReadEnumerable(IEnumerable<string> lines, int minScore)
+    private void ReadEnumerable(IEnumerable<string> lines)
     {
-        _minScore = minScore;
         SearchText = string.Empty;
         IsVisible = true;
         DisplayItems = new ObservableCollection<HighlightedText>();
         ReadFromSource(lines);
+    }
+    
+    private async Task ReadEnumerableAsync(ChannelReader<string> channelReader)
+    {
+        SearchText = string.Empty;
+        IsVisible = true;
+        DisplayItems = new ObservableCollection<HighlightedText>();
+        await ReadFromSourceAsync(channelReader);
     }
     
     private void ReadFromSource(IEnumerable<string> lines)
@@ -458,6 +550,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var currentChunk = _chunks.Last();
 
         foreach (var line in lines)
+        {
+            numberOfItems++;
+            if (!currentChunk.TryAdd(line))
+            {
+                currentChunk = new Chunk();
+                _chunks.Add(currentChunk);
+                Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
+                if (lastFullChunk != null)
+                {
+                    _restartSearchSignal.Set();
+                }
+
+                if (!currentChunk.TryAdd(line))
+                {
+                    throw new Exception("Could not add line to Chunk");
+                }
+
+                NumberOfItems = numberOfItems;
+            }
+        }
+
+        NumberOfItems = numberOfItems;
+        Reading = false;
+
+        currentChunk.SetComplete();
+        _restartSearchSignal.Set();
+    }
+    
+    private async Task ReadFromSourceAsync(ChannelReader<string> channelReader)
+    {
+        var numberOfItems = 0;
+        NumberOfItems = 0;
+        Reading = true;
+
+        var currentChunk = _chunks.Last();
+
+        await foreach (var line in channelReader.ReadAllAsync())
         {
             numberOfItems++;
             if (!currentChunk.TryAdd(line))
@@ -503,8 +632,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public void HandleKey(Key eKey)
+    public async Task HandleKey(Key eKey, KeyModifiers eKeyModifiers)
     {
+        if (eKeyModifiers == KeyModifiers.Control)
+        {
+            if (_definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
+            {
+                action(DisplayItems[SelectedIndex].Text);
+            }
+            else if (_globalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
+            {
+                globalAction(DisplayItems[SelectedIndex].Text);
+            }
+        }
+            
         switch (eKey)
         {
             case Key.Down:
@@ -522,7 +663,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 if (SelectedIndex >= 0 && SelectedIndex < DisplayItems.Count)
                 {
                     Close();
-                    _resultHandler.Handle(DisplayItems[SelectedIndex].Text);
+                    await _definition.ResultHandler.HandleAsync(DisplayItems[SelectedIndex].Text);
                 }
                 break;
         }

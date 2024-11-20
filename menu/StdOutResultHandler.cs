@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace nfm.menu;
 
@@ -8,5 +9,11 @@ public class StdOutResultHandler : IResultHandler
     {
         Console.WriteLine(output);
         Environment.Exit(0);
+    }
+
+    public Task HandleAsync(string output)
+    {
+        Handle(output);
+        return Task.CompletedTask;
     }
 }
