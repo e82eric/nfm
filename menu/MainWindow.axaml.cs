@@ -49,7 +49,7 @@ public partial class MainWindow : Window
     protected override void OnLostFocus(RoutedEventArgs e)
     {
         base.OnLostFocus(e);
-        _viewModel.Close();
+        //_viewModel.Close();
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)

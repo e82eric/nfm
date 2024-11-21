@@ -30,7 +30,7 @@ public class TestResultHandler : IResultHandler
         {
             Command = null,
             Function = null,
-            AsyncFunction = () => _fileScanner.ScanAsync(output),
+            AsyncFunction = (reader) => _fileScanner.StartScanAsync(output, reader),
             Header = null,
             KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
             MinScore = 50,
@@ -50,7 +50,7 @@ public class TestResultHandler : IResultHandler
         {
             Command = null,
             Function = null,
-            AsyncFunction = () => _fileScanner.ScanAsync(output),
+            AsyncFunction = writer => _fileScanner.StartScanAsync(output, writer),
             Header = null,
             KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
             MinScore = 50,
@@ -68,7 +68,7 @@ public class MenuDefinition
     public int MinScore { get; set; }
     public string? Command { get; set; }
     public Func<IEnumerable<string>>? Function { get; set; }
-    public Func<ChannelReader<string>>? AsyncFunction { get; set; }
+    public Action<ChannelWriter<string>>? AsyncFunction { get; set; }
     public IResultHandler ResultHandler { get; set; }
     public Dictionary<(KeyModifiers, Key), Action<string>> KeyBindings { get; set; }
     public bool ShowHeader { get; set; }

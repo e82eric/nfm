@@ -12,9 +12,9 @@ public class StreamingWin32DriveScanner
     private struct WIN32_FIND_DATA
     {
         public FileAttributes dwFileAttributes;
-        public System.Runtime.InteropServices.ComTypes.FILETIME ftCreationTime;
-        public System.Runtime.InteropServices.ComTypes.FILETIME ftLastAccessTime;
-        public System.Runtime.InteropServices.ComTypes.FILETIME ftLastWriteTime;
+        public FILETIME ftCreationTime;
+        public FILETIME ftLastAccessTime;
+        public FILETIME ftLastWriteTime;
         public uint nFileSizeHigh;
         public uint nFileSizeLow;
         public uint dwReserved0;
@@ -81,26 +81,184 @@ public class StreamingWin32DriveScanner
         _includeHidden = includeHidden;
     }
     
-    public ChannelReader<string> ScanAsync(string rootPath)
+    public void StartScanAsync2(string rootPath, ChannelWriter<string> channelWriter)
     {
-        var channel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions 
+        Task.Run(async () => {
+            try
+            {
+                await ScanDirectoryAsync(rootPath, channelWriter);
+            }
+            finally
+            {
+                channelWriter.Complete();
+            }
+        });
+    }
+    
+    
+public class ScanState
+{
+    public int PendingDirectoryCount = 0;
+    public int ChannelsCompleted = 0;
+    public ChannelWriter<string> DirectoryChannelWriter { get; set; }
+    public ChannelWriter<string> FileChannelWriter { get; set; }
+    public TaskCompletionSource<bool> CompletionSource { get; } = new TaskCompletionSource<bool>();
+}
+
+public async Task StartScanAsync(string initialDirectory, ChannelWriter<string> cw)
+{
+    var directoryChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+    {
+        SingleReader = true,
+        SingleWriter = false
+    });
+
+    var scanState = new ScanState
+    {
+        DirectoryChannelWriter = directoryChannel.Writer,
+        FileChannelWriter = cw
+    };
+
+    Interlocked.Increment(ref scanState.PendingDirectoryCount);
+
+    var initialTask = ScanDirectoryAsync(initialDirectory, scanState);
+
+    await Parallel.ForEachAsync(directoryChannel.Reader.ReadAllAsync(), new ParallelOptions
+    {
+        MaxDegreeOfParallelism = Environment.ProcessorCount
+    },
+    async (directory, ct) =>
+    {
+        await ScanDirectoryAsync(directory, scanState);
+    });
+
+    await initialTask;
+
+    await scanState.CompletionSource.Task;
+}
+
+private async Task ScanDirectoryAsync(string path, ScanState scanState)
+{
+    try
+    {
+        var newDirectories = new List<string>();
+
+        var findData = new WIN32_FIND_DATA();
+        using var findHandle = FindFirstFile(CreateSearchPath(path), out findData);
+        if (!findHandle.IsInvalid)
+        {
+            do
+            {
+                if (findData.cFileName is "." or "..")
+                    continue;
+
+                string fullPath = CombinePath(path, findData.cFileName);
+
+                if (_includeHidden || (findData.dwFileAttributes & FileAttributes.Hidden) == 0)
+                {
+                    if ((findData.dwFileAttributes & FileAttributes.Directory) != 0)
+                    {
+                        newDirectories.Add(fullPath);
+                    }
+                    else
+                    {
+                        await scanState.FileChannelWriter.WriteAsync(fullPath);
+                    }
+                }
+            }
+            while (FindNextFile(findHandle, out findData));
+        }
+
+        // Enqueue discovered directories
+        foreach (var dir in newDirectories)
+        {
+            Interlocked.Increment(ref scanState.PendingDirectoryCount);
+            await scanState.DirectoryChannelWriter.WriteAsync(dir);
+        }
+    }
+    catch (Exception ex) when (ex is UnauthorizedAccessException or DirectoryNotFoundException or IOException)
+    {
+        // Handle exceptions as needed
+    }
+    finally
+    {
+        // Decrement the pending directory count
+        if (Interlocked.Decrement(ref scanState.PendingDirectoryCount) == 0)
+        {
+            // Complete channels if this is the last directory
+            if (Interlocked.Exchange(ref scanState.ChannelsCompleted, 1) == 0)
+            {
+                scanState.DirectoryChannelWriter.Complete();
+                scanState.FileChannelWriter.Complete();
+                scanState.CompletionSource.SetResult(true);
+            }
+        }
+    }
+}
+    
+    public async Task StartScanAsync3(string initialDirectory, ChannelWriter<string> cw)
+    {
+        var directoryChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions 
         { 
             SingleReader = true,
             SingleWriter = false
         });
-        
-        Task.Run(async () => {
-            try
-            {
-                await ScanDirectoryAsync(rootPath, channel.Writer);
-            }
-            finally
-            {
-                channel.Writer.Complete();
-            }
-        });
 
-        return channel.Reader;
+        Task.Run(async () =>
+        {
+            await ScanDirectory(initialDirectory, directoryChannel.Writer, cw);
+        });
+            
+        await Parallel.ForEachAsync(directoryChannel.Reader.ReadAllAsync(), new ParallelOptions()
+            {
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            },
+            async (directory, ct) =>
+            {
+                await ScanDirectory(directory, directoryChannel.Writer, cw);
+            });
+    }
+
+    private async Task ScanDirectory(string path, ChannelWriter<string> directoryChannel, ChannelWriter<string> fileChannel)
+    {
+        try
+        {
+            var findData = new WIN32_FIND_DATA();
+            using var findHandle = FindFirstFile(CreateSearchPath(path), out findData);
+            if (!findHandle.IsInvalid)
+            {
+                do
+                {
+                    if (findData.cFileName is "." or "..")
+                        continue;
+
+                    string fullPath = CombinePath(path, findData.cFileName);
+
+                    if ((findData.dwFileAttributes & FileAttributes.Directory) != 0)
+                    {
+                        if (_includeHidden || (findData.dwFileAttributes & FileAttributes.Hidden) != FileAttributes.Hidden)
+                        {
+                            await directoryChannel.WriteAsync(fullPath);
+                        }
+                    }
+                    else
+                    {
+                        if (_includeHidden || (findData.dwFileAttributes & FileAttributes.Hidden) != FileAttributes.Hidden)
+                        {
+                            await fileChannel.WriteAsync(fullPath);
+                        }
+                    }
+                }
+                while (FindNextFile(findHandle, out findData));
+            }
+        }
+        catch (Exception ex) when (
+            ex is UnauthorizedAccessException or
+                DirectoryNotFoundException or
+                IOException)
+        {
+            return;
+        }
     }
     
     private async Task ScanDirectoryAsync(string path, ChannelWriter<string> writer)
@@ -252,8 +410,8 @@ public class StreamingWin32DriveScanner
         }
         catch (Exception ex) when (
             ex is UnauthorizedAccessException or
-            DirectoryNotFoundException or
-            IOException)
+                DirectoryNotFoundException or
+                IOException)
         {
             return;
         }
@@ -269,8 +427,8 @@ public class StreamingWin32DriveScanner
                 }
                 catch (Exception ex) when (
                     ex is UnauthorizedAccessException or
-                    DirectoryNotFoundException or
-                    IOException)
+                        DirectoryNotFoundException or
+                        IOException)
                 {
                     return;
                 }

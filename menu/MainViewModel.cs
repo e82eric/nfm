@@ -15,10 +15,46 @@ using nfzf;
 
 namespace nfm.menu;
 
+internal sealed class AsyncAutoResetEvent
+{
+    private static readonly Task s_completed = Task.FromResult(true);
+    private readonly object _lock = new();
+    private TaskCompletionSource<bool>? _tcs;
+    private bool _signaled;
+
+    public Task WaitAsync()
+    {
+        lock (_lock)
+        {
+            if (_signaled)
+            {
+                _signaled = false;
+                return s_completed;
+            }
+            return (_tcs = new TaskCompletionSource<bool>()).Task;
+        }
+    }
+
+    public void Set()
+    {
+        TaskCompletionSource<bool>? tcs = null;
+        lock (_lock)
+        {
+            if (_tcs != null)
+            {
+                tcs = _tcs;
+                _tcs = null;
+            }
+            else
+                _signaled = true;
+        }
+        tcs?.SetResult(true);
+    }
+}
+
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly Dictionary<(KeyModifiers, Key), Action<string>> _globalKeyBindings;
-    private IResultHandler _resultHandler;
 
     private readonly struct Entry(string line, int score)
     {
@@ -44,7 +80,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly List<Chunk> _chunks = new();
     private readonly CancellationTokenSource _cancellation;
     private string _searchText;
-    private readonly AutoResetEvent _restartSearchSignal = new(false);
+    //private readonly AutoResetEvent _restartSearchSignal = new(false);
+    private readonly AsyncAutoResetEvent _restartSearchSignal = new();
     private bool _showResults;
     private ObservableCollection<HighlightedText> _displayItems = new();
     private readonly Slab _positionsSlab;
@@ -190,17 +227,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             _slabPool.Add(Slab.MakeDefault());
         }
+
+        //Start the processing loop.  need to handle the task better.
+        _ = ProcessLoop();
         
-        Task.Run(async () => await ProcessLoop(), CancellationToken.None)
-            .ContinueWith(t => 
-            {
-                if (t.IsFaulted)
-                {
-                    // Handle exception, e.g., log the error
-                    var ex = t.Exception?.Flatten();
-                    // Log or handle ex
-                }
-            });
+        //Task.Run(async () => await ProcessLoop(), CancellationToken.None)
+        //    .ContinueWith(t => 
+        //    {
+        //        if (t.IsFaulted)
+        //        {
+        //            // Handle exception, e.g., log the error
+        //            var ex = t.Exception?.Flatten();
+        //            // Log or handle ex
+        //        }
+        //    });
         
         var firstChunk = new Chunk();
         _chunks.Add(firstChunk);
@@ -235,14 +275,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ReadEnumerable(enumerable);
             });
         }
-        else if (definition.AsyncFunction != null)
-        {
-            Task.Run(async () =>
-            {
-                var reader = definition.AsyncFunction();
-                await ReadFromSourceAsync(reader);
-            });
-        }
     }
     
     public async Task RunDefinitionAsync(MenuDefinition definition)
@@ -269,8 +301,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         else if (definition.AsyncFunction != null)
         {
-            var reader = definition.AsyncFunction();
-            await ReadFromSourceAsync(reader);
+            var channel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions 
+            { 
+                SingleReader = true,
+                SingleWriter = false
+            });
+            
+            definition.AsyncFunction(channel.Writer);
+            await ReadFromSourceAsync(channel.Reader);
         }
     }
     
@@ -322,12 +360,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task ProcessLoop()
     {
-        Task previousTask = Task.CompletedTask;
         while (!_cancellation.Token.IsCancellationRequested)
         {
-            _restartSearchSignal.WaitOne();
-            await previousTask;
-            previousTask = Render(CancellationToken.None);
+            await _restartSearchSignal.WaitAsync();
+            await Render(CancellationToken.None);
         }
     }
     
@@ -448,7 +484,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             .ThenBy(e => e.Element.Line, StringComparer.Ordinal)
             .Select(e =>
             {
-                var pos = nfzf.FuzzySearcher.GetPositions(e.Element.Line, pattern, _positionsSlab);
+                var pos = FuzzySearcher.GetPositions(e.Element.Line, pattern, _positionsSlab);
                 _positionsSlab.Reset();
                 return new HighlightedText(e.Element.Line, pos);
             }).ToList();
