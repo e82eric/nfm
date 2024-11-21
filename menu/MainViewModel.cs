@@ -64,11 +64,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     
     private class ThreadLocalData(Slab slab)
     {
-        public PriorityQueue<Entry, int> Queue { get; } = new();
+        public List<Entry> Entries { get; } = new(MaxItems);
         public Slab Slab { get; } = slab;
     }
     
-    private readonly ConcurrentBag<Slab> _slabPool = new();
+    private readonly ConcurrentBag<ThreadLocalData> _localResultsPool = new();
     private const int MaxDegreeOfParallelism = 10;
     private int _selectedIndex;
     private bool _reading;
@@ -80,7 +80,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly List<Chunk> _chunks = new();
     private readonly CancellationTokenSource _cancellation;
     private string _searchText;
-    //private readonly AutoResetEvent _restartSearchSignal = new(false);
     private readonly AsyncAutoResetEvent _restartSearchSignal = new();
     private bool _showResults;
     private ObservableCollection<HighlightedText> _displayItems = new();
@@ -225,22 +224,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         
         for (var i = 0; i < MaxDegreeOfParallelism; i++)
         {
-            _slabPool.Add(Slab.MakeDefault());
+            _localResultsPool.Add(new ThreadLocalData(Slab.MakeDefault()));
         }
 
         //Start the processing loop.  need to handle the task better.
         _ = ProcessLoop();
-        
-        //Task.Run(async () => await ProcessLoop(), CancellationToken.None)
-        //    .ContinueWith(t => 
-        //    {
-        //        if (t.IsFaulted)
-        //        {
-        //            // Handle exception, e.g., log the error
-        //            var ex = t.Exception?.Flatten();
-        //            // Log or handle ex
-        //        }
-        //    });
         
         var firstChunk = new Chunk();
         _chunks.Add(firstChunk);
@@ -325,7 +313,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     
     private void StartRead(string command)
     {
-        //_minScore = minScore;
         SearchText = string.Empty;
         IsVisible = true;
         DisplayItems = new ObservableCollection<HighlightedText>();
@@ -367,27 +354,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
     
-    private Slab GetSlabFromPool()
+    private ThreadLocalData GetLocalResultFromPool()
     {
-        if (_slabPool.TryTake(out var slab))
+        if (_localResultsPool.TryTake(out var result))
         {
-            return slab;
+            return result;
         }
 
-        throw new Exception("Number of outstanding slabs exceeded");
+        throw new Exception("Number of outstanding thread locals exceeded");
     }
-
-    private void ReturnSlabToPool(Slab slab)
+    
+    private void ReturnLocalResultToPool(ThreadLocalData threadLocalData)
     {
-        _slabPool.Add(slab);
+        _localResultsPool.Add(threadLocalData);
     }
+    
+    private static readonly IComparer<Entry> EntryComparer = Comparer<Entry>.Create((x, y) =>
+    {
+        int scoreComparison = y.Score.CompareTo(x.Score);
+        if (scoreComparison != 0) return scoreComparison;
+
+        int lengthComparison = x.Line.Length.CompareTo(y.Line.Length);
+        if (lengthComparison != 0) return lengthComparison;
+
+        return string.Compare(x.Line, y.Line, StringComparison.Ordinal);
+    });
 
     private Task Render(CancellationToken ct)
     {
         var searchString = _searchText;
         var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, searchString, true);
         Searching = true;
-        var globalQueue = new PriorityQueue<Entry, int>();
+        var globalList = new List<Entry>(MaxItems);
 
         var completeChunks = _chunks.Where(c => c.IsComplete).ToList();
 
@@ -396,105 +394,45 @@ public sealed class MainViewModel : INotifyPropertyChanged
             MaxDegreeOfParallelism = MaxDegreeOfParallelism
         };
 
-        var localQueues = new ConcurrentBag<PriorityQueue<Entry, int>>();
-
         var numberOfItemsWithScores = 0;
-            
-        Parallel.ForEach(completeChunks, parallelOptions, () => new ThreadLocalData(GetSlabFromPool()),
+        
+        Parallel.ForEach(completeChunks, parallelOptions, GetLocalResultFromPool,
             (chunk, _, localData) =>
+        {
+            chunk.SetQueryStringNoReset(searchString);
+            for (var i = 0; i < chunk.Items.Length; i++)
             {
-                ItemScoreResult[]? cache = null;
-                if (chunk.TryGetResultCache(searchString, ref cache, out var cacheSize))
+                var line = chunk.Items[i];
+                var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
+                if (score > _definition.MinScore)
                 {
-                    if (cache != null)
-                    {
-                        for (var i = 0; i < cacheSize; i++)
-                        {
-                            var item = cache[i];
-                            Interlocked.Increment(ref numberOfItemsWithScores);
-                            var entry = new Entry(chunk.Items[item.Index], item.Score);
-                            localData.Queue.Enqueue(entry, item.Score);
-                        }
-                    }
+                    Interlocked.Increment(ref numberOfItemsWithScores);
+                    ProcessNewScore(line, score, localData);
                 }
-                else if (chunk.TryGetItemCache(searchString, ref cache, out cacheSize))
-                {
-                    chunk.SetQueryStringNoReset(searchString);
-                    var added = 0;
-                    for (var i = 0; i < cacheSize; i++)
-                    {
-                        if (cache != null)
-                        {
-                            var item = cache[i];
-                            var line = chunk.Items[item.Index];
-                            var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
-                            if (score > _definition.MinScore)
-                            {
-                                Interlocked.Increment(ref numberOfItemsWithScores);
-                                ProcessNewScore(line, score, localData);
-                            }
-                            if (score > 0)
-                            {
-                                chunk.SetResultCacheItemNoReset(item.Index, score, added);
-                                added++;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    chunk.SetQueryStringNoReset(searchString);
-                    var added = 0;
-                    for (var i = 0; i < chunk.Items.Length; i++)
-                    {
-                        var line = chunk.Items[i];
-                        var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
-                        if (score > _definition.MinScore)
-                        {
-                            chunk.SetResultCacheItemNoReset(i, score, added);
-                            Interlocked.Increment(ref numberOfItemsWithScores);
-                            ProcessNewScore(line, score, localData);
-                            added++;
-                        }
-                    }
-                }
-
-                return localData;
-            },
-            localQueue =>
-            {
-                ReturnSlabToPool(localQueue.Slab);
-                localQueues.Add(localQueue.Queue);
             }
-        );
+
+            return localData;
+        }, ReturnLocalResultToPool);
+
         NumberOfScoredItems = numberOfItemsWithScores;
 
-        foreach (var localQueue in localQueues)
+        foreach (var localData in _localResultsPool)
         {
-            while (localQueue.Count > 0)
-            {
-                var entry = localQueue.Dequeue();
-                ProcessNewScore(entry, globalQueue);
-            }
+            globalList.AddRange(localData.Entries);
+            localData.Entries.Clear();
         }
+        globalList.Sort(EntryComparer);
+        var topEntries = globalList.Take(MaxItems).ToList();
 
-        var topEntries = globalQueue.UnorderedItems
-            .OrderByDescending(e => e.Priority)
-            .ThenBy(e => e.Element.Line.Length)
-            .ThenBy(e => e.Element.Line, StringComparer.Ordinal)
-            .Select(e =>
-            {
-                var pos = FuzzySearcher.GetPositions(e.Element.Line, pattern, _positionsSlab);
-                _positionsSlab.Reset();
-                return new HighlightedText(e.Element.Line, pos);
-            }).ToList();
-             
         var previousIndex = SelectedIndex;
         DisplayItems.Clear();
         foreach (var item in topEntries)
         {
-            DisplayItems.Add(item);
+            var pos = FuzzySearcher.GetPositions(item.Line, pattern, _positionsSlab);
+            _positionsSlab.Reset();
+            DisplayItems.Add(new HighlightedText(item.Line, pos));
         }
+
         if (DisplayItems.Any() && previousIndex < 0)
         {
             previousIndex = 0;
@@ -517,64 +455,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
     
-    private static void ProcessNewScore(Entry entry, PriorityQueue<Entry, int> queue)
+    private static void ProcessNewScore(string line, int score, ThreadLocalData localData)
     {
-        if (entry.Line == null)
+        if (line == null)
         {
             return;
         }
-        
-        if (queue.Count < MaxItems)
+
+        var entry = new Entry(line, score);
+
+        // Insert the entry in a sorted manner
+        var list = localData.Entries;
+
+        // Binary search to find the correct insertion point
+        int index = list.BinarySearch(entry, EntryComparer);
+
+        // BinarySearch returns a negative value for the insertion point
+        if (index < 0) index = ~index;
+
+        // Add the new entry at the correct position
+        list.Insert(index, entry);
+
+        // Keep the list size within the MaxItems limit
+        if (list.Count > MaxItems)
         {
-            queue.Enqueue(entry, entry.Score);
-        }
-        else
-        {
-            var lowest = queue.Peek();
-            if (entry.Score > lowest.Score)
-            {
-                queue.Dequeue();
-                queue.Enqueue(entry, entry.Score);
-            }
-            else if (entry.Score == lowest.Score)
-            {
-                if (entry.Line.Length < lowest.Line.Length)
-                {
-                    queue.Dequeue();
-                    queue.Enqueue(entry, entry.Score);
-                }
-                else if(entry.Line.Length == lowest.Line.Length)
-                {
-                    if (string.Compare(entry.Line, lowest.Line, StringComparison.Ordinal) < 0)
-                    {
-                        queue.Dequeue();
-                        queue.Enqueue(entry, entry.Score);
-                    }
-                }
-            }
+            list.RemoveAt(list.Count - 1); // Remove the lowest-priority item
         }
     }
 
-    private static void ProcessNewScore(string line, int score, ThreadLocalData localData)
-    {
-        var entry = new Entry(line, score);
-        ProcessNewScore(entry, localData.Queue);
-    }
-    
     private void ReadEnumerable(IEnumerable<string> lines)
     {
         SearchText = string.Empty;
         IsVisible = true;
         DisplayItems = new ObservableCollection<HighlightedText>();
         ReadFromSource(lines);
-    }
-    
-    private async Task ReadEnumerableAsync(ChannelReader<string> channelReader)
-    {
-        SearchText = string.Empty;
-        IsVisible = true;
-        DisplayItems = new ObservableCollection<HighlightedText>();
-        await ReadFromSourceAsync(channelReader);
     }
     
     private void ReadFromSource(IEnumerable<string> lines)

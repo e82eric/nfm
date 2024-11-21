@@ -33,7 +33,7 @@ public class TestResultHandler : IResultHandler
             AsyncFunction = (reader) => _fileScanner.StartScanAsync(output, reader),
             Header = null,
             KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
-            MinScore = 50,
+            MinScore = 0,
             ResultHandler = new ProcessRunResultHandler(),
             ShowHeader = false
         };
