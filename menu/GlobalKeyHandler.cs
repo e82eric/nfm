@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 
 namespace nfm.menu;
@@ -21,13 +22,13 @@ public class GlobalKeyHandler
     private static IntPtr _hookID = IntPtr.Zero;
     private static bool isWinKeyPressed;
     private static App _app;
-    private static Dictionary<(Modifiers, int), Action> _keyBindings;
+    private static Dictionary<(Modifiers, int), Func<Task>> _keyBindings;
     
 
     public static void SetHook(App app)
     {
         _app = app;
-        _keyBindings = new Dictionary<(Modifiers, int), Action>();
+        _keyBindings = new Dictionary<(Modifiers, int), Func<Task>>();
         _keyBindings.Add((Modifiers.LAlt, VK_O), _app.Show);
         _keyBindings.Add((Modifiers.LAlt, VK_I), _app.ShowListWindows);
         _keyBindings.Add((Modifiers.LAlt, VK_U), _app.ShowProcesses);
@@ -105,12 +106,24 @@ public class GlobalKeyHandler
         if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
         {
             var modifiers = GetModifiersPressed();
-            int vkCode = Marshal.ReadInt32(lParam);
-            if (_keyBindings.TryGetValue((modifiers, vkCode), out var action))
-            {
-                Dispatcher.UIThread.Post(() => action());
-                return 1;
-            }
+            //if (modifiers != Modifiers.None)
+            //{
+                int vkCode = Marshal.ReadInt32(lParam);
+                if (_keyBindings.TryGetValue((modifiers, vkCode), out var action))
+                {
+                    Dispatcher.UIThread.InvokeAsync(async () =>
+                    {
+                        try
+                        {
+                            await action();
+                        }
+                        catch (Exception e)
+                        {
+                        }
+                    });
+                    return 1;
+                }
+            //}
         }
 
         return CallNextHookEx(_hookID, nCode, wParam, lParam);

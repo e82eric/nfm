@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Channels;
 
 namespace nfm.menu;
 public class ListWindows
@@ -304,7 +305,7 @@ public class ListWindows
         return true;
     }
 
-    public static IEnumerable<string> Run()
+    public static async Task Run(ChannelWriter<string> writer)
     {
         ListWindowsWorkspace workspace = new ListWindowsWorkspace();
         GCHandle handle = GCHandle.Alloc(workspace);
@@ -322,10 +323,11 @@ public class ListWindows
         {
             string line = string.Format("{0:X8} {1,8} {2,-" + workspace.MaxProcessNameLen + "} {3}",
                 c.Data.Hwnd.ToInt64(), c.Data.ProcessId, c.Data.ProcessName, c.Data.Title);
-            yield return line;
+            await writer.WriteAsync(line);
             c = c.Next;
             numberOfResults++;
         }
+        writer.Complete();
 
         handle.Free();
     }

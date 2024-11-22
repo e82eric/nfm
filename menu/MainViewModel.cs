@@ -69,7 +69,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
     
     private readonly ConcurrentBag<ThreadLocalData> _localResultsPool = new();
-    private const int MaxDegreeOfParallelism = 10;
+    private int MaxDegreeOfParallelism = Environment.ProcessorCount;
     private int _selectedIndex;
     private bool _reading;
     private bool _searching;
@@ -241,30 +241,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsWorking = Reading || Searching;
     }
 
-    public void RunDefinition(MenuDefinition definition)
-    {
-        _definition = definition;
-        IsVisible = true;
-        DisplayItems.Clear();
-        SearchText = string.Empty;
-        IsHeaderVisible = definition.Header != null;
-        Header = definition.Header;
-        SelectedIndex = 0;
-        
-        if (definition.Command != null)
-        {
-            StartRead(definition.Command);
-        }
-        else if (definition.Function != null)
-        {
-            var enumerable = definition.Function();
-            Task.Run(() =>
-            {
-                ReadEnumerable(enumerable);
-            });
-        }
-    }
-    
     public async Task RunDefinitionAsync(MenuDefinition definition)
     {
         _definition = definition;
@@ -275,19 +251,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Header = definition.Header;
         SelectedIndex = 0;
         
-        if (definition.Command != null)
-        {
-            StartRead(definition.Command);
-        }
-        else if (definition.Function != null)
-        {
-            var enumerable = definition.Function();
-            Task.Run(() =>
-            {
-                ReadEnumerable(enumerable);
-            });
-        }
-        else if (definition.AsyncFunction != null)
+        if (definition.AsyncFunction != null)
         {
             var channel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions 
             { 
@@ -295,21 +259,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 SingleWriter = false
             });
             
-            definition.AsyncFunction(channel.Writer);
+            var writerTask = definition.AsyncFunction(channel.Writer);
             await ReadFromSourceAsync(channel.Reader);
+            await writerTask;
         }
     }
     
-    public void StartRead()
-    {
-        IsVisible = true;
-        DisplayItems.Clear();
-        Task.Run(() =>
-        {
-            var stream = Console.OpenStandardInput();
-            ReadStream(stream);
-        });
-    }
+    //public void StartRead()
+    //{
+    //    IsVisible = true;
+    //    DisplayItems.Clear();
+    //    Task.Run(() =>
+    //    {
+    //        var stream = Console.OpenStandardInput();
+    //        using (var reader = new StreamReader(stream))
+    //        {
+    //            ReadFromSource(ReadLines(reader));
+    //        }
+    //    });
+    //}
     
     private void StartRead(string command)
     {
@@ -398,21 +366,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
         
         Parallel.ForEach(completeChunks, parallelOptions, GetLocalResultFromPool,
             (chunk, _, localData) =>
-        {
-            chunk.SetQueryStringNoReset(searchString);
-            for (var i = 0; i < chunk.Items.Length; i++)
             {
-                var line = chunk.Items[i];
-                var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
-                if (score > _definition.MinScore)
+                ItemScoreResult[]? result = null;
+                if (chunk.TryGetResultCache(searchString, ref result, out var size))
                 {
-                    Interlocked.Increment(ref numberOfItemsWithScores);
-                    ProcessNewScore(line, score, localData);
+                    for (var i = 0; i < size; i++)
+                    {
+                        Interlocked.Increment(ref numberOfItemsWithScores);
+                        var itemScoreResult = result![i];
+                        ProcessNewScore(chunk.Items[itemScoreResult.Index], itemScoreResult.Score, localData);
+                    }
                 }
-            }
+                else
+                {
+                    chunk.SetQueryStringNoReset(searchString);
+                    var numberOfLocalItemsAdded = 0;
+                    for (var i = 0; i < chunk.Items.Length; i++)
+                    {
+                        var line = chunk.Items[i];
+                        var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
+                        if (score > _definition.MinScore)
+                        {
+                            Interlocked.Increment(ref numberOfItemsWithScores);
+                            chunk.SetResultCacheItemNoReset(i, score, numberOfLocalItemsAdded);
+                            ProcessNewScore(line, score, localData);
+                            numberOfLocalItemsAdded++;
+                        }
+                    }
+                }
+            
 
-            return localData;
-        }, ReturnLocalResultToPool);
+                return localData;
+            }, ReturnLocalResultToPool);
 
         NumberOfScoredItems = numberOfItemsWithScores;
 

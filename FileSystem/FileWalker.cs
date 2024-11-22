@@ -105,6 +105,48 @@ public class StreamingWin32DriveScanner
         public ChannelWriter<string> FileChannelWriter { get; set; }
         public TaskCompletionSource<bool> CompletionSource { get; } = new();
     }
+    
+    public async Task StartScanMultiAsync(IEnumerable<string> initialDirectory, ChannelWriter<string> cw)
+    {
+        var sw = Stopwatch.StartNew();
+        var directoryChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        var scanState = new ScanState
+        {
+            DirectoryChannelWriter = directoryChannel.Writer,
+            FileChannelWriter = cw
+        };
+
+        for (int i = 0; i < initialDirectory.Count(); i++)
+        {
+            Interlocked.Increment(ref scanState.PendingDirectoryCount);
+        }
+
+        var tasks = new List<Task>();
+        foreach (var directory in initialDirectory)
+        {
+            var task = ScanDirectoryAsync(directory, scanState);
+            tasks.Add(task);
+        }
+
+        await Parallel.ForEachAsync(directoryChannel.Reader.ReadAllAsync(), new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            },
+            async (directory, ct) =>
+            {
+                await ScanDirectoryAsync(directory, scanState);
+            });
+
+        await Task.WhenAll(tasks);
+
+        await scanState.CompletionSource.Task;
+        Console.WriteLine($"ScanDir: {sw}");
+    }
 
     public async Task StartScanAsync(string initialDirectory, ChannelWriter<string> cw)
     {

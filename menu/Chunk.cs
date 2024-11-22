@@ -28,19 +28,22 @@ class Chunk
     public void SetQueryStringNoReset(string queryString)
     {
         _queryString = queryString;
-        if (string.IsNullOrEmpty(queryString))
-        {
-            _resultCacheSize = 0;
-        }
+        //if (string.IsNullOrEmpty(queryString))
+        //{
+        //    _resultCacheSize = 0;
+        //}
     }
 
     public bool TryGetResultCache(string queryString, ref ItemScoreResult[]? resultCache, out int size)
     {
-        if (queryString == _queryString)
+        if (!string.IsNullOrEmpty(_queryString) && !string.IsNullOrEmpty(queryString))
         {
-            resultCache = _resultCache;
-            size = _resultCacheSize;
-            return true;
+            if (queryString == _queryString)
+            {
+                resultCache = _resultCache;
+                size = _resultCacheSize;
+                return true;
+            }
         }
 
         size = -1;
