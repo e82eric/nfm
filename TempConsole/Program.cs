@@ -7,14 +7,14 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        var scanner = new StreamingWin32DriveScanner2();
-        var reader = scanner.ScanAsync(@"C:\");
+        //var scanner = new StreamingWin32DriveScanner2();
+        //var reader = scanner.ScanAsync(@"C:\");
 
 // Read results
-        await foreach (var file in reader.ReadAllAsync())
-        {
-            Console.WriteLine(file);
-        }
+        //await foreach (var file in reader.ReadAllAsync())
+        //{
+        //    Console.WriteLine(file);
+        //}
 
 // Wait for scanning to complete
         //await scanTask;

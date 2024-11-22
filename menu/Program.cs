@@ -6,8 +6,18 @@ using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using CommandLine;
 
 namespace nfm.menu;
+
+[Verb("filesystem")]
+class FileSystemOptions
+{
+    [Option()]
+    public bool SearchDirectoryOnSelect { get; set; }
+    public string RootDirectory { get; set; }
+    
+}
 
 class Program
 {
@@ -35,13 +45,24 @@ class Program
             var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>();
             globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             _viewModel = new MainViewModel(globalKeyBindings);
-            _app = new App(_command, _viewModel);
+            _app = new App(
+                _command,
+                _viewModel,
+                args.Contains("--fuzzyfile", StringComparer.CurrentCultureIgnoreCase),
+                args.Contains("--searchdirectories", StringComparer.CurrentCultureIgnoreCase));
             return _app;
         }).UsePlatformDetect();
 
     private static void Run(Application app, string[] args)
     {
-        GlobalKeyHandler.SetHook(_app);
-        app.Run(CancellationToken.None);
+        if (args.Contains("--keyhandler"))
+        {
+            GlobalKeyHandler.SetHook(_app);
+            app.Run(CancellationToken.None);
+        }
+        else if (args.Contains("--fuzzyfile"))
+        {
+            app.Run(CancellationToken.None);
+        }
     }
 }

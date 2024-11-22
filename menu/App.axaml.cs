@@ -2,11 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using nfzf.FileSystem;
 using nfzf.ListProcesses;
 
@@ -15,51 +18,98 @@ namespace nfm.menu;
 public class TestResultHandler : IResultHandler
 {
     private readonly MainViewModel _viewModel;
-    private readonly StreamingWin32DriveScanner _fileScanner;
+    private readonly StreamingWin32DriveScanner2 _fileScanner;
+    private bool _quitAfter;
+    private bool _quitOnEscape;
+    private bool _writeToStdOut;
+    private bool _searchDirectories;
 
-    public TestResultHandler(MainViewModel viewModel)
+    public TestResultHandler(MainViewModel viewModel, bool quitAfter, bool quitOnEscape, bool writeToStdOut, bool searchDirectories)
     {
+        _searchDirectories = searchDirectories;
+        _writeToStdOut = writeToStdOut;
+        _quitOnEscape = quitOnEscape;
+        _quitAfter = quitAfter;
         _viewModel = viewModel;
-        _fileScanner = new StreamingWin32DriveScanner();
+        _fileScanner = new StreamingWin32DriveScanner2();
+    }
+
+    private static bool IsDirectory(string path)
+    {
+        FileAttributes attributes = File.GetAttributes(path);
+        return attributes.HasFlag(FileAttributes.Directory);
     }
     
     public async Task HandleAsync(string output)
     {
-        var window = new MainWindow(_viewModel);
-
-        var definition = new MenuDefinition
+        if (!IsDirectory(output) || !_searchDirectories)
         {
-            AsyncFunction = writer => _fileScanner.StartScanAsync(output, writer),
-            Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
-            MinScore = 50,
-            ResultHandler = new ProcessRunResultHandler(),
-            ShowHeader = false
-        };
+            if (_writeToStdOut)
+            {
+                Console.WriteLine(output);
+            }
+            else
+            {
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = output,
+                    UseShellExecute = true
+                };
+                Process.Start(startInfo);
+            }
 
-        window.Show();
-        await _viewModel.RunDefinitionAsync(definition);
+            if (_quitAfter)
+            {
+                Environment.Exit(0);
+            }
+        }
+        else
+        {
+            var window = new MainWindow(_viewModel);
+            var definition = new MenuDefinition
+            {
+                AsyncFunction = (writer, ct) => _fileScanner.StartScanForDirectoriesAsync(
+                    [output],
+                    writer,
+                    Int32.MaxValue,
+                    ct),
+                Header = null,
+                KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
+                MinScore = 0,
+                ResultHandler = this,
+                ShowHeader = false,
+                QuitOnEscape = _quitOnEscape
+            };
+
+            window.Show();
+            await _viewModel.RunDefinitionAsync(definition);
+        }
     }
 }
 
 public class MenuDefinition
 {
     public int MinScore { get; set; }
-    public Func<ChannelWriter<string>, Task>? AsyncFunction { get; set; }
+    public Func<ChannelWriter<string>, CancellationToken, Task>? AsyncFunction { get; set; }
     public IResultHandler ResultHandler { get; set; }
     public Dictionary<(KeyModifiers, Key), Action<string>> KeyBindings { get; set; }
     public bool ShowHeader { get; set; }
     public string? Header { get; set; }
+    public bool QuitOnEscape { get; set; }
 }
 
 public class App : Application
 {
     private readonly string _command;
     private readonly MainViewModel _viewModel;
-    private readonly StreamingWin32DriveScanner _fileScanner = new StreamingWin32DriveScanner();
+    private readonly StreamingWin32DriveScanner2 _fileScanner = new();
+    private bool _showFiles;
+    private bool _searchDirectories;
 
-    public App(string command, MainViewModel viewModel)
+    public App(string command, MainViewModel viewModel, bool showFiles, bool searchDirectories)
     {
+        _searchDirectories = searchDirectories;
+        _showFiles = showFiles;
         _command = command;
         _viewModel = viewModel;
     }
@@ -67,16 +117,21 @@ public class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        if (_showFiles)
+        {
+            Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                await ShowFiles(true, true, true, _searchDirectories);
+            });
+        }
     }
 
-    private static async Task ListDrives(ChannelWriter<string> writer)
+    private async Task ListDrives(ChannelWriter<string> writer, CancellationToken cancellationToken)
     {
+        var fileScanner = new StreamingWin32DriveScanner2();
         DriveInfo[] allDrives = DriveInfo.GetDrives();
-        foreach (var driveInfo in allDrives)
-        {
-            await writer.WriteAsync(driveInfo.Name);
-        }
-        writer.Complete();
+        var drives = allDrives.Select(d => d.Name);
+        await fileScanner.StartScanForDirectoriesAsync(drives, writer, 5, cancellationToken);
     }
 
     private async Task RunCommand(string command, ChannelWriter<string> writer)
@@ -117,7 +172,7 @@ public class App : Application
         var window  = new MainWindow(_viewModel);
         var definition = new MenuDefinition
         {
-            AsyncFunction = writer => _fileScanner.StartScanMultiAsync(commands, writer),
+            AsyncFunction = (writer, ct) => _fileScanner.StartScanForDirectoriesAsync(commands, writer, Int32.MaxValue, ct),
             Header = null,
             KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
             MinScore = 0,
@@ -168,7 +223,7 @@ public class App : Application
         window.Show();
     }
 
-    public async Task ShowFiles()
+    public async Task ShowFiles(bool quitAfter = false, bool quitOnEscape = false, bool useStdOut = false, bool searchDirectories = true)
     {
         var window  = new MainWindow(_viewModel);
         var definition = new MenuDefinition
@@ -177,8 +232,9 @@ public class App : Application
             Header = null,
             KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
             MinScore = 0,
-            ResultHandler = new TestResultHandler(_viewModel),
-            ShowHeader = false
+            ResultHandler = new TestResultHandler(_viewModel, quitAfter, quitOnEscape, useStdOut, searchDirectories),
+            ShowHeader = false,
+            QuitOnEscape = quitOnEscape
         };
         await _viewModel.RunDefinitionAsync(definition);
         window.Show();

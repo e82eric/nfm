@@ -227,7 +227,7 @@ public class ProcessLister
         writer.Complete();
     }
 
-    public static async Task RunNoSort(ChannelWriter<string> writer)
+    public static async Task RunNoSort(ChannelWriter<string> writer, CancellationToken cancellationToken)
     {
         await Run(false, null, writer);
     }

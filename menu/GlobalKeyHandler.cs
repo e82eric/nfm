@@ -32,7 +32,7 @@ public class GlobalKeyHandler
         _keyBindings.Add((Modifiers.LAlt, VK_O), _app.Show);
         _keyBindings.Add((Modifiers.LAlt, VK_I), _app.ShowListWindows);
         _keyBindings.Add((Modifiers.LAlt, VK_U), _app.ShowProcesses);
-        _keyBindings.Add((Modifiers.LAlt, VK_L), _app.ShowFiles);
+        _keyBindings.Add((Modifiers.LAlt, VK_L), () => _app.ShowFiles(false));
         using (Process curProcess = Process.GetCurrentProcess())
         using (ProcessModule curModule = curProcess.MainModule)
         {

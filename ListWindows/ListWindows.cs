@@ -305,7 +305,7 @@ public class ListWindows
         return true;
     }
 
-    public static async Task Run(ChannelWriter<string> writer)
+    public static async Task Run(ChannelWriter<string> writer, CancellationToken cancellationToken)
     {
         ListWindowsWorkspace workspace = new ListWindowsWorkspace();
         GCHandle handle = GCHandle.Alloc(workspace);

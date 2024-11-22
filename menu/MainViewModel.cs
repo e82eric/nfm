@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -243,6 +242,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task RunDefinitionAsync(MenuDefinition definition)
     {
+        var cancellationTokenSource = new CancellationTokenSource();
         _definition = definition;
         IsVisible = true;
         DisplayItems.Clear();
@@ -259,8 +259,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 SingleWriter = false
             });
             
-            var writerTask = definition.AsyncFunction(channel.Writer);
-            await ReadFromSourceAsync(channel.Reader);
+            var writerTask = definition.AsyncFunction(channel.Writer, cancellationTokenSource.Token);
+            await ReadFromSourceAsync(channel.Reader, cancellationTokenSource.Token);
             await writerTask;
         }
     }
@@ -278,33 +278,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     //        }
     //    });
     //}
-    
-    private void StartRead(string command)
-    {
-        SearchText = string.Empty;
-        IsVisible = true;
-        DisplayItems = new ObservableCollection<HighlightedText>();
-        Task.Run(() =>
-        {
-            using (var process = new Process())
-            {
-                process.StartInfo.FileName = "cmd.exe";
-                process.StartInfo.Arguments = $"/C {command}";
-                process.StartInfo.RedirectStandardOutput = true;
-                process.StartInfo.UseShellExecute = false;
-                process.StartInfo.CreateNoWindow = true;
-
-                process.Start();
-
-                using (var stream = process.StandardOutput.BaseStream)
-                {
-                    ReadStream(stream);
-                }
-
-                process.WaitForExit();
-            }
-        });
-    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -312,13 +285,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+    
+    private CancellationTokenSource? _currentSearchCancellationTokenSource;
 
     private async Task ProcessLoop()
     {
         while (!_cancellation.Token.IsCancellationRequested)
         {
             await _restartSearchSignal.WaitAsync();
-            await Render(CancellationToken.None);
+            if (_currentSearchCancellationTokenSource != null)
+            {
+                await _currentSearchCancellationTokenSource.CancelAsync();
+            }
+            _currentSearchCancellationTokenSource = new CancellationTokenSource();
+            await Render(_currentSearchCancellationTokenSource.Token);
         }
     }
     
@@ -372,6 +352,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     for (var i = 0; i < size; i++)
                     {
+                        if (ct.IsCancellationRequested)
+                        {
+                            return localData;
+                        }
                         Interlocked.Increment(ref numberOfItemsWithScores);
                         var itemScoreResult = result![i];
                         ProcessNewScore(chunk.Items[itemScoreResult.Index], itemScoreResult.Score, localData);
@@ -383,6 +367,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     var numberOfLocalItemsAdded = 0;
                     for (var i = 0; i < chunk.Items.Length; i++)
                     {
+                        if (ct.IsCancellationRequested)
+                        {
+                            return localData;
+                        }
                         var line = chunk.Items[i];
                         var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
                         if (score > _definition.MinScore)
@@ -394,12 +382,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         }
                     }
                 }
-            
-
                 return localData;
             }, ReturnLocalResultToPool);
 
         NumberOfScoredItems = numberOfItemsWithScores;
+
+        if (ct.IsCancellationRequested)
+        {
+            Console.WriteLine("Cancelled");
+            return Task.CompletedTask;
+        }
 
         foreach (var localData in _localResultsPool)
         {
@@ -468,15 +460,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void ReadEnumerable(IEnumerable<string> lines)
-    {
-        SearchText = string.Empty;
-        IsVisible = true;
-        DisplayItems = new ObservableCollection<HighlightedText>();
-        ReadFromSource(lines);
-    }
-    
-    private void ReadFromSource(IEnumerable<string> lines)
+    private async Task ReadFromSourceAsync(ChannelReader<string> channelReader, CancellationToken cancellationToken)
     {
         var numberOfItems = 0;
         NumberOfItems = 0;
@@ -484,45 +468,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var currentChunk = _chunks.Last();
 
-        foreach (var line in lines)
+        await foreach (var line in channelReader.ReadAllAsync(cancellationToken))
         {
-            numberOfItems++;
-            if (!currentChunk.TryAdd(line))
+            if (cancellationToken.IsCancellationRequested)
             {
-                currentChunk = new Chunk();
-                _chunks.Add(currentChunk);
-                Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
-                if (lastFullChunk != null)
-                {
-                    _restartSearchSignal.Set();
-                }
-
-                if (!currentChunk.TryAdd(line))
-                {
-                    throw new Exception("Could not add line to Chunk");
-                }
-
-                NumberOfItems = numberOfItems;
+                //NEED to cancel publisher also
+                return;
             }
-        }
-
-        NumberOfItems = numberOfItems;
-        Reading = false;
-
-        currentChunk.SetComplete();
-        _restartSearchSignal.Set();
-    }
-    
-    private async Task ReadFromSourceAsync(ChannelReader<string> channelReader)
-    {
-        var numberOfItems = 0;
-        NumberOfItems = 0;
-        Reading = true;
-
-        var currentChunk = _chunks.Last();
-
-        await foreach (var line in channelReader.ReadAllAsync())
-        {
             numberOfItems++;
             if (!currentChunk.TryAdd(line))
             {
@@ -559,14 +511,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void ReadStream(Stream stream)
-    {
-        using (var reader = new StreamReader(stream))
-        {
-            ReadFromSource(ReadLines(reader));
-        }
-    }
-
     public async Task HandleKey(Key eKey, KeyModifiers eKeyModifiers)
     {
         if (eKeyModifiers == KeyModifiers.Control)
@@ -593,6 +537,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 break;
             case Key.Escape:
                 Close();
+                if (_definition.QuitOnEscape)
+                {
+                    Environment.Exit(0);
+                }
                 break;
             case Key.Enter:
                 if (SelectedIndex >= 0 && SelectedIndex < DisplayItems.Count)
@@ -606,6 +554,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void Close()
     {
+        if (_currentSearchCancellationTokenSource != null)
+        {
+            _currentSearchCancellationTokenSource.Cancel();
+        }
+
         ShowResults = false;
         IsVisible = false;
         _chunks.Clear();
