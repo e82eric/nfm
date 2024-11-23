@@ -1,17 +1,33 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 
 namespace nfm.menu;
+
+public class BooleanToGridLengthConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is bool hasPreview && hasPreview ? GridLength.Star : new GridLength(0);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
@@ -50,15 +66,19 @@ public partial class MainWindow : Window
             );
         }
     }
-    
+
     private void AdjustWindowSizeAndPosition()
     {
-        // Get the primary screen information
+        var margin = .3;
+        if (_viewModel.HasPreview)
+        {
+            margin = .1;
+        }
         var screens = Screens.Primary;
         var screen = screens ?? Screens.All[0]; // Fallback in case Primary is null
 
         // Calculate 15% of the screen height
-        var marginPercentage = 0.10;
+        var marginPercentage = margin;
         var topBottomMargin = screen.Bounds.Height * marginPercentage;
 
         // Calculate the desired window height (70% of the screen height)
@@ -100,6 +120,11 @@ public partial class MainWindow : Window
 
     private void ViewModelOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == "HasPreview")
+        {
+            AdjustWindowSizeAndPosition();
+        }
+        
         if (e.PropertyName == "ShowResults")
         {
             if (_viewModel.ShowResults)

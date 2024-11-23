@@ -124,7 +124,8 @@ public class FileSystemMenuDefinitionProvider(
     TestResultHandler resultHandler,
     int maxDepth,
     IEnumerable<string>? rootDirectory,
-    bool quitOnEscape) : IMenuDefinitionProvider
+    bool quitOnEscape,
+    bool hasPreview) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -138,7 +139,8 @@ public class FileSystemMenuDefinitionProvider(
             MinScore = 0,
             ResultHandler = resultHandler,
             ShowHeader = false,
-            QuitOnEscape = quitOnEscape
+            QuitOnEscape = quitOnEscape,
+            HasPreview = hasPreview
         };
         return definition;
     }
@@ -238,6 +240,7 @@ public class MenuDefinition
     public bool ShowHeader { get; set; }
     public string? Header { get; set; }
     public bool QuitOnEscape { get; set; }
+    public bool HasPreview { get; set; }
 }
 
 public class App : Application

@@ -88,6 +88,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isHeaderVisible;
     private MenuDefinition _definition;
 
+    public bool HasPreview
+    {
+        get => _hasPreview;
+        set
+        {
+            if (value == _hasPreview) return;
+            _hasPreview = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool IsHeaderVisible
     {
         get => _isHeaderVisible;
@@ -244,6 +255,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         var cancellationTokenSource = new CancellationTokenSource();
         _definition = definition;
+        HasPreview = _definition.HasPreview;
         IsVisible = true;
         DisplayItems.Clear();
         SearchText = string.Empty;
@@ -273,6 +285,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
     
     private CancellationTokenSource? _currentSearchCancellationTokenSource;
+    private bool _hasPreview;
 
     private async Task ProcessLoop()
     {

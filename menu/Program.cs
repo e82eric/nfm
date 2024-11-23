@@ -18,6 +18,8 @@ class FileSystemOptions
     public string? RootDirectory { get; set; }
     [Option(Default = int.MaxValue)]
     public int MaxDepth { get; set; }
+    [Option(Default = false)]
+    public bool HasPreview { get; set; }
 }
 
 [Verb("keyhandler")]
@@ -46,7 +48,7 @@ class Program
             .MapResult(
                 (FileSystemOptions opts) =>
                 {
-                    BuildFileSystemApp(opts.SearchDirectoryOnSelect, opts.RootDirectory, opts.MaxDepth)
+                    BuildFileSystemApp(opts.SearchDirectoryOnSelect, opts.RootDirectory, opts.MaxDepth, opts.HasPreview)
                         .Start((application, strings) => Run(application, false), args);
                     return 0;
                 },
@@ -69,7 +71,7 @@ class Program
             return _app;
         }).UsePlatformDetect();
     
-    private static AppBuilder BuildFileSystemApp(bool searchDirectoriesOnSelect, string? rootDirectory, int maxDepth) 
+    private static AppBuilder BuildFileSystemApp(bool searchDirectoriesOnSelect, string? rootDirectory, int maxDepth, bool hasPreview) 
         => AppBuilder.Configure(() =>
         {
             var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>();
@@ -77,7 +79,7 @@ class Program
             _viewModel = new MainViewModel(globalKeyBindings);
 
             var resultHandler = new TestResultHandler(_viewModel, true, true, true, searchDirectoriesOnSelect);
-            var command = new FileSystemMenuDefinitionProvider(resultHandler, maxDepth, [rootDirectory], true);
+            var command = new FileSystemMenuDefinitionProvider(resultHandler, maxDepth, [rootDirectory], true, hasPreview);
             _app = new App(_viewModel, command);
             return _app;
         }).UsePlatformDetect();
@@ -114,6 +116,7 @@ class Program
                 fileSystemResultHandler,
                 Int32.MaxValue,
                 appDirectories,
+                false,
                 false));
             keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_I), new ShowWindowsMenuDefinitionProvider());
             keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_U), new ShowProcessesMenuDefinitionProvider());
@@ -121,6 +124,7 @@ class Program
                 fileSystemResultHandler,
                 5,
                 null,
+                false,
                 false));
             GlobalKeyHandler.SetHook(_keyHandlerApp, keyBindings);
             app.Run(CancellationToken.None);
