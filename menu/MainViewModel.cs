@@ -264,20 +264,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await writerTask;
         }
     }
-    
-    //public void StartRead()
-    //{
-    //    IsVisible = true;
-    //    DisplayItems.Clear();
-    //    Task.Run(() =>
-    //    {
-    //        var stream = Console.OpenStandardInput();
-    //        using (var reader = new StreamReader(stream))
-    //        {
-    //            ReadFromSource(ReadLines(reader));
-    //        }
-    //    });
-    //}
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -365,7 +351,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     chunk.SetQueryStringNoReset(searchString);
                     var numberOfLocalItemsAdded = 0;
-                    for (var i = 0; i < chunk.Items.Length; i++)
+                    for (var i = 0; i < chunk.Size; i++)
                     {
                         if (ct.IsCancellationRequested)
                         {

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
@@ -13,54 +12,103 @@ namespace nfm.menu;
 [Verb("filesystem")]
 class FileSystemOptions
 {
-    [Option()]
+    [Option(Default = false)]
     public bool SearchDirectoryOnSelect { get; set; }
-    public string RootDirectory { get; set; }
-    
+    [Option(Default = null)]
+    public string? RootDirectory { get; set; }
+    [Option(Default = int.MaxValue)]
+    public int MaxDepth { get; set; }
+}
+
+[Verb("keyhandler")]
+class KeyHandlerOptions
+{
 }
 
 class Program
 {
     private static MainViewModel _viewModel;
     private static App _app;
-    private static string _command;
+    private static KeyHandlerApp _keyHandlerApp;
 
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(FileSystemOptions))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(KeyHandlerOptions))]
     [STAThread]
     public static void Main(string[] args)
     {
-        BuildAvaloniaApp(args).Start(Run, args);
+        Parser.Default.ParseArguments<FileSystemOptions, KeyHandlerOptions>(args)
+            .MapResult(
+                (FileSystemOptions opts) =>
+                {
+                    BuildFileSystemApp(opts.SearchDirectoryOnSelect, opts.RootDirectory, opts.MaxDepth)
+                        .Start((application, strings) => Run(application, false), args);
+                    return 0;
+                },
+                (KeyHandlerOptions opts) =>
+                {
+                    BuildAvaloniaApp(args).Start((app, strings) => Run(app, true), args);
+                    return 0;
+                },
+                errors => 1);
     }
+    
+    private static AppBuilder BuildFileSystemApp(bool searchDirectoriesOnSelect, string? rootDirectory, int maxDepth) 
+        => AppBuilder.Configure(() =>
+        {
+            var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>();
+            globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            _viewModel = new MainViewModel(globalKeyBindings);
+
+            var resultHandler = new TestResultHandler(_viewModel, true, true, true, searchDirectoriesOnSelect);
+            var command = new FileSystemMenuDefinitionProvider(resultHandler, maxDepth, [rootDirectory], true);
+            _app = new App(_viewModel, command);
+            return _app;
+        }).UsePlatformDetect();
 
     private static AppBuilder BuildAvaloniaApp(string[] args) 
         => AppBuilder.Configure(() =>
         {
-            bool debug = args.Contains("--debug");
-            if (debug)
-            {
-                Debugger.Launch();
-            }
-
-            _command = """fd -t f . "%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu" "C:\ProgramData\Microsoft\Windows\Start Menu" "%USERPROFILE%\AppData\Local\Microsoft\WindowsApps" "%USERPROFILE%\utilities" "C:\Program Files\sysinternals\""";
-
             var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>();
             globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             _viewModel = new MainViewModel(globalKeyBindings);
-            _app = new App(
-                _command,
-                _viewModel,
-                args.Contains("--fuzzyfile", StringComparer.CurrentCultureIgnoreCase),
-                args.Contains("--searchdirectories", StringComparer.CurrentCultureIgnoreCase));
-            return _app;
+            _keyHandlerApp = new KeyHandlerApp(_viewModel);
+            return _keyHandlerApp;
         }).UsePlatformDetect();
 
-    private static void Run(Application app, string[] args)
+    private const int VK_O = 0x4F;
+    private const int VK_I = 0x49;
+    private const int VK_U = 0x55;
+    private const int VK_L = 0x4c;
+    
+    private static void Run(Application app, bool keyHandler)
     {
-        if (args.Contains("--keyhandler"))
+        if (keyHandler)
         {
-            GlobalKeyHandler.SetHook(_app);
+            var appDirectories = new []{ @"c:\users\eric\AppData\Roaming\Microsoft\Windows\Start Menu",
+                @"C:\ProgramData\Microsoft\Windows\Start Menu",
+                @"c:\users\eric\AppData\Local\Microsoft\WindowsApps",
+                @"c:\users\eric\utilities",
+                @"C:\Program Files\sysinternals\"};
+            
+            var fileSystemResultHandler = new TestResultHandler(_viewModel, false, false, false, true);
+            
+            var keyBindings = new Dictionary<(GlobalKeyHandler.Modifiers, int), IMenuDefinitionProvider>();
+            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_O), new FileSystemMenuDefinitionProvider(
+                fileSystemResultHandler,
+                Int32.MaxValue,
+                appDirectories,
+                false));
+            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_I), new ShowWindowsMenuDefinitionProvider());
+            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_U), new ShowProcessesMenuDefinitionProvider());
+            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_L), new FileSystemMenuDefinitionProvider(
+                fileSystemResultHandler,
+                5,
+                null,
+                false));
+            GlobalKeyHandler.SetHook(_keyHandlerApp, keyBindings);
             app.Run(CancellationToken.None);
         }
-        else if (args.Contains("--fuzzyfile"))
+        else
         {
             app.Run(CancellationToken.None);
         }

@@ -23,6 +23,7 @@ bld/
 Tools/
 .vs
 MigrationBackup
+Temp
 
 # Roslyn cache directories
 *.ide/

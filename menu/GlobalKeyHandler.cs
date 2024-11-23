@@ -21,18 +21,14 @@ public class GlobalKeyHandler
     private static LowLevelKeyboardProc _proc = HookCallback;
     private static IntPtr _hookID = IntPtr.Zero;
     private static bool isWinKeyPressed;
-    private static App _app;
-    private static Dictionary<(Modifiers, int), Func<Task>> _keyBindings;
+    private static KeyHandlerApp _app;
+    private static Dictionary<(Modifiers, int), IMenuDefinitionProvider> _keyBindings;
     
 
-    public static void SetHook(App app)
+    public static void SetHook(KeyHandlerApp app, Dictionary<(Modifiers, int), IMenuDefinitionProvider> keyBindings)
     {
         _app = app;
-        _keyBindings = new Dictionary<(Modifiers, int), Func<Task>>();
-        _keyBindings.Add((Modifiers.LAlt, VK_O), _app.Show);
-        _keyBindings.Add((Modifiers.LAlt, VK_I), _app.ShowListWindows);
-        _keyBindings.Add((Modifiers.LAlt, VK_U), _app.ShowProcesses);
-        _keyBindings.Add((Modifiers.LAlt, VK_L), () => _app.ShowFiles(false));
+        _keyBindings = keyBindings;
         using (Process curProcess = Process.GetCurrentProcess())
         using (ProcessModule curModule = curProcess.MainModule)
         {
@@ -115,7 +111,8 @@ public class GlobalKeyHandler
                     {
                         try
                         {
-                            await action();
+                            var definition = action.Get();
+                            await _app.RunDefinition(definition);
                         }
                         catch (Exception e)
                         {

@@ -15,6 +15,88 @@ using nfzf.ListProcesses;
 
 namespace nfm.menu;
 
+public interface IMenuDefinitionProvider
+{
+    MenuDefinition Get();
+}
+
+public class ShowProcessesMenuDefinitionProvider : IMenuDefinitionProvider
+{
+    public MenuDefinition Get()
+    {
+        var header = string.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
+            "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)");
+        var keyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>();
+        keyBindings.Add((KeyModifiers.Control, Key.K), ProcessLister.KillProcessById);
+        keyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+
+        var definition = new MenuDefinition
+        {
+            AsyncFunction = ProcessLister.RunNoSort,
+            Header = header,
+            KeyBindings = keyBindings,
+            MinScore = 0,
+            ResultHandler = new StdOutResultHandler(),
+            ShowHeader = true
+        };
+        return definition;
+    }
+}
+
+public class ShowWindowsMenuDefinitionProvider : IMenuDefinitionProvider
+{
+    public MenuDefinition Get()
+    {
+        var definition = new MenuDefinition
+        {
+            AsyncFunction = ListWindows.Run,
+            Header = null,
+            KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
+            ResultHandler = new StdOutResultHandler(),
+            MinScore = 0,
+            ShowHeader = false
+        };
+        return definition;
+    }
+}
+
+public class FileSystemMenuDefinitionProvider(
+    TestResultHandler resultHandler,
+    int maxDepth,
+    IEnumerable<string>? rootDirectory,
+    bool quitOnEscape) : IMenuDefinitionProvider
+{
+    public MenuDefinition Get()
+    {
+        var definition = new MenuDefinition
+        {
+            AsyncFunction = rootDirectory == null || !rootDirectory.Any() ?
+                (writer, ct) => ListDrives(maxDepth, writer, ct) :
+                (writer, ct) => ListDrives(rootDirectory, maxDepth, writer, ct),
+            Header = null,
+            KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
+            MinScore = 0,
+            ResultHandler = resultHandler,
+            ShowHeader = false,
+            QuitOnEscape = quitOnEscape
+        };
+        return definition;
+    }
+    
+    private async Task ListDrives(int maxDepth, ChannelWriter<string> writer, CancellationToken cancellationToken)
+    {
+        DriveInfo[] allDrives = DriveInfo.GetDrives();
+        var drives = allDrives.Select(d => d.Name);
+        await ListDrives(drives, maxDepth, writer, cancellationToken);
+    }
+    
+    private async Task ListDrives(IEnumerable<string> rootDirectories, int maxDepth, ChannelWriter<string> writer, CancellationToken cancellationToken)
+    {
+        var fileScanner = new StreamingWin32DriveScanner2();
+        await fileScanner.StartScanForDirectoriesAsync(rootDirectories, writer, maxDepth, cancellationToken);
+    }
+}
+
 public class TestResultHandler : IResultHandler
 {
     private readonly MainViewModel _viewModel;
@@ -100,38 +182,28 @@ public class MenuDefinition
 
 public class App : Application
 {
-    private readonly string _command;
     private readonly MainViewModel _viewModel;
-    private readonly StreamingWin32DriveScanner2 _fileScanner = new();
-    private bool _showFiles;
-    private bool _searchDirectories;
+    private readonly IMenuDefinitionProvider? _definitionProvider;
 
-    public App(string command, MainViewModel viewModel, bool showFiles, bool searchDirectories)
+    public App(MainViewModel viewModel, IMenuDefinitionProvider definitionProvider)
     {
-        _searchDirectories = searchDirectories;
-        _showFiles = showFiles;
-        _command = command;
         _viewModel = viewModel;
+        _definitionProvider = definitionProvider;
     }
-    
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
-        if (_showFiles)
+        if (_definitionProvider != null)
         {
             Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                await ShowFiles(true, true, true, _searchDirectories);
+                var definition = _definitionProvider.Get();
+                var window = new MainWindow(_viewModel);
+                await _viewModel.RunDefinitionAsync(definition);
+                window.Show();
             });
         }
-    }
-
-    private async Task ListDrives(ChannelWriter<string> writer, CancellationToken cancellationToken)
-    {
-        var fileScanner = new StreamingWin32DriveScanner2();
-        DriveInfo[] allDrives = DriveInfo.GetDrives();
-        var drives = allDrives.Select(d => d.Name);
-        await fileScanner.StartScanForDirectoriesAsync(drives, writer, 5, cancellationToken);
     }
 
     private async Task RunCommand(string command, ChannelWriter<string> writer)
@@ -160,83 +232,5 @@ public class App : Application
             await process.WaitForExitAsync();
             writer.Complete();
         }
-    }
-
-    public async Task Show()
-    {
-        var commands = new []{ @"c:\users\eric\AppData\Roaming\Microsoft\Windows\Start Menu",
-            @"C:\ProgramData\Microsoft\Windows\Start Menu",
-            @"c:\users\eric\AppData\Local\Microsoft\WindowsApps",
-            @"c:\users\eric\utilities",
-            @"C:\Program Files\sysinternals\"};
-        var window  = new MainWindow(_viewModel);
-        var definition = new MenuDefinition
-        {
-            AsyncFunction = (writer, ct) => _fileScanner.StartScanForDirectoriesAsync(commands, writer, Int32.MaxValue, ct),
-            Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
-            MinScore = 0,
-            ResultHandler = new ProcessRunResultHandler(),
-            ShowHeader = false
-        };
-        await _viewModel.RunDefinitionAsync(definition);
-        window.Show();
-    }
-    
-    public async Task ShowListWindows()
-    {
-        var window  = new MainWindow(_viewModel);
-        var definition = new MenuDefinition
-        {
-            AsyncFunction = ListWindows.Run,
-            Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
-            ResultHandler = new StdOutResultHandler(),
-            MinScore = 0,
-            ShowHeader = false
-        };
-        await _viewModel.RunDefinitionAsync(definition);
-        window.Show();
-    }
-
-    public async Task ShowProcesses()
-    {
-        var window  = new MainWindow(_viewModel);
-        
-        var header = string.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
-            "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)");
-        var keyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>();
-        keyBindings.Add((KeyModifiers.Control, Key.K), ProcessLister.KillProcessById);
-        keyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-
-        var definition = new MenuDefinition
-        {
-            AsyncFunction = ProcessLister.RunNoSort,
-            Header = header,
-            KeyBindings = keyBindings,
-            MinScore = 0,
-            ResultHandler = new StdOutResultHandler(),
-            ShowHeader = true
-        };
-        
-        await _viewModel.RunDefinitionAsync(definition);
-        window.Show();
-    }
-
-    public async Task ShowFiles(bool quitAfter = false, bool quitOnEscape = false, bool useStdOut = false, bool searchDirectories = true)
-    {
-        var window  = new MainWindow(_viewModel);
-        var definition = new MenuDefinition
-        {
-            AsyncFunction = ListDrives,
-            Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
-            MinScore = 0,
-            ResultHandler = new TestResultHandler(_viewModel, quitAfter, quitOnEscape, useStdOut, searchDirectories),
-            ShowHeader = false,
-            QuitOnEscape = quitOnEscape
-        };
-        await _viewModel.RunDefinitionAsync(definition);
-        window.Show();
     }
 }

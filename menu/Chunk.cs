@@ -8,7 +8,7 @@ struct ItemScoreResult(int score, int index)
 
 class Chunk
 {
-    private int _size;
+    public int Size { get; private set; }
     public readonly string[] Items;
     private const int MaxSize = 1000;
     private bool _manualComplete;
@@ -18,7 +18,7 @@ class Chunk
 
     public Chunk()
     {
-        _size = 0;
+        Size = 0;
         _manualComplete = false;
         Items = new string[MaxSize];
         _resultCache = new ItemScoreResult[MaxSize];
@@ -75,7 +75,7 @@ class Chunk
         _manualComplete = true;
     }
 
-    public bool IsComplete => _manualComplete || _size >= MaxSize;
+    public bool IsComplete => _manualComplete || Size >= MaxSize;
 
     public bool TryAdd(string val)
     {
@@ -84,8 +84,8 @@ class Chunk
             return false;
         }
         
-        Items[_size] = val;
-        _size++;
+        Items[Size] = val;
+        Size++;
         return true;
     }
 }
