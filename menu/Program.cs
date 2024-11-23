@@ -36,6 +36,12 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (Console.IsInputRedirected)
+        {
+            BuildStdInApp().Start((app, args) => Run(app, false), args);
+            return;
+        }
+        
         Parser.Default.ParseArguments<FileSystemOptions, KeyHandlerOptions>(args)
             .MapResult(
                 (FileSystemOptions opts) =>
@@ -51,6 +57,17 @@ class Program
                 },
                 errors => 1);
     }
+    
+    private static AppBuilder BuildStdInApp() 
+        => AppBuilder.Configure(() =>
+        {
+            var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>();
+            globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            _viewModel = new MainViewModel(globalKeyBindings);
+            var command = new StdInMenuDefinitionProvider();
+            _app = new App(_viewModel, command);
+            return _app;
+        }).UsePlatformDetect();
     
     private static AppBuilder BuildFileSystemApp(bool searchDirectoriesOnSelect, string? rootDirectory, int maxDepth) 
         => AppBuilder.Configure(() =>

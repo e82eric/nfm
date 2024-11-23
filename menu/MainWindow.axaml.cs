@@ -1,10 +1,14 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 
 namespace nfm.menu;
@@ -20,6 +24,7 @@ public partial class MainWindow : Window
         _viewModel = viewModel;
         ShowInTaskbar = false;
         InitializeComponent();
+        AdjustWindowSizeAndPosition();
         Loaded += OnLoaded;
         
         _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
@@ -44,6 +49,35 @@ public partial class MainWindow : Window
                 (int)(workingArea.Height - Height) / 2 + workingArea.Y
             );
         }
+    }
+    
+    private void AdjustWindowSizeAndPosition()
+    {
+        // Get the primary screen information
+        var screens = Screens.Primary;
+        var screen = screens ?? Screens.All[0]; // Fallback in case Primary is null
+
+        // Calculate 15% of the screen height
+        var marginPercentage = 0.10;
+        var topBottomMargin = screen.Bounds.Height * marginPercentage;
+
+        // Calculate the desired window height (70% of the screen height)
+        var windowHeight = screen.Bounds.Height - (2 * topBottomMargin);
+
+        // Set the window height
+        this.Height = windowHeight;
+
+        // Optionally, set the window width to match the screen width or any desired value
+        // For example, set width to 80% of screen width
+        var windowWidth = screen.Bounds.Width * 0.5;
+        this.Width = windowWidth;
+
+        // Calculate the position to center the window horizontally and apply top margin
+        var left = screen.Bounds.X + (screen.Bounds.Width - this.Width) / 2;
+        var top = screen.Bounds.Y + topBottomMargin;
+
+        // Set the window position
+        this.Position = new PixelPoint((int)left, (int)top);
     }
 
     protected override void OnLostFocus(RoutedEventArgs e)
@@ -80,7 +114,7 @@ public partial class MainWindow : Window
                 Dispatcher.UIThread.Invoke(() =>
                 {
                     this.
-                    ListBoxContainer.IsVisible = false;
+                        ListBoxContainer.IsVisible = false;
                 });
             }
         }
@@ -106,6 +140,58 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == "SelectedIndex")
         {
+            if (_viewModel.DisplayItems.Count > _viewModel.SelectedIndex)
+            {
+                var selected = _viewModel.DisplayItems[_viewModel.SelectedIndex];
+                if (selected.Text.EndsWith(".mp4") || selected.Text.EndsWith(".wmv"))
+                {
+                    string arguments =
+                        $"-ss 00:00:15 -i \"{selected.Text}\" -frames:v 1 -f image2pipe -vcodec png pipe:1";
+
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            var process = new Process
+                            {
+                                StartInfo = new ProcessStartInfo
+                                {
+                                    FileName = @"C:\msys64\mingw64\bin\ffmpeg.exe",
+                                    Arguments = arguments,
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true,
+                                    StandardOutputEncoding = null,
+                                }
+                            };
+
+                            process.Start();
+
+                            using (var memoryStream = new MemoryStream())
+                            {
+                                process.StandardOutput.BaseStream.CopyTo(memoryStream);
+                                process.WaitForExit();
+
+                                string error = process.StandardError.ReadToEnd();
+                                if (process.ExitCode != 0)
+                                {
+                                    //await MessageBox.Show(this, error, "FFmpeg Error", MessageBoxButtons.Ok);
+                                    return;
+                                }
+
+                                memoryStream.Seek(0, SeekOrigin.Begin);
+                                Dispatcher.UIThread.Invoke(() => { VideoFrameImage.Source = new Bitmap(memoryStream); });
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            //await MessageBox.Show(this, ex.Message, "Exception", MessageBoxButtons.Ok);
+                        }
+                    });
+                }
+            }
+
             Dispatcher.UIThread.Invoke(() =>
             {
                 ListBox.SelectedIndex = _viewModel.SelectedIndex;

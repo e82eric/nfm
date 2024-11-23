@@ -4,7 +4,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:menu="clr-namespace:nfm.menu"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-        Height="750"
+        Height="1000"
         Width="1200"
         Background="Transparent"
         SystemDecorations="None"
@@ -103,14 +103,24 @@
     <Grid
         x:DataType="menu:MainViewModel"
         x:Name="Root"
+        Background="Black"
         IsVisible="{Binding IsVisible}"
-        RowDefinitions="Auto,Auto">
+        RowDefinitions="*,Auto,*">
+        <Border
+            Margin="10,10,10,0"
+            BorderThickness="2"
+            Padding="4"
+            BorderBrush="#3c3836"
+            Grid.Row="0"
+            CornerRadius="5">
+            <Image Name="VideoFrameImage" Stretch="Uniform" />
+        </Border>
         <Border
             Background="Black"
             Margin="10"
             BorderThickness="2"
             BorderBrush="#3c3836"
-            Grid.Row="0"
+            Grid.Row="1"
             CornerRadius="5">
             <Grid ColumnDefinitions="*, auto">
                 <TextBox
@@ -184,11 +194,9 @@
             BorderBrush="#3c3836"
             CornerRadius="5"
             x:DataType="menu:MainViewModel"
-            Grid.Row="1"
+            Grid.Row="2"
             Padding="5"
-            MaxHeight="500"
             Margin="10,0,10,10">
-
             <Grid RowDefinitions="Auto,*">
                 <Border
                     BorderBrush="#3c3836"

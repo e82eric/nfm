@@ -75,7 +75,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _numberOfItems;
     private bool _isWorking;
     private int _numberOfScoredItems;
-    private const int MaxItems = 30;
+    private const int MaxItems = 256;
     private readonly List<Chunk> _chunks = new();
     private readonly CancellationTokenSource _cancellation;
     private string _searchText;

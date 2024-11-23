@@ -13,13 +13,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "menu", "menu\menu.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ListWindows", "ListWindows\ListWindows.csproj", "{730C9596-B01A-43C8-98B7-8DA7F92B99DD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TempConsole", "TempConsole\TempConsole.csproj", "{6E57EADA-E7D8-4A69-8EC1-D324FFCC1EA5}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ListProcesses", "ListProcesses\ListProcesses.csproj", "{C07A2D2F-D786-474A-A083-08064FD214E4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileSystem", "FileSystem\FileSystem.csproj", "{8631A04D-86D0-4BBB-A762-56D9BE8587C6}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Temp", "Temp\Temp.csproj", "{B6667376-787D-4D49-95FA-FCC387324465}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -50,10 +46,6 @@ Global
 		{730C9596-B01A-43C8-98B7-8DA7F92B99DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{730C9596-B01A-43C8-98B7-8DA7F92B99DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{730C9596-B01A-43C8-98B7-8DA7F92B99DD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6E57EADA-E7D8-4A69-8EC1-D324FFCC1EA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6E57EADA-E7D8-4A69-8EC1-D324FFCC1EA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6E57EADA-E7D8-4A69-8EC1-D324FFCC1EA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6E57EADA-E7D8-4A69-8EC1-D324FFCC1EA5}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C07A2D2F-D786-474A-A083-08064FD214E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C07A2D2F-D786-474A-A083-08064FD214E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C07A2D2F-D786-474A-A083-08064FD214E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -62,9 +54,5 @@ Global
 		{8631A04D-86D0-4BBB-A762-56D9BE8587C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8631A04D-86D0-4BBB-A762-56D9BE8587C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8631A04D-86D0-4BBB-A762-56D9BE8587C6}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B6667376-787D-4D49-95FA-FCC387324465}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B6667376-787D-4D49-95FA-FCC387324465}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B6667376-787D-4D49-95FA-FCC387324465}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B6667376-787D-4D49-95FA-FCC387324465}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
