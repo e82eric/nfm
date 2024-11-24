@@ -38,11 +38,11 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        if (Console.IsInputRedirected)
-        {
-            BuildStdInApp().Start((app, args) => Run(app, false), args);
-            return;
-        }
+        //if (Console.IsInputRedirected)
+        //{
+        //    BuildStdInApp().Start((app, args) => Run(app, false), args);
+        //    return;
+        //}
         
         Parser.Default.ParseArguments<FileSystemOptions, KeyHandlerOptions>(args)
             .MapResult(
@@ -78,7 +78,7 @@ class Program
             globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             _viewModel = new MainViewModel(globalKeyBindings);
 
-            var resultHandler = new TestResultHandler(_viewModel, true, true, true, searchDirectoriesOnSelect);
+            var resultHandler = new TestResultHandler(_viewModel, true, true, true, searchDirectoriesOnSelect, hasPreview);
             var command = new FileSystemMenuDefinitionProvider(resultHandler, maxDepth, [rootDirectory], true, hasPreview);
             _app = new App(_viewModel, command);
             return _app;
@@ -94,6 +94,7 @@ class Program
             return _keyHandlerApp;
         }).UsePlatformDetect();
 
+    private const int VK_P = 0x50;
     private const int VK_O = 0x4F;
     private const int VK_I = 0x49;
     private const int VK_U = 0x55;
@@ -109,23 +110,23 @@ class Program
                 @"c:\users\eric\utilities",
                 @"C:\Program Files\sysinternals\"};
             
-            var fileSystemResultHandler = new TestResultHandler(_viewModel, false, false, false, true);
+            var fileSystemResultHandler = new TestResultHandler(_viewModel, false, false, false, true, true);
             
             var keyBindings = new Dictionary<(GlobalKeyHandler.Modifiers, int), IMenuDefinitionProvider>();
-            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_O), new FileSystemMenuDefinitionProvider(
+            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_P), new FileSystemMenuDefinitionProvider(
                 fileSystemResultHandler,
                 Int32.MaxValue,
                 appDirectories,
                 false,
                 false));
-            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_I), new ShowWindowsMenuDefinitionProvider());
-            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_U), new ShowProcessesMenuDefinitionProvider());
-            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt, VK_L), new FileSystemMenuDefinitionProvider(
+            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_I), new ShowWindowsMenuDefinitionProvider());
+            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_U), new ShowProcessesMenuDefinitionProvider());
+            keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_L), new FileSystemMenuDefinitionProvider(
                 fileSystemResultHandler,
                 5,
                 null,
                 false,
-                false));
+                true));
             GlobalKeyHandler.SetHook(_keyHandlerApp, keyBindings);
             app.Run(CancellationToken.None);
         }

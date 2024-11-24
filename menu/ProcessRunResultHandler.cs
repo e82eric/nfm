@@ -5,7 +5,7 @@ namespace nfm.menu;
 
 public class ProcessRunResultHandler : IResultHandler
 {
-    public void Handle(string output)
+    private void Handle(string output)
     {
         ProcessStartInfo startInfo = new ProcessStartInfo
         {
@@ -16,8 +16,9 @@ public class ProcessRunResultHandler : IResultHandler
         Process.Start(startInfo);
     }
 
-    public Task HandleAsync(string output)
+    public Task HandleAsync(string output, MainViewModel viewModel)
     {
+        viewModel.Close();
         Handle(output);
         return Task.CompletedTask;
     }

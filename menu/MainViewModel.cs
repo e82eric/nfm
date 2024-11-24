@@ -388,7 +388,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (ct.IsCancellationRequested)
         {
-            Console.WriteLine("Cancelled");
             return Task.CompletedTask;
         }
 
@@ -544,23 +543,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
             case Key.Enter:
                 if (SelectedIndex >= 0 && SelectedIndex < DisplayItems.Count)
                 {
-                    Close();
-                    await _definition.ResultHandler.HandleAsync(DisplayItems[SelectedIndex].Text);
+                    //Close();
+                    await _definition.ResultHandler.HandleAsync(DisplayItems[SelectedIndex].Text, this);
                 }
                 break;
         }
     }
-
-    public void Close()
+    
+    public void Clear()
     {
         if (_currentSearchCancellationTokenSource != null)
         {
             _currentSearchCancellationTokenSource.Cancel();
         }
 
+        DisplayItems.Clear();
         ShowResults = false;
-        IsVisible = false;
         _chunks.Clear();
         _chunks.Add(new Chunk());
+    }
+
+    public void Close()
+    {
+        IsVisible = false;
+        Clear();
     }
 }

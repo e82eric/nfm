@@ -4,5 +4,5 @@ namespace nfm.menu;
 
 public interface IResultHandler
 {
-    Task HandleAsync(string output);
+    Task HandleAsync(string output, MainViewModel viewModel);
 }
