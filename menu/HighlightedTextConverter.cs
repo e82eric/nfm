@@ -12,9 +12,13 @@ public class HighlightedTextConverter : IMultiValueConverter
 {
     public static readonly HighlightedTextConverter Instance = new();
 
+    public IBrush NormalTextBrush { get; set; } = new SolidColorBrush(Color.Parse("#ebdbb2"));
+    public IBrush HighlightBrush { get; set; } = new SolidColorBrush(Color.Parse("#fe8019"));
+    public IBrush SelectedItemTextBrush { get; set; } = new SolidColorBrush(Color.Parse("#ebdbb2"));
+
     public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values?.Count != 2 || values[0] is not string text || values[1] is not IList<int> highlights)
+        if (values?.Count != 3 || values[0] is not string text || values[1] is not IList<int> highlights || values[2] is not bool isSelected)
         {
             return new InlineCollection { new Run { Text = values?[0]?.ToString() ?? string.Empty } };
         }
@@ -24,6 +28,8 @@ public class HighlightedTextConverter : IMultiValueConverter
 
         var sortedHighlights = highlights.OrderBy(i => i).Distinct().ToList();
 
+        var normalBrush = isSelected ? SelectedItemTextBrush : NormalTextBrush;
+
         foreach (var highlightIndex in sortedHighlights)
         {
             if (highlightIndex > currentIndex)
@@ -31,7 +37,7 @@ public class HighlightedTextConverter : IMultiValueConverter
                 inlines.Add(new Run
                 {
                     Text = text[currentIndex..highlightIndex],
-                    Foreground = Brushes.Gray
+                    Foreground = normalBrush
                 });
             }
 
@@ -40,7 +46,7 @@ public class HighlightedTextConverter : IMultiValueConverter
                 inlines.Add(new Run
                 {
                     Text = text[highlightIndex].ToString(),
-                    Foreground = Brushes.Orange
+                    Foreground = HighlightBrush
                 });
             }
 
@@ -52,7 +58,7 @@ public class HighlightedTextConverter : IMultiValueConverter
             inlines.Add(new Run
             {
                 Text = text[currentIndex..],
-                Foreground = Brushes.Gray
+                Foreground = normalBrush
             });
         }
 

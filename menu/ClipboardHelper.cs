@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 
 public class ClipboardHelper
 {
     // Clipboard formats
     private const uint CF_UNICODETEXT = 13;
 
-    // P/Invoke declarations
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool OpenClipboard(IntPtr hWndNewOwner);
     
@@ -31,7 +31,7 @@ public class ClipboardHelper
     
     private const uint GMEM_MOVEABLE = 0x0002;
 
-    public static void CopyStringToClipboard(string text)
+    public static Task CopyStringToClipboard(string text)
     {
         // Ensure we're running on STA thread
         if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
@@ -40,7 +40,7 @@ public class ClipboardHelper
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             thread.Join();
-            return;
+            return Task.CompletedTask;
         }
 
         IntPtr hGlobal = IntPtr.Zero;
@@ -96,5 +96,6 @@ public class ClipboardHelper
             }
             CloseClipboard();
         }
+        return Task.CompletedTask;
     }
 }

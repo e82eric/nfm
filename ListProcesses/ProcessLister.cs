@@ -252,20 +252,10 @@ public class ProcessLister
     //    return Run(true, CompareProcessPid);
     //}
     
-    public static void KillProcessById(string line)
+    public static async Task KillProcessById(string line, int pid)
     {
-        var match = Regex.Match(line, @"\s+([0-9]+)\s+");
-        if (!match.Success)
-        {
-            return;
-        }
-
-        var pidString = match.Groups[1].Value;
-
-        var pid = Convert.ToInt32(pidString);
         var process = Process.GetProcessById(pid);
         process.Kill();
-        process.WaitForExit();
-        Console.WriteLine($"Process with PID {pid} has been terminated.");
+        await process.WaitForExitAsync();
     }
 }

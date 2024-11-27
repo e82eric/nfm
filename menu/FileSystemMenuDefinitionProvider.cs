@@ -15,7 +15,11 @@ public class FileSystemMenuDefinitionProvider(
     int maxDepth,
     IEnumerable<string>? rootDirectory,
     bool quitOnEscape,
-    bool hasPreview) : IMenuDefinitionProvider
+    bool hasPreview,
+    bool directoriesOnly,
+    bool filesOnly,
+    MainViewModel viewModel,
+    IComparer<Entry>? comparer) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -25,14 +29,31 @@ public class FileSystemMenuDefinitionProvider(
                 (writer, ct) => ListDrives(maxDepth, writer, ct) :
                 (writer, ct) => ListDrives(rootDirectory, maxDepth, writer, ct),
             Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
+            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>(),
             MinScore = 0,
             ResultHandler = resultHandler,
             ShowHeader = false,
             QuitOnEscape = quitOnEscape,
-            HasPreview = hasPreview
+            HasPreview = hasPreview,
+            Comparer = comparer
         };
+        definition.KeyBindings.Add((KeyModifiers.Control, Key.O), _ => ParentDir(rootDirectory));
         return definition;
+    }
+
+    private async Task ParentDir(IEnumerable<string>? dirs)
+    {
+        if (dirs != null && dirs.Any())
+        {
+            var first = dirs.First();
+            var directoryInfo = new DirectoryInfo(first);
+            var parent = directoryInfo.Parent;
+            var definition = new FileSystemMenuDefinitionProvider(resultHandler, maxDepth, [parent.FullName],
+                quitOnEscape, hasPreview, directoriesOnly, filesOnly, viewModel, null).Get();
+
+            await viewModel.Clear();
+            await viewModel.RunDefinitionAsync(definition);
+        }
     }
     
     private async Task ListDrives(int maxDepth, ChannelWriter<string> writer, CancellationToken cancellationToken)
@@ -44,7 +65,7 @@ public class FileSystemMenuDefinitionProvider(
     
     private async Task ListDrives(IEnumerable<string> rootDirectories, int maxDepth, ChannelWriter<string> writer, CancellationToken cancellationToken)
     {
-        var fileScanner = new StreamingWin32DriveScanner2();
-        await fileScanner.StartScanForDirectoriesAsync(rootDirectories, writer, maxDepth, cancellationToken);
+        var fileScanner = new FileWalker();
+        await fileScanner.StartScanForDirectoriesAsync(rootDirectories, writer, maxDepth, directoriesOnly, filesOnly, cancellationToken);
     }
 }

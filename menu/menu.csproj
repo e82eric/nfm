@@ -1,23 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
+        <OutputType>Library</OutputType>
         <TargetFramework>net8.0</TargetFramework>
         <Nullable>enable</Nullable>
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-
-        <!-- Enable Native AOT -->
-        <PublishAot>true</PublishAot>
-
-        <!-- Optional: Remove unused code to minimize executable size -->
-        <TrimMode>Full</TrimMode>
-
-        <!-- Disable runtime configuration to simplify the output -->
-        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-        <SelfContained>true</SelfContained>
-        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-        <AssemblyName>nfm</AssemblyName>
         <RootNamespace>nfm.menu</RootNamespace>
     </PropertyGroup>
     <ItemGroup>

@@ -11,10 +11,9 @@ public class StdOutResultHandler : IResultHandler
         Environment.Exit(0);
     }
 
-    public Task HandleAsync(string output, MainViewModel viewModel)
+    public async Task HandleAsync(string output, MainViewModel viewModel)
     {
-        viewModel.Close();
+        await viewModel.Close();
         Handle(output);
-        return Task.CompletedTask;
     }
 }

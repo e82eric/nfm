@@ -1,28 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 
 namespace nfm.menu;
-
-public class MenuDefinition
-{
-    public int MinScore { get; set; }
-    public Func<ChannelWriter<string>, CancellationToken, Task>? AsyncFunction { get; set; }
-    public IResultHandler ResultHandler { get; set; }
-    public Dictionary<(KeyModifiers, Key), Action<string>> KeyBindings { get; set; }
-    public bool ShowHeader { get; set; }
-    public string? Header { get; set; }
-    public bool QuitOnEscape { get; set; }
-    public bool HasPreview { get; set; }
-}
 
 public class App : Application
 {
@@ -47,34 +27,6 @@ public class App : Application
                 await _viewModel.RunDefinitionAsync(definition);
                 window.Show();
             });
-        }
-    }
-
-    private async Task RunCommand(string command, ChannelWriter<string> writer)
-    {
-        using (var process = new Process())
-        {
-            process.StartInfo.FileName = "cmd.exe";
-            process.StartInfo.Arguments = $"/C {command}";
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.CreateNoWindow = true;
-
-            process.Start();
-
-            using (var stream = process.StandardOutput.BaseStream)
-            {
-                using (var reader = new StreamReader(stream))
-                {
-                    string? line;
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        await writer.WriteAsync(line);
-                    }
-                }
-            }
-            await process.WaitForExitAsync();
-            writer.Complete();
         }
     }
 }

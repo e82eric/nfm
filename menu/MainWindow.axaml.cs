@@ -1,32 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 
 namespace nfm.menu;
-
-public class BooleanToGridLengthConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        return value is bool hasPreview && hasPreview ? GridLength.Star : new GridLength(0);
-    }
-
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        throw new NotSupportedException();
-    }
-}
 
 public partial class MainWindow : Window
 {
@@ -45,7 +31,7 @@ public partial class MainWindow : Window
         
         _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
 
-        ListBoxContainer.IsVisible = false;
+        ListBoxContainer.IsVisible = true;
         _listBox = this.FindControl<ListBox>("ListBox");
         var textBox = this.FindControl<TextBox>("TextBox");
         if (_listBox != null)
@@ -125,31 +111,31 @@ public partial class MainWindow : Window
             AdjustWindowSizeAndPosition();
         }
         
-        if (e.PropertyName == "ShowResults")
-        {
-            if (_viewModel.ShowResults)
-            {
-                Dispatcher.UIThread.Invoke(() =>
-                {
-                    ListBoxContainer.IsVisible = true;
-                });
-            }
-            else
-            {
-                Dispatcher.UIThread.Invoke(() =>
-                {
-                    this.
-                        ListBoxContainer.IsVisible = false;
-                });
-            }
-        }
+        //if (e.PropertyName == "ShowResults")
+        //{
+        //    if (_viewModel.ShowResults)
+        //    {
+        //        Dispatcher.UIThread.Invoke(() =>
+        //        {
+        //            ListBoxContainer.IsVisible = true;
+        //        });
+        //    }
+        //    else
+        //    {
+        //        Dispatcher.UIThread.Invoke(() =>
+        //        {
+        //            this.
+        //                ListBoxContainer.IsVisible = false;
+        //        });
+        //    }
+        //}
         if (e.PropertyName == "IsVisible")
         {
             if (!_viewModel.IsVisible)
             {
                 Dispatcher.UIThread.Invoke(() =>
                 {
-                    ListBoxContainer.IsVisible = false;
+                    //ListBoxContainer.IsVisible = false;
                     Close();
                 });
             }

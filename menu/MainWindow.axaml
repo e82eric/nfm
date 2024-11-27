@@ -20,6 +20,23 @@
         <menu:MainViewModel />
     </Design.DataContext>
     <Window.Resources>
+        <Color x:Key="SelectedItemColor">#504945</Color>
+        <Color x:Key="SelectedItemTextColor">#ebdbb2 </Color>
+        <Color x:Key="HighlightColor">Orange </Color>
+        <Color x:Key="BackgroundColor">#282828</Color>
+        <Color x:Key="BorderColor">#928374</Color>
+        <Color x:Key="ForegroundGray">#a89984</Color>
+        <SolidColorBrush x:Key="SelectedItemBrush" Color="{StaticResource SelectedItemColor}" />
+        <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
+        <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+        <SolidColorBrush x:Key="ForegroundBrush" Color="{StaticResource ForegroundGray}" />
+        <SolidColorBrush x:Key="SelectedItemTextBrush" Color="{StaticResource SelectedItemTextColor}" />
+        <SolidColorBrush x:Key="HighlightBrush" Color="{StaticResource HighlightColor}" />
+        <menu:HighlightedTextConverter
+            x:Key="HighlightedTextConverter"
+            NormalTextBrush="{StaticResource ForegroundBrush}"
+            HighlightBrush="{StaticResource HighlightBrush}"
+            SelectedItemTextBrush="{StaticResource ForegroundBrush}" />
         <menu:BooleanToGridLengthConverter x:Key="BooleanToGridLengthConverter" />
     </Window.Resources>
     
@@ -102,12 +119,26 @@
         <Style Selector="ListBoxItem:pointerover:not(:selected) /template/ ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
         </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SelectedItemBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource SelectedItemTextBrush}" />
+        </Style>
+
+        <Style Selector="ListBoxItem:pointerover:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SelectedItemBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource SelectedItemTextBrush}" />
+        </Style>
+
+        <Style Selector="ListBoxItem:pointerover:not(:selected) /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
+        </Style>
     </Window.Styles>
 
     <Grid
         x:DataType="menu:MainViewModel"
         x:Name="Root"
-        IsVisible="{Binding IsVisible}" >
+        >
         <Grid.RowDefinitions>
             <RowDefinition Height="{Binding HasPreview, Converter={StaticResource BooleanToGridLengthConverter}}" />
             <RowDefinition Height="Auto" />
@@ -115,20 +146,20 @@
         </Grid.RowDefinitions>
         <Border
             Margin="10,10,10,0"
-            Background="Black"
+            Background="{StaticResource BackgroundBrush}"
             BorderThickness="2"
             Padding="4"
-            BorderBrush="#3c3836"
+            BorderBrush="{StaticResource BorderBrush}"
             IsVisible="{Binding HasPreview}"
             Grid.Row="0"
             CornerRadius="5">
             <Image Name="VideoFrameImage" Stretch="Uniform" />
         </Border>
         <Border
-            Background="Black"
+            Background="{StaticResource BackgroundBrush}"
             Margin="10"
             BorderThickness="2"
-            BorderBrush="#3c3836"
+            BorderBrush="{StaticResource BorderBrush}"
             Grid.Row="1"
             CornerRadius="5">
             <Grid ColumnDefinitions="*, auto">
@@ -138,14 +169,14 @@
                     x:Name="TextBox"
                     x:DataType="menu:MainViewModel"
                     BorderThickness="0"
-                    Background="Black"
+                    Background="{StaticResource BackgroundBrush}"
                     Text="{Binding SearchText}"
                     FontSize="20"
-                    Foreground="Gray"
+                    Foreground="{StaticResource ForegroundBrush}"
                     Watermark="Start typing..."
                     VerticalAlignment="Center"
                     VerticalContentAlignment="Center"
-                    BorderBrush="DarkGray"
+                    BorderBrush="{StaticResource BackgroundBrush}"
                     FocusAdorner="{x:Null}">
                 </TextBox>
                 <StackPanel
@@ -169,27 +200,27 @@
                             <ColumnDefinition />
                             <ColumnDefinition />
                         </Grid.ColumnDefinitions>
-                        <Ellipse Classes="LoadingDot1" Grid.Row="0" Grid.Column="0" Width="6" Height="6" Fill="Gray"
+                        <Ellipse Classes="LoadingDot1" Grid.Row="0" Grid.Column="0" Width="6" Height="6" Fill="{StaticResource ForegroundBrush}"
                                  Opacity="0" />
-                        <Ellipse Classes="LoadingDot2" Grid.Row="0" Grid.Column="1" Width="6" Height="6" Fill="Gray"
+                        <Ellipse Classes="LoadingDot2" Grid.Row="0" Grid.Column="1" Width="6" Height="6" Fill="{StaticResource ForegroundBrush}"
                                  Opacity="0" />
-                        <Ellipse Classes="LoadingDot3" Grid.Row="1" Grid.Column="0" Width="6" Height="6" Fill="Gray"
+                        <Ellipse Classes="LoadingDot3" Grid.Row="1" Grid.Column="0" Width="6" Height="6" Fill="{StaticResource ForegroundBrush}"
                                  Opacity="0" />
-                        <Ellipse Classes="LoadingDot4" Grid.Row="1" Grid.Column="1" Width="6" Height="6" Fill="Gray"
+                        <Ellipse Classes="LoadingDot4" Grid.Row="1" Grid.Column="1" Width="6" Height="6" Fill="{StaticResource ForegroundBrush}"
                                  Opacity="0" />
                     </Grid>
                     <TextBlock
                         x:DataType="menu:MainViewModel"
-                        Foreground="Gray"
+                        Foreground="{StaticResource ForegroundBrush}"
                         Text="{Binding NumberOfScoredItems}">
                     </TextBlock>
                     <TextBlock
-                        Foreground="Gray"
+                        Foreground="{StaticResource ForegroundBrush}"
                         Text="/" Margin="3,0,3,0" />
                     <TextBlock
                         x:DataType="menu:MainViewModel"
                         x:Name="LoadingTextBox"
-                        Foreground="Gray"
+                        Foreground="{StaticResource ForegroundBrush}"
                         HorizontalAlignment="Right"
                         Margin="0,0,10,0"
                         Text="{Binding NumberOfItems}" />
@@ -198,9 +229,9 @@
         </Border>
         <Border
             x:Name="ListBoxContainer"
-            Background="Black"
+            Background="{StaticResource BackgroundBrush}"
             BorderThickness="2"
-            BorderBrush="#3c3836"
+            BorderBrush="{StaticResource BorderBrush}"
             CornerRadius="5"
             x:DataType="menu:MainViewModel"
             Grid.Row="2"
@@ -208,14 +239,14 @@
             Margin="10,0,10,10">
             <Grid RowDefinitions="Auto,*">
                 <Border
-                    BorderBrush="#3c3836"
+                    BorderBrush="{StaticResource BorderBrush}"
                     Grid.Row="0"
                     IsVisible="{Binding IsHeaderVisible}"
                     BorderThickness="0,0,0,1">
                     <TextBlock
                         x:Name="HeaderTextBox"
                         FontSize="16"
-                        Foreground="Orange"
+                        Foreground="{StaticResource HighlightBrush}"
                         Padding="15,0,15,5"
                         Text="{Binding Header}" />
                 </Border>
@@ -225,15 +256,15 @@
                              Padding="5"
                              FontSize="16"
                              BorderThickness="0"
-                             Background="Black">
+                             Background="{StaticResource BackgroundBrush}">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock>
                                     <TextBlock.Inlines>
-                                        <MultiBinding x:DataType="menu:HighlightedText"
-                                                      Converter="{x:Static menu:HighlightedTextConverter.Instance}">
+                                        <MultiBinding x:DataType="menu:HighlightedText" Converter="{StaticResource HighlightedTextConverter}">
                                             <Binding Path="Text" />
                                             <Binding Path="HighlightIndexes" />
+                                            <Binding Path="IsSelected" RelativeSource="{RelativeSource AncestorType=ListBoxItem}" />
                                         </MultiBinding>
                                     </TextBlock.Inlines>
                                 </TextBlock>
@@ -242,6 +273,21 @@
                     </ListBox>
                 </ScrollViewer>
             </Grid>
+        </Border>
+        <Border Name="ToastNotification"
+                Grid.Row="2"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="#333"
+                CornerRadius="10"
+                Padding="10"
+                Margin="10"
+                IsVisible="{Binding IsToastVisible}">
+            <TextBlock Text="{Binding ToastMessage}"
+                       Foreground="{StaticResource ForegroundBrush}"
+                       FontSize="16"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
         </Border>
     </Grid>
 </Window>

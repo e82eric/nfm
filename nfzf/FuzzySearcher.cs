@@ -67,35 +67,6 @@ public static class FuzzySearcher
         ReadOnlySpan<char> pattern,
         Slab slab,
         List<int>? pos);
-    
-    public static void GetPositions2(ReadOnlySpan<char> text, Pattern pattern, Slab slab, List<int> result)
-    {
-        result.Clear();
-        foreach (var termSet in pattern.TermSets)
-        {
-            var matched = false;
-            foreach (var term in termSet.Terms)
-            {
-                if (term.Inv)
-                {
-                    var invAlgResult = term.MatchFunction(term.CaseSensitive, text, term.Text, slab, result);
-                    if (invAlgResult.Start < 0)
-                    {
-                        matched = true;
-                    }
-                    continue;
-                }
-
-                var algResult2 = term.MatchFunction(term.CaseSensitive, text, term.Text, slab, result);
-                if (algResult2.Start >= 0)
-                {
-                    matched = true;
-                    break;
-                }
-            }
-        }
-    }
-    
 
     public static IList<int> GetPositions(ReadOnlySpan<char> text, Pattern pattern, Slab slab)
     {
@@ -254,7 +225,7 @@ public static class FuzzySearcher
             return new FzfResult { Start = 0, End = 0, Score = 0 };
         }
 
-        if (patternSize * textSize > slab.Cap)
+        if (patternSize * textSize >= slab.Cap)
         {
             return FuzzyMatchV1(caseSensitive, text, pattern, slab, pos);
         }

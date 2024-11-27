@@ -15,7 +15,7 @@ public class StdInMenuDefinitionProvider : IMenuDefinitionProvider
         {
             AsyncFunction = Run,
             Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Action<string>>(),
+            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>(),
             ResultHandler = new StdOutResultHandler(),
             MinScore = 0,
             ShowHeader = false,

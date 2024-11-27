@@ -9,7 +9,7 @@ public class Slab
 
     public static Slab MakeDefault()
     {
-        return new Slab(100 * 1024, 2048);
+        return new Slab(100 * 1024, 100 * 1024);
     }
 
     public int Cap => _intSlab.Length;
