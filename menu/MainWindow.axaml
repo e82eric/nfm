@@ -24,7 +24,7 @@
         <Color x:Key="SelectedItemTextColor">#ebdbb2 </Color>
         <Color x:Key="HighlightColor">Orange </Color>
         <Color x:Key="BackgroundColor">#282828</Color>
-        <Color x:Key="BorderColor">#928374</Color>
+        <Color x:Key="BorderColor">#458588</Color>
         <Color x:Key="ForegroundGray">#a89984</Color>
         <SolidColorBrush x:Key="SelectedItemBrush" Color="{StaticResource SelectedItemColor}" />
         <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />

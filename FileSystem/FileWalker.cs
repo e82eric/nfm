@@ -8,7 +8,7 @@ namespace nfzf.FileSystem;
 public class FileWalker
 {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct WIN32_FIND_DATA
+    private unsafe struct WIN32_FIND_DATA
     {
         public FileAttributes dwFileAttributes;
         public FILETIME ftCreationTime;
@@ -18,10 +18,15 @@ public class FileWalker
         public uint nFileSizeLow;
         public uint dwReserved0;
         public uint dwReserved1;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
-        public string cFileName;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 14)]
-        public string cAlternateFileName;
+        public fixed char cFileName[260];
+        public fixed char cAlternateFileName[14];
+        public ReadOnlySpan<char> GetFileName()
+        {
+            fixed (char* ptr = cFileName)
+            {
+                return MemoryMarshal.CreateReadOnlySpanFromNullTerminated(ptr);
+            }
+        }
     }
     
     private enum FINDEX_INFO_LEVELS
@@ -166,7 +171,6 @@ public class FileWalker
 
         try
         {
-            var newDirectories = new List<string>();
             if (cancellationToken.IsCancellationRequested)
             {
                 if (Interlocked.Decrement(ref scanState.PendingDirectoryCount) == 0)
@@ -176,13 +180,20 @@ public class FileWalker
 
                 return Task.CompletedTask;
             }
-
+            
+            Span<char> fullPathBuffer = stackalloc char[2600];
             var findData = new WIN32_FIND_DATA();
             Span<char> searchPath = stackalloc char[path.Length + 3];
             CreateSearchPath(path, searchPath);
             fixed (char* searchPathPtr = searchPath)
             {
-                using var findHandle = FindFirstFile(searchPathPtr, out findData);
+                using var findHandle = FindFirstFileEx(
+                    searchPathPtr,
+                    FINDEX_INFO_LEVELS.FindExInfoBasic,
+                    out findData,
+                    FINDEX_SEARCH_OPS.FindExSearchNameMatch,
+                    IntPtr.Zero,
+                    FIND_FIRST_EX_FLAGS.FIND_FIRST_EX_LARGE_FETCH);
                 if (!findHandle.IsInvalid)
                 {
                     do
@@ -196,29 +207,38 @@ public class FileWalker
 
                             return Task.CompletedTask;
                         }
+                        
+                        var fileName = findData.GetFileName();
 
-                        if (findData.cFileName is "." or "..")
+                        if (fileName.Length == 1 && fileName[0] == '.' ||
+                            fileName.Length == 2 && fileName[0] == '.' && fileName[1] == '.')
+                        {
                             continue;
+                        }
 
-                        string fullPath = CombinePath(path, findData.cFileName);
+                        if (!TryCombinePath(path.AsSpan(), fileName, fullPathBuffer, out var fullPath))
+                        {
+                            continue;
+                        }
 
                         if (_includeHidden || (findData.dwFileAttributes & FileAttributes.Hidden) == 0)
                         {
+                            var toSend = fullPath[..^1].ToString();
                             if ((findData.dwFileAttributes & FileAttributes.Directory) != 0)
                             {
                                 if (!filesOnly)
                                 {
-                                    scanState.FileChannelWriter.TryWrite(fullPath);
+                                    scanState.FileChannelWriter.TryWrite(toSend);
                                 }
 
                                 Interlocked.Increment(ref scanState.PendingDirectoryCount);
-                                scanState.DirectoryChannelWriter.TryWrite((currentDepth + 1, fullPath));
+                                scanState.DirectoryChannelWriter.TryWrite((currentDepth + 1, toSend));
                             }
                             else
                             {
                                 if (!directoriesOnly)
                                 {
-                                    scanState.FileChannelWriter.TryWrite(fullPath);
+                                    scanState.FileChannelWriter.TryWrite(toSend);
                                 }
                             }
                         }
@@ -243,24 +263,28 @@ public class FileWalker
         return Task.CompletedTask;
     }
 
-    private void CreateSearchPath(string path, Span<char> searchPath)
+    private static void CreateSearchPath(ReadOnlySpan<char> path, Span<char> searchPath)
     {
-        path.AsSpan().CopyTo(searchPath);
+        path.CopyTo(searchPath);
         searchPath[path.Length] = '\\';
         searchPath[path.Length + 1] = '*';
         searchPath[path.Length + 2] = '\0';
     }
-
-    private static string CombinePath(string path, ReadOnlySpan<char> filename)
+    private static bool TryCombinePath(ReadOnlySpan<char> path, ReadOnlySpan<char> fileName, Span<char> buffer, out ReadOnlySpan<char> result)
     {
-        int fullPathLength = path.Length + 1 + filename.Length;
-        Span<char> fullPath = stackalloc char[fullPathLength];
+        if (path.Length + 1 + fileName.Length + 1 > buffer.Length)
+        {
+            result = default;
+            return false;
+        }
     
-        path.AsSpan().CopyTo(fullPath);
-        fullPath[path.Length] = '\\';
-        filename.CopyTo(fullPath[(path.Length + 1)..]);
+        path.CopyTo(buffer);
+        buffer[path.Length] = '\\';
+        fileName.CopyTo(buffer[(path.Length + 1)..]);
+        buffer[path.Length + 1 + fileName.Length] = '\0';
     
-        return fullPath.ToString();
+        result = buffer[..(path.Length + 1 + fileName.Length + 1)];
+        return true;
     }
     
     private void CompleteScan(ScanState scanState)
