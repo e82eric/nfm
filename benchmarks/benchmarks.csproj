@@ -12,6 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\FileSystem\FileSystem.csproj" />
       <ProjectReference Include="..\nfzf\nfzf.csproj" />
     </ItemGroup>
 

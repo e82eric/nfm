@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Timers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 
@@ -111,24 +114,6 @@ public partial class MainWindow : Window
             AdjustWindowSizeAndPosition();
         }
         
-        //if (e.PropertyName == "ShowResults")
-        //{
-        //    if (_viewModel.ShowResults)
-        //    {
-        //        Dispatcher.UIThread.Invoke(() =>
-        //        {
-        //            ListBoxContainer.IsVisible = true;
-        //        });
-        //    }
-        //    else
-        //    {
-        //        Dispatcher.UIThread.Invoke(() =>
-        //        {
-        //            this.
-        //                ListBoxContainer.IsVisible = false;
-        //        });
-        //    }
-        //}
         if (e.PropertyName == "IsVisible")
         {
             if (!_viewModel.IsVisible)
@@ -151,61 +136,39 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == "SelectedIndex")
         {
-            if (_viewModel.DisplayItems.Count > _viewModel.SelectedIndex)
-            {
-                var selected = _viewModel.DisplayItems[_viewModel.SelectedIndex];
-                if (selected.Text.EndsWith(".mp4") || selected.Text.EndsWith(".wmv"))
-                {
-                    string arguments =
-                        $"-ss 00:00:15 -i \"{selected.Text}\" -frames:v 1 -f image2pipe -vcodec png pipe:1";
-
-                    Task.Run(() =>
-                    {
-                        try
-                        {
-                            var process = new Process
-                            {
-                                StartInfo = new ProcessStartInfo
-                                {
-                                    FileName = @"C:\msys64\mingw64\bin\ffmpeg.exe",
-                                    Arguments = arguments,
-                                    RedirectStandardOutput = true,
-                                    RedirectStandardError = true,
-                                    UseShellExecute = false,
-                                    CreateNoWindow = true,
-                                    StandardOutputEncoding = null,
-                                }
-                            };
-
-                            process.Start();
-
-                            using (var memoryStream = new MemoryStream())
-                            {
-                                process.StandardOutput.BaseStream.CopyTo(memoryStream);
-                                process.WaitForExit();
-
-                                string error = process.StandardError.ReadToEnd();
-                                if (process.ExitCode != 0)
-                                {
-                                    //await MessageBox.Show(this, error, "FFmpeg Error", MessageBoxButtons.Ok);
-                                    return;
-                                }
-
-                                memoryStream.Seek(0, SeekOrigin.Begin);
-                                Dispatcher.UIThread.Invoke(() => { VideoFrameImage.Source = new Bitmap(memoryStream); });
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            //await MessageBox.Show(this, ex.Message, "Exception", MessageBoxButtons.Ok);
-                        }
-                    });
-                }
-            }
-
             Dispatcher.UIThread.Invoke(() =>
             {
                 ListBox.SelectedIndex = _viewModel.SelectedIndex;
+            });
+        }
+
+        if (e.PropertyName == "PreviewText")
+        {
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                var textBlock = new TextBlock
+                {
+                    Text = _viewModel.PreviewText,
+                    Padding = new Thickness(5),
+                    TextWrapping = TextWrapping.NoWrap,
+                    TextTrimming = TextTrimming.WordEllipsis,
+                };
+                if (Resources.TryGetResource("ForegroundBrush", null, out var resource) && resource is SolidColorBrush brush)
+                {
+                    textBlock.Foreground = brush;
+                }
+
+                PreviewContainer.Child = textBlock;
+            });
+        }
+
+        if (e.PropertyName == "PreviewImage")
+        {
+            var image = new Image();
+            image.Source = _viewModel.PreviewImage;
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                PreviewContainer.Child = image;
             });
         }
 

@@ -1,8 +1,11 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
+using System.Threading.Channels;
 using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Validators;
 using nfzf;
+using nfzf.FileSystem;
 
 namespace benchmarks;
 
@@ -15,6 +18,16 @@ class Program
     {
         //var summary = BenchmarkRunner.Run<AsciiFuzzyIndexBenchmarks>(new DebugInProcessConfig());
         var summary = BenchmarkRunner.Run<AsciiFuzzyIndexBenchmarks>();
+    }
+}
+
+public class CustomConfig : ManualConfig
+{
+    public CustomConfig()
+    {
+        AddJob(Job.Default
+            .WithWarmupCount(1)   // Number of warmup iterations (optional)
+            .WithIterationCount(5)); // Limit the total number of runs to 5
     }
 }
 
@@ -31,7 +44,7 @@ public class AllowNonOptimized : ManualConfig
     }
 }
 
-[Config(typeof(AllowNonOptimized))]
+[Config(typeof(CustomConfig))]
 [MemoryDiagnoser]
 public class AsciiFuzzyIndexBenchmarks
 {
@@ -44,6 +57,7 @@ public class AsciiFuzzyIndexBenchmarks
     private Slab _slab;
     private Pattern _pat;
     private byte[] _testData;
+    private FileWalker _walker;
 
 
     [GlobalSetup]
@@ -66,7 +80,16 @@ public class AsciiFuzzyIndexBenchmarks
         //WarmUpArrayPool(_pool, warmUpSizes, 5);
         //_slab = new Slab(100 * 1024 * 10000, 2048 * 100);
         _slab = Slab.MakeDefault();
-         _testData = File.ReadAllBytes("random_file_paths.txt");
+         //_testData = File.ReadAllBytes("random_file_paths.txt");
+        _walker = new FileWalker();
+    }
+
+    [Benchmark]
+    public async Task CurrentState()
+    {
+        var c = Channel.CreateUnbounded<string>();
+        var writeTask = _walker.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+        await writeTask;
     }
     
     //[Benchmark]
@@ -157,7 +180,7 @@ public class AsciiFuzzyIndexBenchmarks
         nfzf.FuzzySearcher.FzfSuffixMatch(true, inputSpan, patternSpan, _slab, null);
     }
     
-    [Benchmark]
+    //[Benchmark]
     public void FzfExactMatchNaive()
     {
         var inputSpan = _input.AsSpan();

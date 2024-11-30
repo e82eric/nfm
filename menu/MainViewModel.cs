@@ -3,12 +3,16 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using nfzf;
 
 namespace nfm.menu;
@@ -22,7 +26,6 @@ public readonly struct Entry(string line, int score, int index)
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly Dictionary<(KeyModifiers, Key), Func<string, Task>> _globalKeyBindings;
-
     
     private class ThreadLocalData(Slab slab)
     {
@@ -31,7 +34,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
     
     private readonly ConcurrentBag<ThreadLocalData> _localResultsPool = new();
-    private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount;
+    private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount / 2;
     private int _selectedIndex;
     private bool _reading;
     private bool _searching;
@@ -43,6 +46,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly CancellationTokenSource _cancellation;
     private string _searchText;
     private readonly AsyncAutoResetEvent _restartSearchSignal = new();
+    private readonly AsyncAutoResetEvent _restartPreviewSignal = new();
     private bool _showResults;
     private ObservableCollection<HighlightedText> _displayItems = new();
     private readonly Slab _positionsSlab;
@@ -51,11 +55,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isHeaderVisible;
     private MenuDefinition _definition;
     private CancellationTokenSource? _currentSearchCancellationTokenSource;
+    private CancellationTokenSource? _currentPreviewCancellationTokenSource;
     private bool _hasPreview;
     private CancellationTokenSource? _currentDefinitionCancellationTokenSource;
     private string _toastMessage;
     private bool _isToastVisible;
     private readonly UnboundedChannelOptions _channelOptions;
+    private string _previewText;
+    private Bitmap _previewImage;
+
+    public Bitmap PreviewImage
+    {
+        get => _previewImage;
+        set
+        {
+            if (Equals(value, _previewImage)) return;
+            _previewImage = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string PreviewText
+    {
+        get => _previewText;
+        set
+        {
+            if (value == _previewText) return;
+            _previewText = value;
+            OnPropertyChanged();
+        }
+    }
 
     public string ToastMessage
     {
@@ -147,6 +176,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             _selectedIndex = value;
             OnPropertyChanged();
+            _restartPreviewSignal.Set();
         }
     }
 
@@ -235,6 +265,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         //Start the processing loop.  need to handle the task better.
         _ = ProcessLoop();
+        _ = PreviewLoop();
 
         var firstChunk = new Chunk();
         _chunks.Add(firstChunk);
@@ -290,6 +321,53 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await Render(_currentSearchCancellationTokenSource.Token);
         }
     }
+
+    private async Task PreviewLoop()
+    {
+        const int debounceDelay = 300; // Set debounce delay in milliseconds
+        CancellationTokenSource debounceCts = null;
+
+        while (!_cancellation.Token.IsCancellationRequested)
+        {
+            // Wait for a signal to restart preview
+            await _restartPreviewSignal.WaitAsync();
+
+            // Cancel any ongoing debounce delay
+            debounceCts?.Cancel();
+
+            // Create a new debounce token
+            debounceCts = new CancellationTokenSource();
+            CancellationToken debounceToken = debounceCts.Token;
+
+            try
+            {
+                // Wait for the debounce delay
+                await Task.Delay(debounceDelay, debounceToken);
+            }
+            catch (TaskCanceledException)
+            {
+                // The delay was canceled, skip to the next iteration
+                continue;
+            }
+
+            // Cancel the current preview rendering, if any
+            if (_currentPreviewCancellationTokenSource != null)
+            {
+                await _currentPreviewCancellationTokenSource.CancelAsync();
+            }
+
+            // Start rendering with a new token
+            _currentPreviewCancellationTokenSource = new CancellationTokenSource();
+            try
+            {
+                await RenderPreview(_currentPreviewCancellationTokenSource.Token);
+            }
+            catch (Exception e)
+            {
+                PreviewText = e.Message;
+            }
+        }
+    }
     
     private ThreadLocalData GetLocalResultFromPool()
     {
@@ -316,6 +394,165 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         return string.Compare(x.Line, y.Line, StringComparison.Ordinal);
     });
+
+    private async Task RenderPreview(CancellationToken ct)
+    {
+        if (DisplayItems.Count > SelectedIndex && HasPreview)
+        {
+            var selected = DisplayItems[SelectedIndex];
+            var path = selected.Text;
+            
+            if (selected.Text.EndsWith(".mp4") || selected.Text.EndsWith(".wmv"))
+            {
+                string arguments =
+                    $"-ss 00:00:15 -i \"{selected.Text}\" -frames:v 1 -f image2pipe -vcodec png pipe:1";
+
+                try
+                {
+                    var process = new Process
+                    {
+                        StartInfo = new ProcessStartInfo
+                        {
+                            FileName = @"C:\msys64\mingw64\bin\ffmpeg.exe",
+                            Arguments = arguments,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            StandardOutputEncoding = null,
+                        }
+                    };
+
+                    process.Start();
+
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        await process.StandardOutput.BaseStream.CopyToAsync(memoryStream, ct);
+                        await process.WaitForExitAsync(ct);
+
+                        string error = await process.StandardError.ReadToEndAsync(ct);
+                        if (process.ExitCode != 0)
+                        {
+                            return;
+                        }
+
+                        Dispatcher.UIThread.Invoke(() =>
+                        {
+                            memoryStream.Seek(0, SeekOrigin.Begin);
+                            PreviewImage = new Bitmap(memoryStream);
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Handle exception
+                }
+            }
+            else
+            {
+                var displayText = string.Empty;
+                if (File.Exists(path))
+                {
+                    var (isText, lines) = await TryReadTextFile(path, 50, ct);
+                    if (isText)
+                    {
+                        if (lines.Any())
+                        {
+                            displayText += $"{string.Join("\n", lines)}";
+                        }
+                        else
+                        {
+                            displayText += "\n\nThe file is empty.";
+                        }
+                    }
+                    else
+                    {
+                        var fileInfo = new FileInfo(path);
+                        displayText = $"File: {fileInfo.Name}\n" +
+                                      $"Path: {fileInfo.FullName}\n" +
+                                      $"Size: {fileInfo.Length} bytes\n" +
+                                      $"Created: {fileInfo.CreationTime}\n" +
+                                      $"Last Accessed: {fileInfo.LastAccessTime}\n" +
+                                      $"Last Modified: {fileInfo.LastWriteTime}\n" +
+                                      $"Extension: {fileInfo.Extension}\n" +
+                                      $"Is Read-Only: {fileInfo.IsReadOnly}\n" +
+                                      $"Attributes: {fileInfo.Attributes}";
+
+                        displayText += "\n\nThe file appears to be binary and was not read.";
+                    }
+                }
+                else if (Directory.Exists(path))
+                {
+                    var dirInfo = new DirectoryInfo(path);
+                    displayText = $"Directory: {dirInfo.Name}\n" +
+                                  $"Path: {dirInfo.FullName}\n" +
+                                  $"Created: {dirInfo.CreationTime}\n" +
+                                  $"Last Modified: {dirInfo.LastWriteTime}\n" +
+                                  $"Attributes: {dirInfo.Attributes}\n\n" +
+                                  $"Items\n";
+
+                    var i = 0;
+                    foreach (var fileSystemInfo in dirInfo.EnumerateFileSystemInfos())
+                    {
+                        if (i > 15)
+                        {
+                            break;
+                        }
+
+                        displayText += $"  {fileSystemInfo.Name}\n";
+                    }
+                }
+                else
+                {
+                    displayText = "The provided path does not exist.";
+                }
+                PreviewText = displayText;
+            }
+        }
+    }
+    
+    private async Task<(bool IsText, List<string> Lines)> TryReadTextFile(string path, int maxLines, CancellationToken ct)
+    {
+        var lines = new List<string>();
+
+        try
+        {
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var reader = new StreamReader(stream))
+            {
+                var buffer = new char[1024];
+                int charsRead = await reader.ReadAsync(buffer, 0, buffer.Length);
+
+                // Check for binary content in the first 1024 characters
+                for (int i = 0; i < charsRead; i++)
+                {
+                    if (buffer[i] == '\0' ||
+                        (buffer[i] < 32 && buffer[i] != '\t' && buffer[i] != '\n' && buffer[i] != '\r'))
+                    {
+                        return (false, null); // File appears to be binary
+                    }
+                }
+            }
+
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var reader = new StreamReader(stream))
+            {
+            // If the file is determined to be text, read the first `maxLines`
+                stream.Position = 0; // Reset to the beginning for reading lines
+                while (!reader.EndOfStream && lines.Count < maxLines)
+                {
+                    var line = await reader.ReadLineAsync(ct);
+                    lines.Add(line);
+                }
+            }
+
+            return (true, lines); // File is text and lines are read
+        }
+        catch
+        {
+            return (false, null); // If an error occurs, assume it's not a valid text file
+        }
+    }
 
     private Task Render(CancellationToken ct)
     {
@@ -464,30 +701,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var currentChunk = _chunks.Last();
 
-        await foreach (var line in channelReader.ReadAllAsync(cancellationToken))
+        try
         {
-            if (cancellationToken.IsCancellationRequested)
+            await foreach (var line in channelReader.ReadAllAsync(cancellationToken))
             {
-                return;
-            }
-            numberOfItems++;
-            if (!currentChunk.TryAdd(line))
-            {
-                currentChunk = new Chunk();
-                _chunks.Add(currentChunk);
-                Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
-                if (lastFullChunk != null)
+                if (cancellationToken.IsCancellationRequested)
                 {
-                    _restartSearchSignal.Set();
+                    return;
                 }
-
+                numberOfItems++;
                 if (!currentChunk.TryAdd(line))
                 {
-                    throw new Exception("Could not add line to Chunk");
-                }
+                    currentChunk = new Chunk();
+                    _chunks.Add(currentChunk);
+                    Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
+                    if (lastFullChunk != null)
+                    {
+                        _restartSearchSignal.Set();
+                    }
 
-                NumberOfItems = numberOfItems;
+                    if (!currentChunk.TryAdd(line))
+                    {
+                        throw new Exception("Could not add line to Chunk");
+                    }
+
+                    NumberOfItems = numberOfItems;
+                }
             }
+        }
+        catch (TaskCanceledException)
+        {
         }
 
         NumberOfItems = numberOfItems;
@@ -555,6 +798,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (_currentDefinitionCancellationTokenSource is { IsCancellationRequested: false })
         {
             await _currentDefinitionCancellationTokenSource.CancelAsync();
+        }
+        if (_currentPreviewCancellationTokenSource is { Token.IsCancellationRequested: false })
+        {
+            await _currentPreviewCancellationTokenSource.CancelAsync();
         }
                 
         DisplayItems.Clear();

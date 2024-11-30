@@ -8,7 +8,7 @@ namespace nfzf.FileSystem;
 public class FileWalker
 {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private unsafe struct WIN32_FIND_DATA
+    private struct WIN32_FIND_DATA
     {
         public FileAttributes dwFileAttributes;
         public FILETIME ftCreationTime;
@@ -18,15 +18,10 @@ public class FileWalker
         public uint nFileSizeLow;
         public uint dwReserved0;
         public uint dwReserved1;
-        public fixed char cFileName[260];
-        public fixed char cAlternateFileName[14];
-        public ReadOnlySpan<char> GetFileName()
-        {
-            fixed (char* ptr = cFileName)
-            {
-                return MemoryMarshal.CreateReadOnlySpanFromNullTerminated(ptr);
-            }
-        }
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string cFileName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 14)]
+        public string cAlternateFileName;
     }
     
     private enum FINDEX_INFO_LEVELS
@@ -51,7 +46,7 @@ public class FileWalker
     }
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private unsafe static extern SafeFindHandle FindFirstFile(char* lpFileName, out WIN32_FIND_DATA lpFindFileData);
+    private static extern SafeFindHandle FindFirstFile(string lpFileName, out WIN32_FIND_DATA lpFindFileData);
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool FindNextFile(SafeFindHandle hFindFile, out WIN32_FIND_DATA lpFindFileData);
@@ -60,8 +55,8 @@ public class FileWalker
     private static extern bool FindClose(IntPtr hFindFile);
     
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private unsafe static extern SafeFindHandle FindFirstFileEx(
-        char* lpFileName,
+    private static extern SafeFindHandle FindFirstFileEx(
+        string lpFileName,
         FINDEX_INFO_LEVELS fInfoLevelId,
         out WIN32_FIND_DATA lpFindFileData,
         FINDEX_SEARCH_OPS fSearchOp,
@@ -131,7 +126,7 @@ public class FileWalker
         {
             await Parallel.ForEachAsync(directoryChannel.Reader.ReadAllAsync(cancellationToken), new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = Environment.ProcessorCount
+                    MaxDegreeOfParallelism = Environment.ProcessorCount / 3
                 },
                 async (item, ct) =>
                 {
@@ -151,7 +146,7 @@ public class FileWalker
         await scanState.CompletionSource.Task;
     }
     
-    private unsafe Task ScanDirectoryForDirectoriesAsync(
+    private async Task ScanDirectoryForDirectoriesAsync(
         string path,
         int currentDepth,
         int maxDepth,
@@ -166,11 +161,12 @@ public class FileWalker
             {
                 CompleteScan(scanState);
             }
-            return Task.CompletedTask;
+            return;
         }
 
         try
         {
+            var newDirectories = new List<string>();
             if (cancellationToken.IsCancellationRequested)
             {
                 if (Interlocked.Decrement(ref scanState.PendingDirectoryCount) == 0)
@@ -178,72 +174,65 @@ public class FileWalker
                     CompleteScan(scanState);
                 }
 
-                return Task.CompletedTask;
+                return;
             }
-            
-            Span<char> fullPathBuffer = stackalloc char[2600];
+
             var findData = new WIN32_FIND_DATA();
-            Span<char> searchPath = stackalloc char[path.Length + 3];
-            CreateSearchPath(path, searchPath);
-            fixed (char* searchPathPtr = searchPath)
+            using var findHandle = FindFirstFile(CreateSearchPath(path), out findData);
+            if (!findHandle.IsInvalid)
             {
-                using var findHandle = FindFirstFileEx(
-                    searchPathPtr,
-                    FINDEX_INFO_LEVELS.FindExInfoBasic,
-                    out findData,
-                    FINDEX_SEARCH_OPS.FindExSearchNameMatch,
-                    IntPtr.Zero,
-                    FIND_FIRST_EX_FLAGS.FIND_FIRST_EX_LARGE_FETCH);
-                if (!findHandle.IsInvalid)
+                do
                 {
-                    do
+                    if (cancellationToken.IsCancellationRequested)
                     {
-                        if (cancellationToken.IsCancellationRequested)
+                        if (Interlocked.Decrement(ref scanState.PendingDirectoryCount) == 0)
                         {
-                            if (Interlocked.Decrement(ref scanState.PendingDirectoryCount) == 0)
+                            CompleteScan(scanState);
+                        }
+
+                        return;
+                    }
+
+                    if (findData.cFileName is "." or "..")
+                        continue;
+
+                    string fullPath = CombinePath(path, findData.cFileName);
+
+                    if (_includeHidden || (findData.dwFileAttributes & FileAttributes.Hidden) == 0)
+                    {
+                        if ((findData.dwFileAttributes & FileAttributes.Directory) != 0)
+                        {
+                            if (!filesOnly)
                             {
-                                CompleteScan(scanState);
+                                await scanState.FileChannelWriter.WriteAsync(fullPath, cancellationToken);
                             }
-
-                            return Task.CompletedTask;
+                            newDirectories.Add(fullPath);
                         }
-                        
-                        var fileName = findData.GetFileName();
-
-                        if (fileName.Length == 1 && fileName[0] == '.' ||
-                            fileName.Length == 2 && fileName[0] == '.' && fileName[1] == '.')
+                        else
                         {
-                            continue;
-                        }
-
-                        if (!TryCombinePath(path.AsSpan(), fileName, fullPathBuffer, out var fullPath))
-                        {
-                            continue;
-                        }
-
-                        if (_includeHidden || (findData.dwFileAttributes & FileAttributes.Hidden) == 0)
-                        {
-                            var toSend = fullPath[..^1].ToString();
-                            if ((findData.dwFileAttributes & FileAttributes.Directory) != 0)
+                            if (!directoriesOnly)
                             {
-                                if (!filesOnly)
-                                {
-                                    scanState.FileChannelWriter.TryWrite(toSend);
-                                }
-
-                                Interlocked.Increment(ref scanState.PendingDirectoryCount);
-                                scanState.DirectoryChannelWriter.TryWrite((currentDepth + 1, toSend));
-                            }
-                            else
-                            {
-                                if (!directoriesOnly)
-                                {
-                                    scanState.FileChannelWriter.TryWrite(toSend);
-                                }
+                                await scanState.FileChannelWriter.WriteAsync(fullPath, cancellationToken);
                             }
                         }
-                    } while (FindNextFile(findHandle, out findData));
+                    }
+                } while (FindNextFile(findHandle, out findData));
+            }
+
+            foreach (var dir in newDirectories)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    if (Interlocked.Decrement(ref scanState.PendingDirectoryCount) == 0)
+                    {
+                        CompleteScan(scanState);
+                    }
+
+                    return;
                 }
+
+                Interlocked.Increment(ref scanState.PendingDirectoryCount);
+                await scanState.DirectoryChannelWriter.WriteAsync((currentDepth + 1, dir), cancellationToken);
             }
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or DirectoryNotFoundException or IOException)
@@ -260,31 +249,27 @@ public class FileWalker
                 CompleteScan(scanState);
             }
         }
-        return Task.CompletedTask;
     }
 
-    private static void CreateSearchPath(ReadOnlySpan<char> path, Span<char> searchPath)
+    private static string CreateSearchPath(string path)
     {
-        path.CopyTo(searchPath);
+        Span<char> searchPath = stackalloc char[path.Length + 2];
+        path.AsSpan().CopyTo(searchPath);
         searchPath[path.Length] = '\\';
         searchPath[path.Length + 1] = '*';
-        searchPath[path.Length + 2] = '\0';
+        return searchPath.ToString();
     }
-    private static bool TryCombinePath(ReadOnlySpan<char> path, ReadOnlySpan<char> fileName, Span<char> buffer, out ReadOnlySpan<char> result)
+
+    private static string CombinePath(string path, ReadOnlySpan<char> filename)
     {
-        if (path.Length + 1 + fileName.Length + 1 > buffer.Length)
-        {
-            result = default;
-            return false;
-        }
+        int fullPathLength = path.Length + 1 + filename.Length;
+        Span<char> fullPath = stackalloc char[fullPathLength];
     
-        path.CopyTo(buffer);
-        buffer[path.Length] = '\\';
-        fileName.CopyTo(buffer[(path.Length + 1)..]);
-        buffer[path.Length + 1 + fileName.Length] = '\0';
+        path.AsSpan().CopyTo(fullPath);
+        fullPath[path.Length] = '\\';
+        filename.CopyTo(fullPath[(path.Length + 1)..]);
     
-        result = buffer[..(path.Length + 1 + fileName.Length + 1)];
-        return true;
+        return fullPath.ToString();
     }
     
     private void CompleteScan(ScanState scanState)

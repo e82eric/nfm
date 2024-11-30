@@ -20,7 +20,10 @@ class Program
         => AppBuilder.Configure(() =>
         {
             var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
-            globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            globalKeyBindings.Add((KeyModifiers.Control, Key.C), async line => {
+                await ClipboardHelper.CopyStringToClipboard(line);
+                await _viewModel.ShowToast($"Copied \"{line}\" to clipboard", 1500);
+            });
             _viewModel = new MainViewModel(globalKeyBindings);
             _keyHandlerApp = new KeyHandlerApp(_viewModel);
             return _keyHandlerApp;

@@ -48,11 +48,11 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        if (Console.IsInputRedirected)
-        {
-            BuildStdInApp().Start((app, _) => Run(app, false), args);
-            return;
-        }
+        //if (Console.IsInputRedirected)
+        //{
+        //    BuildStdInApp().Start((app, _) => Run(app, false), args);
+        //    return;
+        //}
         
         Parser.Default.ParseArguments<FileSystemOptions, CommandOptions, FileReaderOptions>(args)
             .MapResult(
