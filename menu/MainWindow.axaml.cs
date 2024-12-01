@@ -14,6 +14,10 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using AvaloniaEdit;
+using AvaloniaEdit.Document;
+using AvaloniaEdit.TextMate;
+using TextMateSharp.Grammars;
 
 namespace nfm.menu;
 
@@ -21,6 +25,9 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
     private readonly ListBox? _listBox;
+    private TextEditor _editor;
+    private RegistryOptions _registryOptions;
+    private TextMate.Installation? _textMateInstallation;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -43,7 +50,7 @@ public partial class MainWindow : Window
         }
         if (textBox != null)
         {
-            textBox.KeyUp += TextBoxOnKeyUp;
+            textBox.KeyDown += TextBoxOnKeyUp;
         }
         var screen = Screens.Primary;
         if (screen != null)
@@ -56,6 +63,7 @@ public partial class MainWindow : Window
         }
     }
 
+    
     private void AdjustWindowSizeAndPosition()
     {
         var margin = .3;
@@ -99,6 +107,19 @@ public partial class MainWindow : Window
     {
         BringToForeground();
         TextBox.Focus();
+        
+        _editor = new TextEditor
+        {
+            IsReadOnly = true,
+        };
+        _editor.KeyUp += EditorOnKeyUp;
+        if (Resources.TryGetResource("ForegroundBrush", null, out var resource) && resource is SolidColorBrush brush)
+        {
+            _editor.Foreground = brush;
+        }
+        _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
+
+        _textMateInstallation = _editor.InstallTextMate(_registryOptions);
     }
 
     protected override void OnGotFocus(GotFocusEventArgs e)
@@ -144,21 +165,20 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == "PreviewText")
         {
-            Dispatcher.UIThread.Invoke(() =>
+            Dispatcher.UIThread.Post(() =>
             {
-                var textBlock = new TextBlock
+                _editor.Text = _viewModel.PreviewText;
+                if (_viewModel.PreviewExtension != ".txt")
                 {
-                    Text = _viewModel.PreviewText,
-                    Padding = new Thickness(5),
-                    TextWrapping = TextWrapping.NoWrap,
-                    TextTrimming = TextTrimming.WordEllipsis,
-                };
-                if (Resources.TryGetResource("ForegroundBrush", null, out var resource) && resource is SolidColorBrush brush)
-                {
-                    textBlock.Foreground = brush;
+                    var languageByExtension = _registryOptions.GetLanguageByExtension(_viewModel.PreviewExtension);
+                    if (languageByExtension != null)
+                    {
+                        var byLanguageId = _registryOptions.GetScopeByLanguageId(languageByExtension.Id);
+                        _textMateInstallation.SetGrammar( byLanguageId);
+                    }
                 }
 
-                PreviewContainer.Child = textBlock;
+                PreviewContainer.Child = _editor;
             });
         }
 
@@ -190,9 +210,29 @@ public partial class MainWindow : Window
         }
     }
 
+    private void EditorOnKeyUp(object? sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Escape:
+                TextBox.Focus();
+                break;
+        }
+    }
+
     private async void TextBoxOnKeyUp(object? sender, KeyEventArgs e)
     {
         await _viewModel.HandleKey(e.Key, e.KeyModifiers);
+
+        if (e.KeyModifiers == KeyModifiers.Control)
+        {
+            switch (e.Key)
+            {
+                case Key.W:
+                    _editor.Focus();
+                    break;
+            }
+        }
     }
 
     private void ListBox_GotFocus(object? sender, GotFocusEventArgs e)

@@ -12,8 +12,12 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
+using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
+using AvaloniaEdit.TextMate;
 using nfzf;
+using TextMateSharp.Grammars;
+using RegistryOptions = Microsoft.Win32.RegistryOptions;
 
 namespace nfm.menu;
 
@@ -63,6 +67,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly UnboundedChannelOptions _channelOptions;
     private string _previewText;
     private Bitmap _previewImage;
+    public string PreviewExtension { get; set; }
 
     public Bitmap PreviewImage
     {
@@ -439,7 +444,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         Dispatcher.UIThread.Invoke(() =>
                         {
                             memoryStream.Seek(0, SeekOrigin.Begin);
-                            PreviewImage = new Bitmap(memoryStream);
+                            try
+                            {
+                                PreviewImage = new Bitmap(memoryStream);
+                            }
+                            catch (Exception e)
+                            {
+                            }
                         });
                     }
                 }
@@ -453,7 +464,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 var displayText = string.Empty;
                 if (File.Exists(path))
                 {
-                    var (isText, lines) = await TryReadTextFile(path, 50, ct);
+                    var info = new FileInfo(path);
+                    var (isText, lines) = await TryReadTextFile(info, Int32.MaxValue, ct);
                     if (isText)
                     {
                         if (lines.Any())
@@ -464,6 +476,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         {
                             displayText += "\n\nThe file is empty.";
                         }
+
+                        PreviewExtension = info.Extension;
                     }
                     else
                     {
@@ -479,6 +493,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                                       $"Attributes: {fileInfo.Attributes}";
 
                         displayText += "\n\nThe file appears to be binary and was not read.";
+                        PreviewExtension = ".txt";
                     }
                 }
                 else if (Directory.Exists(path))
@@ -501,6 +516,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                         displayText += $"  {fileSystemInfo.Name}\n";
                     }
+
+                    PreviewExtension = ".txt";
                 }
                 else
                 {
@@ -511,33 +528,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
     
-    private async Task<(bool IsText, List<string> Lines)> TryReadTextFile(string path, int maxLines, CancellationToken ct)
+    private async Task<(bool IsText, List<string> Lines)> TryReadTextFile(FileInfo path, int maxLines, CancellationToken ct)
     {
+
+        var registryOptions = new TextMateSharp.Grammars.RegistryOptions(ThemeName.Dark);
+        var language = registryOptions.GetLanguageByExtension(path.Extension);
+        
         var lines = new List<string>();
 
         try
         {
-            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-            using (var reader = new StreamReader(stream))
+            if (language == null)
             {
-                var buffer = new char[1024];
-                int charsRead = await reader.ReadAsync(buffer, 0, buffer.Length);
-
-                // Check for binary content in the first 1024 characters
-                for (int i = 0; i < charsRead; i++)
+                using (var stream = new FileStream(path.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var reader = new StreamReader(stream))
                 {
-                    if (buffer[i] == '\0' ||
-                        (buffer[i] < 32 && buffer[i] != '\t' && buffer[i] != '\n' && buffer[i] != '\r'))
+                    var buffer = new char[1024];
+                    int charsRead = await reader.ReadAsync(buffer, 0, buffer.Length);
+
+                    // Check for binary content in the first 1024 characters
+                    for (int i = 0; i < charsRead; i++)
                     {
-                        return (false, null); // File appears to be binary
+                        if (buffer[i] == '\0' ||
+                            (buffer[i] < 32 && buffer[i] != '\t' && buffer[i] != '\n' && buffer[i] != '\r'))
+                        {
+                            return (false, null); // File appears to be binary
+                        }
                     }
                 }
             }
 
-            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var stream = new FileStream(path.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
             using (var reader = new StreamReader(stream))
             {
-            // If the file is determined to be text, read the first `maxLines`
+                // If the file is determined to be text, read the first `maxLines`
                 stream.Position = 0; // Reset to the beginning for reading lines
                 while (!reader.EndOfStream && lines.Count < maxLines)
                 {
