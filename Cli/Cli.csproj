@@ -11,7 +11,10 @@
         <TrimMode>Full</TrimMode>
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <SelfContained>true</SelfContained>
-        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimmerDefaultAction>link</TrimmerDefaultAction>
+        <EnableNativeAot>true</EnableNativeAot>
+        <InvariantGlobalization>true</InvariantGlobalization>
     </PropertyGroup>
 
     <ItemGroup>

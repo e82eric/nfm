@@ -7,6 +7,14 @@
         <Nullable>enable</Nullable>
         <AssemblyName>nfm-keyhandler</AssemblyName>
         <RootNamespace>nfm.KeyHandler</RootNamespace>
+        <PublishAot>true</PublishAot>
+        <TrimMode>Full</TrimMode>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <SelfContained>true</SelfContained>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimmerDefaultAction>link</TrimmerDefaultAction>
+        <EnableNativeAot>true</EnableNativeAot>
+        <InvariantGlobalization>true</InvariantGlobalization>
     </PropertyGroup>
 
     <ItemGroup>
