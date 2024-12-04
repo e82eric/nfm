@@ -7,7 +7,6 @@ namespace nfm.menu;
 class Program
 {
     private static MainViewModel _viewModel;
-    private static App _app;
     private static KeyHandlerApp _keyHandlerApp;
 
     [STAThread]
@@ -37,6 +36,8 @@ class Program
     
     private static void Run(Application app)
     {
+        var fileSystemTitle = "File System";
+        var programLauncherTitle = "Program Launcher";
         var appDirectories = new []{ @"c:\users\eric\AppData\Roaming\Microsoft\Windows\Start Menu",
             @"C:\ProgramData\Microsoft\Windows\Start Menu",
             @"c:\users\eric\AppData\Local\Microsoft\WindowsApps",
@@ -44,13 +45,11 @@ class Program
             @"C:\Program Files\sysinternals\"};
 
         var keyBindings = new Dictionary<(GlobalKeyHandler.Modifiers, int), IMenuDefinitionProvider>();
+        var runFileResultHandler = new RunFileResultHandler();
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_P), new FileSystemMenuDefinitionProvider(
-            new TestResultHandler(
-                false,
-                false,
-                false,
-                true,
-                true,
+            new FileSystemResultHandler(
+                runFileResultHandler,
+                new ShowDirectoryResultHandler(runFileResultHandler, false, false, false, true, null, programLauncherTitle),
                 false,
                 true),
             Int32.MaxValue,
@@ -60,18 +59,17 @@ class Program
             false,
             true,
             _viewModel,
-            ProgramComparer));
-        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_I), new ShowWindowsMenuDefinitionProvider());
-        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_U), new ShowProcessesMenuDefinitionProvider(_viewModel));
+            ProgramComparer,
+            null,
+            programLauncherTitle));
+        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_I), new ShowWindowsMenuDefinitionProvider(new StdOutResultHandler(), null));
+        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_U), new ShowProcessesMenuDefinitionProvider(_viewModel, null));
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_L), new FileSystemMenuDefinitionProvider(
-            new TestResultHandler(
+            new FileSystemResultHandler(
+                runFileResultHandler,
+                new ShowDirectoryResultHandler(runFileResultHandler, false, true, false, false, null, fileSystemTitle),
                 false,
-                false,
-                false,
-                true,
-                true,
-                false,
-                false),
+                true),
             5,
             null,
             false,
@@ -79,7 +77,9 @@ class Program
             false,
             false,
             _viewModel,
-            null));
+            null,
+            null,
+            fileSystemTitle));
         GlobalKeyHandler.SetHook(_keyHandlerApp, keyBindings);
         app.Run(CancellationToken.None);
     }

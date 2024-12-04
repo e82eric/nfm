@@ -11,7 +11,7 @@ using nfzf.FileSystem;
 namespace nfm.menu;
 
 public class FileSystemMenuDefinitionProvider(
-    TestResultHandler resultHandler,
+    IResultHandler resultHandler,
     int maxDepth,
     IEnumerable<string>? rootDirectory,
     bool quitOnEscape,
@@ -19,7 +19,9 @@ public class FileSystemMenuDefinitionProvider(
     bool directoriesOnly,
     bool filesOnly,
     MainViewModel viewModel,
-    IComparer<Entry>? comparer) : IMenuDefinitionProvider
+    IComparer<Entry>? comparer,
+    Action? onClosed,
+    string? title) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -35,7 +37,9 @@ public class FileSystemMenuDefinitionProvider(
             ShowHeader = false,
             QuitOnEscape = quitOnEscape,
             HasPreview = hasPreview,
-            Comparer = comparer
+            Comparer = comparer,
+            OnClosed = onClosed,
+            Title = title
         };
         definition.KeyBindings.Add((KeyModifiers.Control, Key.O), _ => ParentDir(rootDirectory));
         return definition;
@@ -48,8 +52,17 @@ public class FileSystemMenuDefinitionProvider(
             var first = dirs.First();
             var directoryInfo = new DirectoryInfo(first);
             var parent = directoryInfo.Parent;
-            var definition = new FileSystemMenuDefinitionProvider(resultHandler, maxDepth, [parent.FullName],
-                quitOnEscape, hasPreview, directoriesOnly, filesOnly, viewModel, null).Get();
+            var definition = new FileSystemMenuDefinitionProvider(
+                resultHandler,
+                maxDepth, [parent.FullName],
+                quitOnEscape,
+                hasPreview,
+                directoriesOnly,
+                filesOnly,
+                viewModel,
+                null,
+                onClosed,
+                title).Get();
 
             await viewModel.Clear();
             await viewModel.RunDefinitionAsync(definition);

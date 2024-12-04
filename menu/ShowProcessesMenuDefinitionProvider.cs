@@ -7,7 +7,7 @@ using nfzf.ListProcesses;
 
 namespace nfm.menu;
 
-public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel) : IMenuDefinitionProvider
+public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Action? onClosed) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -30,6 +30,78 @@ public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel) : 
             await ProcessLister.KillProcessById(line, pid);
         });
         keyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+        keyBindings.Add((KeyModifiers.Control, Key.D1), async _ =>
+        {
+            var definition = new MenuDefinition
+            {
+                AsyncFunction = ProcessLister.RunSortedByCpu,
+                Header = header,
+                KeyBindings = keyBindings,
+                MinScore = 0,
+                ResultHandler = new StdOutResultHandler(),
+                ShowHeader = true,
+                Comparer = Comparer,
+                OnClosed = onClosed,
+                Title = "Processes"
+            };
+
+            await mainViewModel.Clear();
+            await mainViewModel.RunDefinitionAsync(definition);
+        });
+        keyBindings.Add((KeyModifiers.Control, Key.D2), async _ =>
+        {
+            var definition = new MenuDefinition
+            {
+                AsyncFunction = ProcessLister.RunSortedByPid,
+                Header = header,
+                KeyBindings = keyBindings,
+                MinScore = 0,
+                ResultHandler = new StdOutResultHandler(),
+                ShowHeader = true,
+                Comparer = Comparer,
+                OnClosed = onClosed,
+                Title = "Processes"
+            };
+
+            await mainViewModel.Clear();
+            await mainViewModel.RunDefinitionAsync(definition);
+        });
+        keyBindings.Add((KeyModifiers.Control, Key.D3), async _ =>
+        {
+            var definition = new MenuDefinition
+            {
+                AsyncFunction = ProcessLister.RunSortedByPrivateBytes,
+                Header = header,
+                KeyBindings = keyBindings,
+                MinScore = 0,
+                ResultHandler = new StdOutResultHandler(),
+                ShowHeader = true,
+                Comparer = Comparer,
+                OnClosed = onClosed,
+                Title = "Processes"
+            };
+
+            await mainViewModel.Clear();
+            await mainViewModel.RunDefinitionAsync(definition);
+        });
+        keyBindings.Add((KeyModifiers.Control, Key.D4), async _ =>
+        {
+            var definition = new MenuDefinition
+            {
+                AsyncFunction = ProcessLister.RunSortedByWorkingSet,
+                Header = header,
+                KeyBindings = keyBindings,
+                MinScore = 0,
+                ResultHandler = new StdOutResultHandler(),
+                ShowHeader = true,
+                Comparer = Comparer,
+                OnClosed = onClosed,
+                Title = "Processes"
+            };
+
+            await mainViewModel.Clear();
+            await mainViewModel.RunDefinitionAsync(definition);
+        });
 
         var definition = new MenuDefinition
         {
@@ -38,8 +110,12 @@ public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel) : 
             KeyBindings = keyBindings,
             MinScore = 0,
             ResultHandler = new StdOutResultHandler(),
-            ShowHeader = true
+            ShowHeader = true,
+            OnClosed = onClosed,
+            Title = "Processes"
         };
         return definition;
     }
+    
+    private static readonly IComparer<Entry> Comparer = Comparer<Entry>.Create((x, y) => y.Score.CompareTo(x.Score));
 }

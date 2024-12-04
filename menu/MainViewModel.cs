@@ -12,12 +12,9 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
-using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
-using AvaloniaEdit.TextMate;
 using nfzf;
 using TextMateSharp.Grammars;
-using RegistryOptions = Microsoft.Win32.RegistryOptions;
 
 namespace nfm.menu;
 
@@ -67,6 +64,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly UnboundedChannelOptions _channelOptions;
     private string _previewText;
     private Bitmap _previewImage;
+    private string? _title;
+    private bool _showTitle;
+
+    public string? Title
+    {
+        get => _title;
+        set
+        {
+            if (Equals(value, _title)) return;
+            _title = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowTitle
+    {
+        get => _showTitle;
+        set
+        {
+            if (value == _showTitle) return;
+            _showTitle = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string PreviewExtension { get; set; }
 
     public Bitmap PreviewImage
@@ -288,6 +310,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
         _definition = definition;
         HasPreview = _definition.HasPreview;
+        Title = _definition.Title;
+        ShowTitle = _definition.Title != null;
         IsVisible = true;
         DisplayItems.Clear();
         OnPropertyChanged(nameof(DisplayItems));
@@ -299,10 +323,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (definition.AsyncFunction != null)
         {
             var channel = Channel.CreateUnbounded<string>(_channelOptions);
-            
             var writerTask = definition.AsyncFunction(channel.Writer, _currentDefinitionCancellationTokenSource.Token);
             await ReadFromSourceAsync(channel.Reader, _currentDefinitionCancellationTokenSource.Token);
             await writerTask;
+        }
+        else if (definition.ItemsFunction != null)
+        {
+            var items = definition.ItemsFunction();
+            ReadFromSource(items, _currentDefinitionCancellationTokenSource.Token);
         }
     }
 
@@ -329,39 +357,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task PreviewLoop()
     {
-        const int debounceDelay = 300; // Set debounce delay in milliseconds
+        const int debounceDelay = 50;
         CancellationTokenSource debounceCts = null;
 
         while (!_cancellation.Token.IsCancellationRequested)
         {
-            // Wait for a signal to restart preview
             await _restartPreviewSignal.WaitAsync();
 
-            // Cancel any ongoing debounce delay
             debounceCts?.Cancel();
 
-            // Create a new debounce token
             debounceCts = new CancellationTokenSource();
             CancellationToken debounceToken = debounceCts.Token;
 
             try
             {
-                // Wait for the debounce delay
                 await Task.Delay(debounceDelay, debounceToken);
             }
             catch (TaskCanceledException)
             {
-                // The delay was canceled, skip to the next iteration
                 continue;
             }
 
-            // Cancel the current preview rendering, if any
             if (_currentPreviewCancellationTokenSource != null)
             {
                 await _currentPreviewCancellationTokenSource.CancelAsync();
             }
 
-            // Start rendering with a new token
             _currentPreviewCancellationTokenSource = new CancellationTokenSource();
             try
             {
@@ -428,6 +449,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         }
                     };
 
+                    if (ct.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
                     process.Start();
 
                     using (var memoryStream = new MemoryStream())
@@ -443,6 +469,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                         Dispatcher.UIThread.Invoke(() =>
                         {
+                            if (ct.IsCancellationRequested)
+                            {
+                                return;
+                            }
                             memoryStream.Seek(0, SeekOrigin.Begin);
                             try
                             {
@@ -509,6 +539,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     var i = 0;
                     foreach (var fileSystemInfo in dirInfo.EnumerateFileSystemInfos())
                     {
+                        if (ct.IsCancellationRequested)
+                        {
+                            return;
+                        }
                         if (i > 15)
                         {
                             break;
@@ -530,7 +564,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     
     private async Task<(bool IsText, List<string> Lines)> TryReadTextFile(FileInfo path, int maxLines, CancellationToken ct)
     {
-
         var registryOptions = new TextMateSharp.Grammars.RegistryOptions(ThemeName.Dark);
         var language = registryOptions.GetLanguageByExtension(path.Extension);
         
@@ -540,9 +573,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (language == null)
             {
+                if (ct.IsCancellationRequested)
+                {
+                    return (false, null);
+                }
+                
                 using (var stream = new FileStream(path.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
                 using (var reader = new StreamReader(stream))
                 {
+                    if (ct.IsCancellationRequested)
+                    {
+                        return (false, null);
+                    }
+                    
                     var buffer = new char[1024];
                     int charsRead = await reader.ReadAsync(buffer, 0, buffer.Length);
 
@@ -565,6 +608,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 stream.Position = 0; // Reset to the beginning for reading lines
                 while (!reader.EndOfStream && lines.Count < maxLines)
                 {
+                    if (ct.IsCancellationRequested)
+                    {
+                        return (false, null);
+                    }
                     var line = await reader.ReadLineAsync(ct);
                     lines.Add(line);
                 }
@@ -608,7 +655,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             Searching = false;
             ShowResults = DisplayItems.Count > 0;
-            SelectedIndex = 0;
+            //SelectedIndex = 0;
 
             return Task.CompletedTask;
         }
@@ -716,6 +763,53 @@ public sealed class MainViewModel : INotifyPropertyChanged
             list.RemoveAt(list.Count - 1); // Remove the lowest-priority item
         }
     }
+    
+    private void ReadFromSource(IEnumerable<string> items, CancellationToken cancellationToken)
+    {
+        var numberOfItems = 0;
+        NumberOfItems = 0;
+        Reading = true;
+
+        var currentChunk = _chunks.Last();
+
+        try
+        {
+             foreach (var line in items)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                numberOfItems++;
+                if (!currentChunk.TryAdd(line))
+                {
+                    currentChunk = new Chunk();
+                    _chunks.Add(currentChunk);
+                    Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
+                    if (lastFullChunk != null)
+                    {
+                        _restartSearchSignal.Set();
+                    }
+
+                    if (!currentChunk.TryAdd(line))
+                    {
+                        throw new Exception("Could not add line to Chunk");
+                    }
+
+                    NumberOfItems = numberOfItems;
+                }
+            }
+        }
+        catch (TaskCanceledException)
+        {
+        }
+
+        NumberOfItems = numberOfItems;
+        Reading = false;
+
+        currentChunk.SetComplete();
+        _restartSearchSignal.Set();
+    }
 
     private async Task ReadFromSourceAsync(ChannelReader<string> channelReader, CancellationToken cancellationToken)
     {
@@ -753,7 +847,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
         }
-        catch (TaskCanceledException)
+        catch (OperationCanceledException)
         {
         }
 
@@ -762,6 +856,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         currentChunk.SetComplete();
         _restartSearchSignal.Set();
+    }
+    
+    public async Task HandleKeyUp(Key eKey, KeyModifiers eKeyModifiers)
+    {
+        switch (eKey)
+        {
+            case Key.PageUp:
+                SelectedIndex = Math.Max(0, SelectedIndex - 7);
+                break;
+            case Key.PageDown:
+                SelectedIndex = Math.Min(DisplayItems.Count - 1, SelectedIndex + 7);
+                break;
+            case Key.End:
+                if (eKeyModifiers == KeyModifiers.Control)
+                {
+                    SelectedIndex = DisplayItems.Count - 1;
+                }
+                break;
+            case Key.Home:
+                if (eKeyModifiers == KeyModifiers.Control)
+                {
+                    SelectedIndex = 0;
+                }
+                break;
+        }
     }
 
     public async Task HandleKey(Key eKey, KeyModifiers eKeyModifiers)
@@ -787,6 +906,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
             case Key.Up:
                 var previousIndex = Math.Max(0, SelectedIndex - 1);
                 SelectedIndex = previousIndex;
+                break;
+            case Key.D:
+                if (eKeyModifiers == KeyModifiers.Control)
+                {
+                    SelectedIndex = Math.Min(DisplayItems.Count - 1, SelectedIndex + 7);
+                }
+                break;
+            case Key.U:
+                if (eKeyModifiers == KeyModifiers.Control)
+                {
+                    SelectedIndex = Math.Max(0, SelectedIndex - 7);
+                }
                 break;
             case Key.Escape:
                 await Close();
@@ -839,5 +970,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         IsVisible = false;
         await Clear();
+    }
+
+    public void Closed()
+    {
+        if (_definition.OnClosed != null)
+        {
+            _definition.OnClosed();
+        }
     }
 }

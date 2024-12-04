@@ -232,25 +232,25 @@ public class ProcessLister
         await Run(false, null, writer);
     }
 
-    //public static IEnumerable<string> RunSortedByCpu()
-    //{
-    //    return Run(true, CompareProcessCpu);
-    //}
+    public static async Task  RunSortedByCpu(ChannelWriter<string> writer, CancellationToken cancellationToken)
+    {
+        await Run(true, CompareProcessCpu, writer);
+    }
 
-    //public static IEnumerable<string> RunSortedByPrivateBytes()
-    //{
-    //    return Run(true, CompareProcessPrivateBytes);
-    //}
+    public static async Task RunSortedByPrivateBytes(ChannelWriter<string> writer, CancellationToken cancellationToken)
+    {
+        await Run(true, CompareProcessPrivateBytes, writer);
+    }
 
-    //public static IEnumerable<string> RunSortedByWorkingSet()
-    //{
-    //    return Run(true, CompareProcessWorkingSet);
-    //}
+    public static async Task RunSortedByWorkingSet(ChannelWriter<string> writer, CancellationToken cancellationToken)
+    {
+        await Run(true, CompareProcessWorkingSet, writer);
+    }
 
-    //public static IEnumerable<string> RunSortedByPid()
-    //{
-    //    return Run(true, CompareProcessPid);
-    //}
+    public static async Task RunSortedByPid(ChannelWriter<string> writer, CancellationToken cancellationToken)
+    {
+        await Run(true, CompareProcessPid, writer);
+    }
     
     public static async Task KillProcessById(string line, int pid)
     {

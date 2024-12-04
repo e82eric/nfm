@@ -21,4 +21,11 @@
       <ProjectReference Include="..\menu\menu.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Update="KeyHandlerApp.axaml.cs">
+        <DependentUpon>KeyHandlerApp.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+    </ItemGroup>
+
 </Project>

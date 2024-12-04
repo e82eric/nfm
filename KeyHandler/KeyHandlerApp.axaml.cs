@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Markup.Xaml;
 
 namespace nfm.menu;
@@ -14,6 +13,7 @@ public class KeyHandlerApp(MainViewModel viewModel) : Application
     public async Task RunDefinition(MenuDefinition definition)
     {
         var window = new MainWindow(viewModel);
+        await viewModel.Clear();
         await viewModel.RunDefinitionAsync(definition);
         window.Show();
     }

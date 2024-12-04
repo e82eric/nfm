@@ -58,7 +58,7 @@ class Program
             .MapResult(
                 (FileSystemOptions opts) =>
                 {
-                    BuildFileSystemApp(opts.SearchDirectoryOnSelect, opts.RootDirectory, opts.MaxDepth, opts.HasPreview, opts.DirectoriesOnly, opts.FilesOnly)
+                    BuildFileSystemApp(opts.RootDirectory, opts.MaxDepth, opts.HasPreview, opts.DirectoriesOnly, opts.FilesOnly)
                         .Start((application, strings) => Run(application, false), args);
                     return 0;
                 },
@@ -110,7 +110,7 @@ class Program
             return _app;
         }).UsePlatformDetect();
     
-    private static AppBuilder BuildFileSystemApp(bool searchDirectoriesOnSelect,
+    private static AppBuilder BuildFileSystemApp(
         string? rootDirectory,
         int maxDepth,
         bool hasPreview,
@@ -118,20 +118,13 @@ class Program
         bool filesOnly) 
         => AppBuilder.Configure(() =>
         {
+            var title = "File System";
             var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
             globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             _viewModel = new MainViewModel(globalKeyBindings);
 
-            var resultHandler = new TestResultHandler(
-                true,
-                true,
-                true,
-                searchDirectoriesOnSelect,
-                hasPreview,
-                directoriesOnly,
-                filesOnly);
             var command = new FileSystemMenuDefinitionProvider(
-                resultHandler,
+                new StdOutResultHandler(),
                 maxDepth,
                 [rootDirectory],
                 true,
@@ -139,7 +132,9 @@ class Program
                 directoriesOnly,
                 filesOnly,
                 _viewModel,
-                null);
+                null,
+                null,
+                title);
             _app = new App(_viewModel, command);
             return _app;
         }).UsePlatformDetect();

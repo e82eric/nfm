@@ -9,13 +9,16 @@ namespace nfm.menu;
 
 public class MenuDefinition
 {
-    public int MinScore { get; set; }
-    public Func<ChannelWriter<string>, CancellationToken, Task>? AsyncFunction { get; set; }
-    public IResultHandler ResultHandler { get; set; }
-    public Dictionary<(KeyModifiers, Key), Func<string, Task>> KeyBindings { get; set; }
+    public int MinScore { get; init; }
+    public Func<IEnumerable<string>>? ItemsFunction { get; init; }
+    public Func<ChannelWriter<string>, CancellationToken, Task>? AsyncFunction { get; init; }
+    public IResultHandler ResultHandler { get; init; }
+    public Dictionary<(KeyModifiers, Key), Func<string, Task>> KeyBindings { get; init; }
     public bool ShowHeader { get; set; }
-    public string? Header { get; set; }
-    public bool QuitOnEscape { get; set; }
-    public bool HasPreview { get; set; }
-    public IComparer<Entry>? Comparer { get; set; }
+    public string? Header { get; init; }
+    public bool QuitOnEscape { get; init; }
+    public bool HasPreview { get; init; }
+    public IComparer<Entry>? Comparer { get; init; }
+    public Action? OnClosed { get; init; }
+    public string? Title { get; init; }
 }

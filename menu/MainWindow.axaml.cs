@@ -50,7 +50,8 @@ public partial class MainWindow : Window
         }
         if (textBox != null)
         {
-            textBox.KeyDown += TextBoxOnKeyUp;
+            textBox.KeyDown += TextBoxOnKeyDown;
+            textBox.KeyUp += TextBoxOnKeyUp;
         }
         var screen = Screens.Primary;
         if (screen != null)
@@ -63,7 +64,11 @@ public partial class MainWindow : Window
         }
     }
 
-    
+    private async void TextBoxOnKeyUp(object? sender, KeyEventArgs e)
+    {
+        await _viewModel.HandleKeyUp(e.Key, e.KeyModifiers);
+    }
+
     private void AdjustWindowSizeAndPosition()
     {
         var margin = .3;
@@ -210,6 +215,12 @@ public partial class MainWindow : Window
         }
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        _viewModel.Closed();
+        base.OnClosed(e);
+    }
+
     private void EditorOnKeyUp(object? sender, KeyEventArgs e)
     {
         switch (e.Key)
@@ -220,7 +231,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void TextBoxOnKeyUp(object? sender, KeyEventArgs e)
+    private async void TextBoxOnKeyDown(object? sender, KeyEventArgs e)
     {
         await _viewModel.HandleKey(e.Key, e.KeyModifiers);
 

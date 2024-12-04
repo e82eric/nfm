@@ -5,7 +5,7 @@ using Avalonia.Input;
 
 namespace nfm.menu;
 
-public class ShowWindowsMenuDefinitionProvider : IMenuDefinitionProvider
+public class ShowWindowsMenuDefinitionProvider(IResultHandler resultHandler, Action? onClosed) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -14,9 +14,11 @@ public class ShowWindowsMenuDefinitionProvider : IMenuDefinitionProvider
             AsyncFunction = ListWindows.Run,
             Header = null,
             KeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>(),
-            ResultHandler = new StdOutResultHandler(),
+            ResultHandler = resultHandler,
             MinScore = 0,
-            ShowHeader = false
+            ShowHeader = false,
+            OnClosed = onClosed,
+            Title = "Windows"
         };
         return definition;
     }
