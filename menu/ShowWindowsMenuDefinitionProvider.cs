@@ -18,7 +18,6 @@ public class ShowWindowsMenuDefinitionProvider(IResultHandler resultHandler, Act
             MinScore = 0,
             ShowHeader = false,
             OnClosed = onClosed,
-            Title = "Windows"
         };
         return definition;
     }

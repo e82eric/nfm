@@ -5,7 +5,7 @@ using Avalonia.Input;
 
 namespace nfm.menu;
 
-public class ReadFileMenuDefinitionProvider(string path, IComparer<Entry>? comparer) : IMenuDefinitionProvider
+public class ReadFileMenuDefinitionProvider(string path, IComparer<Entry>? comparer, string? searchString) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -17,7 +17,8 @@ public class ReadFileMenuDefinitionProvider(string path, IComparer<Entry>? compa
             KeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>(),
             ShowHeader = true,
             QuitOnEscape = true,
-            Comparer = comparer
+            Comparer = comparer,
+            SearchString = searchString
         };
         return definition;
     }

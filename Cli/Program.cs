@@ -21,6 +21,7 @@ class FileSystemOptions
     public bool DirectoriesOnly { get; set; }
     [Option]
     public bool FilesOnly { get; set; }
+    public string? SearchString { get; set; }
 }
 
 [Verb("command")]
@@ -35,6 +36,8 @@ class FileReaderOptions
 {
     [Option]
     public string Path { get; set; }
+    [Option]
+    public string? SearchString { get; set; }
 }
 
 class Program
@@ -50,8 +53,18 @@ class Program
     {
         //if (Console.IsInputRedirected)
         //{
-        //    BuildStdInApp().Start((app, _) => Run(app, false), args);
-        //    return;
+        //    try
+        //    {
+        //        int nextChar = Console.In.Peek();
+        //        if (nextChar != -1)
+        //        {
+        //            BuildStdInApp().Start((app, _) => Run(app, false), args);
+        //            return;
+        //        }
+        //    }
+        //    catch (Exception e)
+        //    {
+        //    }
         //}
         
         Parser.Default.ParseArguments<FileSystemOptions, CommandOptions, FileReaderOptions>(args)
@@ -70,7 +83,7 @@ class Program
                 },
                 (FileReaderOptions opts) =>
                 {
-                    BuildFileReaderApp(string.Join(" ", opts.Path))
+                    BuildFileReaderApp(string.Join(" ", opts.Path), opts.SearchString)
                         .Start((application, strings) => Run(application, false), args);
                     return 0;
                 },
@@ -81,8 +94,8 @@ class Program
         => AppBuilder.Configure(() =>
         {
             var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
-            globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _viewModel = new MainViewModel(globalKeyBindings);
+            _viewModel = new MainViewModel();
+            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             var command = new StdInMenuDefinitionProvider();
             _app = new App(_viewModel, command);
             return _app;
@@ -91,21 +104,19 @@ class Program
     private static AppBuilder BuildCommandApp(string command)
         => AppBuilder.Configure(() =>
         {
-            var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
-            globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _viewModel = new MainViewModel(globalKeyBindings);
+            _viewModel = new MainViewModel();
+            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             var definitionProvider = new RunCommandMenuDefinitionProvider(command);
             _app = new App(_viewModel, definitionProvider);
             return _app;
         }).UsePlatformDetect();
     
-    private static AppBuilder BuildFileReaderApp(string path) 
+    private static AppBuilder BuildFileReaderApp(string path, string? searchString) 
         => AppBuilder.Configure(() =>
         {
-            var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
-            globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _viewModel = new MainViewModel(globalKeyBindings);
-            var definitionProvider = new ReadFileMenuDefinitionProvider(path, HistoryComparer);
+            _viewModel = new MainViewModel();
+            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            var definitionProvider = new ReadFileMenuDefinitionProvider(path, HistoryComparer, searchString);
             _app = new App(_viewModel, definitionProvider);
             return _app;
         }).UsePlatformDetect();
@@ -119,9 +130,8 @@ class Program
         => AppBuilder.Configure(() =>
         {
             var title = "File System";
-            var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
-            globalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _viewModel = new MainViewModel(globalKeyBindings);
+            _viewModel = new MainViewModel();
+            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
 
             var command = new FileSystemMenuDefinitionProvider(
                 new StdOutResultHandler(),
@@ -133,8 +143,7 @@ class Program
                 filesOnly,
                 _viewModel,
                 null,
-                null,
-                title);
+                null);
             _app = new App(_viewModel, command);
             return _app;
         }).UsePlatformDetect();

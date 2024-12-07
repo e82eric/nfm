@@ -1,21 +1,13 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-using System.Timers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using AvaloniaEdit;
-using AvaloniaEdit.Document;
 using AvaloniaEdit.TextMate;
 using TextMateSharp.Grammars;
 
@@ -102,12 +94,6 @@ public partial class MainWindow : Window
         this.Position = new PixelPoint((int)left, (int)top);
     }
 
-    protected override void OnLostFocus(RoutedEventArgs e)
-    {
-        base.OnLostFocus(e);
-        //_viewModel.Close();
-    }
-
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         BringToForeground();
@@ -144,7 +130,7 @@ public partial class MainWindow : Window
         {
             if (!_viewModel.IsVisible)
             {
-                Dispatcher.UIThread.Invoke(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     //ListBoxContainer.IsVisible = false;
                     Close();
@@ -162,7 +148,7 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == "SelectedIndex")
         {
-            Dispatcher.UIThread.Invoke(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 ListBox.SelectedIndex = _viewModel.SelectedIndex;
             });
@@ -191,7 +177,7 @@ public partial class MainWindow : Window
         {
             var image = new Image();
             image.Source = _viewModel.PreviewImage;
-            Dispatcher.UIThread.Invoke(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 PreviewContainer.Child = image;
             });

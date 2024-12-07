@@ -563,7 +563,15 @@ public static class FuzzySearcher
 
         return new FzfResult { End = -1, Start = -1, Score = 0 };
     }
-    
+
+    public static int GetScore(ReadOnlySpan<char> text, ReadOnlySpan<char> text2, Pattern pattern, Slab slab)
+    {
+        Span<char> combined = stackalloc char[2048];
+        text.CopyTo(combined);
+        text2.CopyTo(combined[(text.Length)..]);
+        return GetScore(combined, pattern, slab);
+    }
+
     public static int GetScore(ReadOnlySpan<char> text, Pattern pattern, Slab slab)
     {
         slab.Reset();

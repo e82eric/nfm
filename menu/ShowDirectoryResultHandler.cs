@@ -25,8 +25,7 @@ public class ShowDirectoryResultHandler(
                 filesOnly,
                 viewModel,
                 null,
-                onClosed,
-                title).Get();
+                onClosed).Get();
 
         await viewModel.Clear();
         await viewModel.RunDefinitionAsync(definition);

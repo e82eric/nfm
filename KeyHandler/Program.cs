@@ -18,12 +18,8 @@ class Program
     private static AppBuilder BuildAvaloniaApp(string[] args) 
         => AppBuilder.Configure(() =>
         {
-            var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
-            globalKeyBindings.Add((KeyModifiers.Control, Key.C), async line => {
-                await ClipboardHelper.CopyStringToClipboard(line);
-                await _viewModel.ShowToast($"Copied \"{line}\" to clipboard", 1500);
-            });
-            _viewModel = new MainViewModel(globalKeyBindings);
+            _viewModel = new MainViewModel();
+            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             _keyHandlerApp = new KeyHandlerApp(_viewModel);
             return _keyHandlerApp;
         }).UsePlatformDetect();
@@ -60,8 +56,7 @@ class Program
             true,
             _viewModel,
             ProgramComparer,
-            null,
-            programLauncherTitle));
+            null));
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_I), new ShowWindowsMenuDefinitionProvider(new StdOutResultHandler(), null));
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_U), new ShowProcessesMenuDefinitionProvider(_viewModel, null));
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_L), new FileSystemMenuDefinitionProvider(
@@ -78,8 +73,7 @@ class Program
             false,
             _viewModel,
             null,
-            null,
-            fileSystemTitle));
+            null));
         GlobalKeyHandler.SetHook(_keyHandlerApp, keyBindings);
         app.Run(CancellationToken.None);
     }

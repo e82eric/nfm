@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using nfm.menu;
 
 public class ClipboardHelper
 {
@@ -31,16 +32,16 @@ public class ClipboardHelper
     
     private const uint GMEM_MOVEABLE = 0x0002;
 
-    public static Task CopyStringToClipboard(string text)
+    public static async Task CopyStringToClipboard(string text, MainViewModel viewModel)
     {
         // Ensure we're running on STA thread
         if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
         {
-            Thread thread = new Thread(() => CopyStringToClipboard(text));
+            Thread thread = new Thread(() => CopyStringToClipboard(text, viewModel));
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             thread.Join();
-            return Task.CompletedTask;
+            return;
         }
 
         IntPtr hGlobal = IntPtr.Zero;
@@ -96,6 +97,7 @@ public class ClipboardHelper
             }
             CloseClipboard();
         }
-        return Task.CompletedTask;
+        
+        await viewModel.ShowToast($"Copied '{text}' to clipboard");
     }
 }

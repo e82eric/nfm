@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using nfzf.ListProcesses;
@@ -29,90 +33,106 @@ public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Ac
             await mainViewModel.ShowToast($"Killed process {pid}", 500);
             await ProcessLister.KillProcessById(line, pid);
         });
-        keyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-        keyBindings.Add((KeyModifiers.Control, Key.D1), async _ =>
+        keyBindings.Add((KeyModifiers.Control, Key.M), async line =>
         {
-            var definition = new MenuDefinition
+            var match = Regex.Match(line, @"\s+([0-9]+)\s+");
+            if (!match.Success)
             {
-                AsyncFunction = ProcessLister.RunSortedByCpu,
-                Header = header,
-                KeyBindings = keyBindings,
-                MinScore = 0,
-                ResultHandler = new StdOutResultHandler(),
-                ShowHeader = true,
-                Comparer = Comparer,
-                OnClosed = onClosed,
-                Title = "Processes"
-            };
+                await mainViewModel.ShowToast("Failed to parse process ID from input.");
+                return;
+            }
 
+            if (!int.TryParse(match.Groups[1].Value, out var pid))
+            {
+                await mainViewModel.ShowToast("Invalid process ID format.");
+                return;
+            }
+
+            await Task.Run(async () =>
+            {
+                try
+                {
+                    var process = Process.GetProcessById(pid);
+                    var dumpFilePath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        $"{process.ProcessName}_{DateTimeOffset.Now:yyyyMMddHHmmss}.dmp");
+
+                    MemoryDumpTaker.TakeMemoryDump(pid, dumpFilePath);
+                    await mainViewModel.ShowToast($"Memory dump of {process.ProcessName} saved to: {dumpFilePath}");
+                }
+                catch (Exception e)
+                {
+                    await mainViewModel.ShowToast($"Memory dump of {pid} failed: {e.Message}");
+                }
+            });
+        });
+        keyBindings.Add((KeyModifiers.Control, Key.Z), async line =>
+        {
+            var match = Regex.Match(line, @"\s+([0-9]+)\s+");
+            if (!match.Success)
+            {
+                await mainViewModel.ShowToast("Failed to parse process ID from input.");
+                return;
+            }
+
+            if (!int.TryParse(match.Groups[1].Value, out var pid))
+            {
+                await mainViewModel.ShowToast("Invalid process ID format.");
+                return;
+            }
+
+            //await Task.Run(async () =>
+            //{
+                try
+                {
+                    JitDebugLauncher.LaunchJitDebugger(pid);
+                    await mainViewModel.ShowToast($"Launched jit debugger for: {pid}");
+                }
+                catch (Exception e)
+                {
+                    await mainViewModel.ShowToast($"Launching jit debugger failed for {pid} failed: {e.Message}");
+                }
+            //});
+        });
+
+        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByCpu, (KeyModifiers.Control, Key.D1));
+        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByPid, (KeyModifiers.Control, Key.D2));
+        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByPrivateBytes, (KeyModifiers.Control, Key.D3));
+        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByWorkingSet, (KeyModifiers.Control, Key.D4));
+
+        var definition = CreateDefinition(ProcessLister.RunSortedByWorkingSet, header, keyBindings, null);
+        return definition;
+    }
+
+    private void AddResultKeyBinding(
+        Dictionary<(KeyModifiers, Key), Func<string, Task>> keyBindings,
+        string header,
+        Func<ChannelWriter<string>, CancellationToken, Task> asyncFunc,
+        (KeyModifiers Control, Key D4) keys)
+    {
+        keyBindings.Add(keys, async _ =>
+        {
+            var definition = CreateDefinition(asyncFunc, header, keyBindings, Comparer);
             await mainViewModel.Clear();
             await mainViewModel.RunDefinitionAsync(definition);
         });
-        keyBindings.Add((KeyModifiers.Control, Key.D2), async _ =>
-        {
-            var definition = new MenuDefinition
-            {
-                AsyncFunction = ProcessLister.RunSortedByPid,
-                Header = header,
-                KeyBindings = keyBindings,
-                MinScore = 0,
-                ResultHandler = new StdOutResultHandler(),
-                ShowHeader = true,
-                Comparer = Comparer,
-                OnClosed = onClosed,
-                Title = "Processes"
-            };
+    }
 
-            await mainViewModel.Clear();
-            await mainViewModel.RunDefinitionAsync(definition);
-        });
-        keyBindings.Add((KeyModifiers.Control, Key.D3), async _ =>
-        {
-            var definition = new MenuDefinition
-            {
-                AsyncFunction = ProcessLister.RunSortedByPrivateBytes,
-                Header = header,
-                KeyBindings = keyBindings,
-                MinScore = 0,
-                ResultHandler = new StdOutResultHandler(),
-                ShowHeader = true,
-                Comparer = Comparer,
-                OnClosed = onClosed,
-                Title = "Processes"
-            };
-
-            await mainViewModel.Clear();
-            await mainViewModel.RunDefinitionAsync(definition);
-        });
-        keyBindings.Add((KeyModifiers.Control, Key.D4), async _ =>
-        {
-            var definition = new MenuDefinition
-            {
-                AsyncFunction = ProcessLister.RunSortedByWorkingSet,
-                Header = header,
-                KeyBindings = keyBindings,
-                MinScore = 0,
-                ResultHandler = new StdOutResultHandler(),
-                ShowHeader = true,
-                Comparer = Comparer,
-                OnClosed = onClosed,
-                Title = "Processes"
-            };
-
-            await mainViewModel.Clear();
-            await mainViewModel.RunDefinitionAsync(definition);
-        });
-
+    private MenuDefinition CreateDefinition(
+        Func<ChannelWriter<string>, CancellationToken, Task> resultFunc,
+        string? header,
+        Dictionary<(KeyModifiers, Key), Func<string, Task>> keyBindings, IComparer<Entry> comparer)
+    {
         var definition = new MenuDefinition
         {
-            AsyncFunction = ProcessLister.RunNoSort,
+            AsyncFunction = resultFunc,
             Header = header,
             KeyBindings = keyBindings,
             MinScore = 0,
             ResultHandler = new StdOutResultHandler(),
             ShowHeader = true,
+            Comparer = comparer,
             OnClosed = onClosed,
-            Title = "Processes"
         };
         return definition;
     }

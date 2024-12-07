@@ -58,6 +58,7 @@ public class AsciiFuzzyIndexBenchmarks
     private Pattern _pat;
     private byte[] _testData;
     private FileWalker _walker;
+    private FileWalker2 _walker2;
 
 
     [GlobalSetup]
@@ -82,6 +83,7 @@ public class AsciiFuzzyIndexBenchmarks
         _slab = Slab.MakeDefault();
          //_testData = File.ReadAllBytes("random_file_paths.txt");
         _walker = new FileWalker();
+        _walker2 = new FileWalker2();
     }
 
     [Benchmark]
@@ -89,6 +91,14 @@ public class AsciiFuzzyIndexBenchmarks
     {
         var c = Channel.CreateUnbounded<string>();
         var writeTask = _walker.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+        await writeTask;
+    }
+    
+    [Benchmark]
+    public async Task FileWalker2()
+    {
+        var c = Channel.CreateUnbounded<(string, string)>();
+        var writeTask = _walker2.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
         await writeTask;
     }
     

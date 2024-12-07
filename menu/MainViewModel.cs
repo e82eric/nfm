@@ -18,16 +18,29 @@ using TextMateSharp.Grammars;
 
 namespace nfm.menu;
 
-public readonly struct Entry(string line, int score, int index)
+public static class EnumerableExtensions
+{
+    public static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(this IEnumerable<T> source)
+    {
+        foreach (var item in source)
+        {
+            yield return item;
+            await Task.Yield();
+        }
+    }
+}
+
+public readonly struct Entry(string line, string line2, int score, int index)
 {
     public readonly string Line = line;
+    public readonly string Line2 = line2;
     public readonly int Score = score;
     public readonly int Index = index;
 }
 public sealed class MainViewModel : INotifyPropertyChanged
 {
-    private readonly Dictionary<(KeyModifiers, Key), Func<string, Task>> _globalKeyBindings;
-    
+    public Dictionary<(KeyModifiers, Key), Func<string, MainViewModel, Task>> GlobalKeyBindings { get; }
+
     private class ThreadLocalData(Slab slab)
     {
         public List<Entry> Entries { get; } = new(MaxItems);
@@ -273,14 +286,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
     
-    public MainViewModel(Dictionary<(KeyModifiers, Key), Func<string, Task>> globalKeyBindings)
+    public MainViewModel()
     {
+        GlobalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, MainViewModel, Task>>();
         _channelOptions = new UnboundedChannelOptions 
         { 
             SingleReader = true,
             SingleWriter = false
         };
-        _globalKeyBindings = globalKeyBindings;
         IsVisible = false;
         _positionsSlab = Slab.MakeDefault();
         _cancellation = new CancellationTokenSource();
@@ -310,12 +323,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
         _definition = definition;
         HasPreview = _definition.HasPreview;
-        Title = _definition.Title;
-        ShowTitle = _definition.Title != null;
+        SearchText = definition.SearchString;
         IsVisible = true;
         DisplayItems.Clear();
         OnPropertyChanged(nameof(DisplayItems));
-        SearchText = string.Empty;
         IsHeaderVisible = definition.Header != null;
         Header = definition.Header;
         SelectedIndex = 0;
@@ -327,10 +338,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await ReadFromSourceAsync(channel.Reader, _currentDefinitionCancellationTokenSource.Token);
             await writerTask;
         }
+        if (definition.AsyncFunction2 != null)
+        {
+            var channel = Channel.CreateUnbounded<(string, string)>(_channelOptions);
+            var writerTask = definition.AsyncFunction2(channel.Writer, _currentDefinitionCancellationTokenSource.Token);
+            await ReadFromSourceAsync(channel.Reader, _currentDefinitionCancellationTokenSource.Token);
+            await writerTask;
+        }
         else if (definition.ItemsFunction != null)
         {
-            var items = definition.ItemsFunction();
-            ReadFromSource(items, _currentDefinitionCancellationTokenSource.Token);
+            await ReadFromSourceAsync(definition.ItemsFunction(), _currentDefinitionCancellationTokenSource.Token);
         }
     }
 
@@ -564,7 +581,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     
     private async Task<(bool IsText, List<string> Lines)> TryReadTextFile(FileInfo path, int maxLines, CancellationToken ct)
     {
-        var registryOptions = new TextMateSharp.Grammars.RegistryOptions(ThemeName.Dark);
+        var registryOptions = new RegistryOptions(ThemeName.Dark);
         var language = registryOptions.GetLanguageByExtension(path.Extension);
         
         var lines = new List<string>();
@@ -624,7 +641,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return (false, null); // If an error occurs, assume it's not a valid text file
         }
     }
-
+    
     private Task Render(CancellationToken ct)
     {
         var searchString = _searchText;
@@ -642,7 +659,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     {
                         break;
                     }
-                    DisplayItems.Add(new HighlightedText(item, new List<int>()));
+                    DisplayItems.Add(new HighlightedText(item.Item1 + item.Item2, new List<int>()));
                     itemsAdded++;
                 }
                 if (itemsAdded >= MaxItems)
@@ -683,11 +700,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         return localData;
                     }
                     var line = chunkWithIndex.chunk.Items[i];
-                    var score = FuzzySearcher.GetScore(line, pattern, localData.Slab);
+                    var score = FuzzySearcher.GetScore(line.Item1, line.Item2, pattern, localData.Slab);
                     if (score > _definition.MinScore)
                     {
                         Interlocked.Increment(ref numberOfItemsWithScores);
-                        ProcessNewScore(line, score, chunkWithIndex.chunkNumber * Chunk.MaxSize + i, localData, comparer);
+                        ProcessNewScore(line.Item1, line.Item2, score, chunkWithIndex.chunkNumber * Chunk.MaxSize + i, localData, comparer);
                     }
                 }
                 return localData;
@@ -713,9 +730,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         DisplayItems.Clear();
         foreach (var item in topEntries)
         {
-            var pos = FuzzySearcher.GetPositions(item.Line, pattern, _positionsSlab);
+            var pos = FuzzySearcher.GetPositions(item.Line + item.Line2, pattern, _positionsSlab);
             _positionsSlab.Reset();
-            DisplayItems.Add(new HighlightedText(item.Line, pos));
+            DisplayItems.Add(new HighlightedText(item.Line + item.Line2, pos));
         }
 
         if (DisplayItems.Any() && previousIndex < 0)
@@ -740,14 +757,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
     
-    private static void ProcessNewScore(string line, int score, int i, ThreadLocalData localData, IComparer<Entry> comparer)
+    private static void ProcessNewScore(string line, string line2, int score, int i, ThreadLocalData localData, IComparer<Entry> comparer)
     {
         if (line == null)
         {
             return;
         }
 
-        var entry = new Entry(line, score, i);
+        var entry = new Entry(line, line2, score, i);
         var list = localData.Entries;
         int index = list.BinarySearch(entry, comparer);
         
@@ -764,7 +781,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
     
-    private void ReadFromSource(IEnumerable<string> items, CancellationToken cancellationToken)
+    private async Task ReadFromSourceAsync(IAsyncEnumerable<(string, string)> source, CancellationToken cancellationToken)
     {
         var numberOfItems = 0;
         NumberOfItems = 0;
@@ -774,59 +791,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-             foreach (var line in items)
+            await foreach (var line in source.WithCancellation(cancellationToken))
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
                     return;
                 }
-                numberOfItems++;
-                if (!currentChunk.TryAdd(line))
-                {
-                    currentChunk = new Chunk();
-                    _chunks.Add(currentChunk);
-                    Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
-                    if (lastFullChunk != null)
-                    {
-                        _restartSearchSignal.Set();
-                    }
-
-                    if (!currentChunk.TryAdd(line))
-                    {
-                        throw new Exception("Could not add line to Chunk");
-                    }
-
-                    NumberOfItems = numberOfItems;
-                }
-            }
-        }
-        catch (TaskCanceledException)
-        {
-        }
-
-        NumberOfItems = numberOfItems;
-        Reading = false;
-
-        currentChunk.SetComplete();
-        _restartSearchSignal.Set();
-    }
-
-    private async Task ReadFromSourceAsync(ChannelReader<string> channelReader, CancellationToken cancellationToken)
-    {
-        var numberOfItems = 0;
-        NumberOfItems = 0;
-        Reading = true;
-
-        var currentChunk = _chunks.Last();
-
-        try
-        {
-            await foreach (var line in channelReader.ReadAllAsync(cancellationToken))
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
+            
                 numberOfItems++;
                 if (!currentChunk.TryAdd(line))
                 {
@@ -858,6 +829,116 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _restartSearchSignal.Set();
     }
     
+    private async Task ReadFromSourceAsync(IAsyncEnumerable<string> source, CancellationToken cancellationToken)
+    {
+        var numberOfItems = 0;
+        NumberOfItems = 0;
+        Reading = true;
+
+        var currentChunk = _chunks.Last();
+
+        try
+        {
+            await foreach (var line in source.WithCancellation(cancellationToken))
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+            
+                numberOfItems++;
+                if (!currentChunk.TryAdd(line))
+                {
+                    currentChunk = new Chunk();
+                    _chunks.Add(currentChunk);
+                    Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
+                    if (lastFullChunk != null)
+                    {
+                        _restartSearchSignal.Set();
+                    }
+
+                    if (!currentChunk.TryAdd(line))
+                    {
+                        throw new Exception("Could not add line to Chunk");
+                    }
+
+                    NumberOfItems = numberOfItems;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        NumberOfItems = numberOfItems;
+        Reading = false;
+
+        currentChunk.SetComplete();
+        _restartSearchSignal.Set();
+    }
+    
+    private async Task ReadFromSourceAsync(ChannelReader<(string, string)> channelReader, CancellationToken cancellationToken)
+    {
+        await ReadFromSourceAsync(channelReader.ReadAllAsync(cancellationToken), cancellationToken);
+    }
+
+    private async Task ReadFromSourceAsync(ChannelReader<string> channelReader, CancellationToken cancellationToken)
+    {
+        await ReadFromSourceAsync(channelReader.ReadAllAsync(cancellationToken), cancellationToken);
+    }
+
+    private async Task ReadFromSourceAsync(IEnumerable<string> enumerable, CancellationToken cancellationToken)
+    {
+        await ReadFromSourceAsync(enumerable.ToAsyncEnumerable(), cancellationToken);
+    }
+
+    //private async Task ReadFromSourceAsync(ChannelReader<string> channelReader, CancellationToken cancellationToken)
+    //{
+    //    var numberOfItems = 0;
+    //    NumberOfItems = 0;
+    //    Reading = true;
+
+    //    var currentChunk = _chunks.Last();
+
+    //    try
+    //    {
+    //        await foreach (var line in channelReader.ReadAllAsync(cancellationToken))
+    //        {
+    //            if (cancellationToken.IsCancellationRequested)
+    //            {
+    //                return;
+    //            }
+    //            numberOfItems++;
+    //            if (!currentChunk.TryAdd(line))
+    //            {
+    //                currentChunk = new Chunk();
+    //                _chunks.Add(currentChunk);
+    //                Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
+    //                if (lastFullChunk != null)
+    //                {
+    //                    _restartSearchSignal.Set();
+    //                }
+
+    //                if (!currentChunk.TryAdd(line))
+    //                {
+    //                    throw new Exception("Could not add line to Chunk");
+    //                }
+
+    //                NumberOfItems = numberOfItems;
+    //            }
+    //        }
+    //    }
+    //    catch (OperationCanceledException)
+    //    {
+    //    }
+
+    //    NumberOfItems = numberOfItems;
+    //    Reading = false;
+
+    //    currentChunk.SetComplete();
+    //    _restartSearchSignal.Set();
+    //}
+    
     public async Task HandleKeyUp(Key eKey, KeyModifiers eKeyModifiers)
     {
         switch (eKey)
@@ -881,22 +962,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
                 break;
         }
-    }
-
-    public async Task HandleKey(Key eKey, KeyModifiers eKeyModifiers)
-    {
+        
         if (eKeyModifiers == KeyModifiers.Control)
         {
             if (_definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
                 await action(DisplayItems[SelectedIndex].Text);
             }
-            else if (_globalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
+            else if (GlobalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
             {
-                await globalAction(DisplayItems[SelectedIndex].Text);
+                await globalAction(DisplayItems[SelectedIndex].Text, this);
             }
         }
-            
+    }
+
+    public async Task HandleKey(Key eKey, KeyModifiers eKeyModifiers)
+    {
         switch (eKey)
         {
             case Key.Down:

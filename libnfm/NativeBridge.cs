@@ -129,8 +129,7 @@ public static class NativeBridge
             false,
             _viewModel,
             null,
-            () => onClosed(),
-            title);
+            () => onClosed());
         _app?.RunDefinition(command);
     }
     
@@ -154,8 +153,7 @@ public static class NativeBridge
             true,
             _viewModel,
             ProgramComparer,
-            () => onClosed(),
-            title);
+            () => onClosed());
         _app?.RunDefinition(command);
     }
     
@@ -206,11 +204,8 @@ public static class NativeBridge
     private static AppBuilder BuildFileSystemApp() 
         => AppBuilder.Configure(() =>
         {
-            var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>
-            {
-                { (KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard }
-            };
-            _viewModel = new MainViewModel(globalKeyBindings);
+            _viewModel = new MainViewModel();
+            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             _app = new App(_viewModel);
             return _app;
         }).UsePlatformDetect();

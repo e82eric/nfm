@@ -20,14 +20,13 @@ public class FileSystemMenuDefinitionProvider(
     bool filesOnly,
     MainViewModel viewModel,
     IComparer<Entry>? comparer,
-    Action? onClosed,
-    string? title) : IMenuDefinitionProvider
+    Action? onClosed) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
         var definition = new MenuDefinition
         {
-            AsyncFunction = rootDirectory == null || !rootDirectory.Any() ?
+            AsyncFunction2 = rootDirectory == null || !rootDirectory.Any() ?
                 (writer, ct) => ListDrives(maxDepth, writer, ct) :
                 (writer, ct) => ListDrives(rootDirectory, maxDepth, writer, ct),
             Header = null,
@@ -38,8 +37,7 @@ public class FileSystemMenuDefinitionProvider(
             QuitOnEscape = quitOnEscape,
             HasPreview = hasPreview,
             Comparer = comparer,
-            OnClosed = onClosed,
-            Title = title
+            OnClosed = onClosed
         };
         definition.KeyBindings.Add((KeyModifiers.Control, Key.O), _ => ParentDir(rootDirectory));
         return definition;
@@ -61,24 +59,23 @@ public class FileSystemMenuDefinitionProvider(
                 filesOnly,
                 viewModel,
                 null,
-                onClosed,
-                title).Get();
+                onClosed).Get();
 
             await viewModel.Clear();
             await viewModel.RunDefinitionAsync(definition);
         }
     }
     
-    private async Task ListDrives(int maxDepth, ChannelWriter<string> writer, CancellationToken cancellationToken)
+    private async Task ListDrives(int maxDepth, ChannelWriter<(string, string)> writer, CancellationToken cancellationToken)
     {
         DriveInfo[] allDrives = DriveInfo.GetDrives();
         var drives = allDrives.Select(d => d.Name);
         await ListDrives(drives, maxDepth, writer, cancellationToken);
     }
     
-    private async Task ListDrives(IEnumerable<string> rootDirectories, int maxDepth, ChannelWriter<string> writer, CancellationToken cancellationToken)
+    private async Task ListDrives(IEnumerable<string> rootDirectories, int maxDepth, ChannelWriter<(string, string)> writer, CancellationToken cancellationToken)
     {
-        var fileScanner = new FileWalker();
+        var fileScanner = new FileWalker2();
         await fileScanner.StartScanForDirectoriesAsync(rootDirectories, writer, maxDepth, directoriesOnly, filesOnly, cancellationToken);
     }
 }
