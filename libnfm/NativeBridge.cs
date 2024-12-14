@@ -5,18 +5,21 @@ using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using nfzf.FileSystem;
 
 namespace nfm.menu;
 
 public static class NativeBridge
 {
     private static Thread? _appThread;
-    private static MainViewModel? _viewModel;
+    private static MainViewModel<string>? _stringViewModel;
+    private static MainViewModel<FileSystemNode>? _fileSystemViewModel;
+    private static IMainViewModel? _currentViewModel;
     private static App? _app;
     
-    private unsafe class ListWindowsNativeResultHandler(delegate* unmanaged<IntPtr, void*, void> onSelect, void* state) : IResultHandler
+    private unsafe class ListWindowsNativeResultHandler(delegate* unmanaged<IntPtr, void*, void> onSelect, void* state) : IResultHandler<string>
     {
-        public Task HandleAsync(string output, MainViewModel viewModel)
+        public Task HandleAsync(string output, MainViewModel<string> viewModel)
         {
             if (output.Length >= 8)
             {
@@ -40,9 +43,9 @@ public static class NativeBridge
         delegate* unmanaged<void*, byte**> nativeItemsAction,
         delegate* unmanaged<byte*, void*, void> onSelect,
         delegate* unmanaged<void> onClosed,
-        void* state) : IMenuDefinitionProvider
+        void* state) : IMenuDefinitionProvider<string>
     {
-        public MenuDefinition Get()
+        public MenuDefinition<string> Get()
         {
             IEnumerable<string> ConvertToManagedStrings()
             {
@@ -61,7 +64,7 @@ public static class NativeBridge
                 return result;
             }
 
-            return new MenuDefinition
+            return new MenuDefinition<string>
             {
                 AsyncFunction = null,
                 ItemsFunction = ConvertToManagedStrings,
@@ -75,9 +78,9 @@ public static class NativeBridge
         }
     }
     
-    private unsafe class NativeResultHandler(delegate* unmanaged<byte*, void*, void> onSelect, void* state) : IResultHandler
+    private unsafe class NativeResultHandler(delegate* unmanaged<byte*, void*, void> onSelect, void* state) : IResultHandler<string>, IResultHandler<FileSystemNode>
     {
-        public Task HandleAsync(string output, MainViewModel viewModel)
+        private Task HandleAsync(string output)
         {
             byte[] message = Encoding.UTF8.GetBytes(output + '\0');
             fixed (byte* messagePtr = message)
@@ -87,6 +90,17 @@ public static class NativeBridge
             }
 
             return Task.CompletedTask;
+        }
+
+        public Task HandleAsync(string output, MainViewModel<string> viewModel)
+        {
+            return HandleAsync(output);
+        }
+
+        public Task HandleAsync(FileSystemNode output, MainViewModel<FileSystemNode> viewModel)
+        {
+            var path = output.ToString();
+            return HandleAsync(path);
         }
     }
 
@@ -118,7 +132,7 @@ public static class NativeBridge
         var command = new FileSystemMenuDefinitionProvider(
             new FileSystemResultHandler(
                 new NativeResultHandler(onSelect, state),
-                new ShowDirectoryResultHandler(new NativeResultHandler(onSelect, state), false, true, false, false, () => onClosed(), title),
+                new ShowDirectoryResultHandler(new NativeResultHandler(onSelect, state), false, true, false, false, () => onClosed()),
                 false,
                 true),
             5,
@@ -127,7 +141,7 @@ public static class NativeBridge
             true,
             false,
             false,
-            _viewModel,
+            _fileSystemViewModel,
             null,
             () => onClosed());
         _app?.RunDefinition(command);
@@ -151,7 +165,7 @@ public static class NativeBridge
             false,
             false,
             true,
-            _viewModel,
+            _fileSystemViewModel,
             ProgramComparer,
             () => onClosed());
         _app?.RunDefinition(command);
@@ -168,7 +182,7 @@ public static class NativeBridge
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowProcessesList), CallConvs = [typeof(CallConvCdecl)])]
     public static unsafe void ShowProcessesList(delegate* unmanaged<byte*, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
     {
-        var command = new ShowProcessesMenuDefinitionProvider(_viewModel, ()=> onClosed());
+        var command = new ShowProcessesMenuDefinitionProvider2(_stringViewModel, ()=> onClosed());
         _app?.RunDefinition(command);
     }
     
@@ -193,7 +207,7 @@ public static class NativeBridge
     {
         try
         {
-            await _viewModel!.Close();
+            await _currentViewModel!.Close();
         }
         catch (Exception)
         {
@@ -204,9 +218,9 @@ public static class NativeBridge
     private static AppBuilder BuildFileSystemApp() 
         => AppBuilder.Configure(() =>
         {
-            _viewModel = new MainViewModel();
-            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _app = new App(_viewModel);
+            _fileSystemViewModel = new MainViewModel<FileSystemNode>();
+            _fileSystemViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            _app = new App(_stringViewModel, _fileSystemViewModel);
             return _app;
         }).UsePlatformDetect();
 
@@ -215,7 +229,7 @@ public static class NativeBridge
         app.Run(CancellationToken.None);
     } 
     
-    private static readonly IComparer<Entry> ProgramComparer = Comparer<Entry>.Create((x, y) =>
+    private static readonly IComparer<Entry<FileSystemNode>> ProgramComparer = Comparer<Entry<FileSystemNode>>.Create((x, y) =>
     {
         static int GetExtensionPriority(string line)
         {
@@ -236,14 +250,16 @@ public static class NativeBridge
         if (scoreComparison != 0) return scoreComparison;
 
         // Compare based on extension priority
-        int extensionPriorityComparison = GetExtensionPriority(y.Line).CompareTo(GetExtensionPriority(x.Line));
+        var strB = y.Line.ToString();
+        var strA = x.Line.ToString();
+        int extensionPriorityComparison = GetExtensionPriority(strB).CompareTo(GetExtensionPriority(strA));
         if (extensionPriorityComparison != 0) return extensionPriorityComparison;
 
         // Compare based on line length
-        int lengthComparison = x.Line.Length.CompareTo(y.Line.Length);
+        int lengthComparison = strA.Length.CompareTo(strB.Length);
         if (lengthComparison != 0) return lengthComparison;
 
         // Compare based on string content
-        return string.Compare(x.Line, y.Line, StringComparison.Ordinal);
+        return string.Compare(strA, strB, StringComparison.Ordinal);
     });
 }

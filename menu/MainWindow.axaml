@@ -3,8 +3,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:menu="clr-namespace:nfm.menu"
-        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
         xmlns:System="clr-namespace:System;assembly=System.Runtime"
+        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         Height="1000"
         Width="1200"
@@ -14,13 +14,10 @@
         FontFamily="Consolas, Courier New, Liberation Mono, Menlo, monospace"
         WindowStartupLocation="Manual"
         x:Class="nfm.menu.MainWindow"
-        x:DataType="menu:MainViewModel"
+        x:DataType="menu:IMainViewModel"
         IsVisible="{Binding IsVisible}"
         Title="menu">
 
-    <Design.DataContext>
-        <menu:MainViewModel />
-    </Design.DataContext>
     <Window.Resources>
         <Color x:Key="SelectedItemColor">#504945</Color>
         <Color x:Key="SelectedItemTextColor">#ebdbb2 </Color>
@@ -139,7 +136,7 @@
     </Window.Styles>
 
     <Grid
-        x:DataType="menu:MainViewModel"
+        x:DataType="menu:IMainViewModel"
         x:Name="Root"
         >
         <Grid.RowDefinitions>
@@ -171,7 +168,7 @@
                     Padding="10"
                     Grid.Column="0"
                     x:Name="TextBox"
-                    x:DataType="menu:MainViewModel"
+                    x:DataType="menu:IMainViewModel"
                     BorderThickness="0"
                     Background="{StaticResource BackgroundBrush}"
                     CaretIndex="{x:Static System:Int32.MaxValue}"
@@ -190,7 +187,7 @@
                     VerticalAlignment="Center"
                     Grid.Column="1">
                     <Grid
-                        x:DataType="menu:MainViewModel"
+                        x:DataType="menu:IMainViewModel"
                         Width="15"
                         Height="{Binding ElementName=LoadingTextBox, Path=Height}"
                         HorizontalAlignment="Right"
@@ -215,7 +212,7 @@
                                  Opacity="0" />
                     </Grid>
                     <TextBlock
-                        x:DataType="menu:MainViewModel"
+                        x:DataType="menu:IMainViewModel"
                         Foreground="{StaticResource ForegroundBrush}"
                         Text="{Binding NumberOfScoredItems}">
                     </TextBlock>
@@ -223,7 +220,7 @@
                         Foreground="{StaticResource ForegroundBrush}"
                         Text="/" Margin="3,0,3,0" />
                     <TextBlock
-                        x:DataType="menu:MainViewModel"
+                        x:DataType="menu:IMainViewModel"
                         x:Name="LoadingTextBox"
                         Foreground="{StaticResource ForegroundBrush}"
                         HorizontalAlignment="Right"
@@ -238,7 +235,7 @@
             BorderThickness="2"
             BorderBrush="{StaticResource BorderBrush}"
             CornerRadius="5"
-            x:DataType="menu:MainViewModel"
+            x:DataType="menu:IMainViewModel"
             Grid.Row="2"
             Padding="5"
             Margin="10,0,10,10">
@@ -256,8 +253,9 @@
                         Text="{Binding Header}" />
                 </Border>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1">
-                    <ListBox x:DataType="menu:MainViewModel"
+                    <ListBox x:DataType="menu:IMainViewModel"
                              x:Name="ListBox"
+                             ItemsSource="{Binding DisplayItems}"
                              Padding="5"
                              FontSize="16"
                              BorderThickness="0"
@@ -270,6 +268,7 @@
                                             <Binding Path="Text" />
                                             <Binding Path="HighlightIndexes" />
                                             <Binding Path="IsSelected" RelativeSource="{RelativeSource AncestorType=ListBoxItem}" />
+                                            <Binding Path="." />
                                         </MultiBinding>
                                     </TextBlock.Inlines>
                                 </TextBlock>

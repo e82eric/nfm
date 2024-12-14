@@ -3,6 +3,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using CommandLine;
+using nfm.Cli;
+using nfzf.FileSystem;
 
 namespace nfm.menu;
 
@@ -21,7 +23,6 @@ class FileSystemOptions
     public bool DirectoriesOnly { get; set; }
     [Option]
     public bool FilesOnly { get; set; }
-    public string? SearchString { get; set; }
 }
 
 [Verb("command")]
@@ -42,30 +43,27 @@ class FileReaderOptions
 
 class Program
 {
-    private static MainViewModel? _viewModel;
-    private static App? _app;
-
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(FileReaderOptions))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(CommandOptions))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(FileSystemOptions))]
     [STAThread]
     public static void Main(string[] args)
     {
-        //if (Console.IsInputRedirected)
-        //{
-        //    try
-        //    {
-        //        int nextChar = Console.In.Peek();
-        //        if (nextChar != -1)
-        //        {
-        //            BuildStdInApp().Start((app, _) => Run(app, false), args);
-        //            return;
-        //        }
-        //    }
-        //    catch (Exception e)
-        //    {
-        //    }
-        //}
+        if (Console.IsInputRedirected)
+        {
+            try
+            {
+                int nextChar = Console.In.Peek();
+                if (nextChar != -1)
+                {
+                    BuildStdInApp().Start((app, _) => Run(app, false), args);
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+            }
+        }
         
         Parser.Default.ParseArguments<FileSystemOptions, CommandOptions, FileReaderOptions>(args)
             .MapResult(
@@ -93,32 +91,31 @@ class Program
     private static AppBuilder BuildStdInApp() 
         => AppBuilder.Configure(() =>
         {
-            var globalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
-            _viewModel = new MainViewModel();
-            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            var viewModel = new MainViewModel<string>();
+            viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             var command = new StdInMenuDefinitionProvider();
-            _app = new App(_viewModel, command);
-            return _app;
+            var app = new App<string>(viewModel, command);
+            return app;
         }).UsePlatformDetect();
     
     private static AppBuilder BuildCommandApp(string command)
         => AppBuilder.Configure(() =>
         {
-            _viewModel = new MainViewModel();
-            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            var viewModel = new MainViewModel<string>();
+            viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             var definitionProvider = new RunCommandMenuDefinitionProvider(command);
-            _app = new App(_viewModel, definitionProvider);
-            return _app;
+            var app = new App<string>(viewModel, definitionProvider);
+            return app;
         }).UsePlatformDetect();
     
     private static AppBuilder BuildFileReaderApp(string path, string? searchString) 
         => AppBuilder.Configure(() =>
         {
-            _viewModel = new MainViewModel();
-            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var definitionProvider = new ReadFileMenuDefinitionProvider(path, HistoryComparer, searchString);
-            _app = new App(_viewModel, definitionProvider);
-            return _app;
+            var viewModel = new MainViewModel<string>();
+            viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            var definitionProvider = new ReadFileMenuDefinitionProvider2(path, Comparers.StringScoreOnly, searchString);
+            var app = new App<string>(viewModel, definitionProvider);
+            return app;
         }).UsePlatformDetect();
     
     private static AppBuilder BuildFileSystemApp(
@@ -129,9 +126,8 @@ class Program
         bool filesOnly) 
         => AppBuilder.Configure(() =>
         {
-            var title = "File System";
-            _viewModel = new MainViewModel();
-            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            var viewModel = new MainViewModel<FileSystemNode>();
+            viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
 
             var command = new FileSystemMenuDefinitionProvider(
                 new StdOutResultHandler(),
@@ -141,23 +137,15 @@ class Program
                 hasPreview,
                 directoriesOnly,
                 filesOnly,
-                _viewModel,
+                viewModel,
                 null,
                 null);
-            _app = new App(_viewModel, command);
-            return _app;
+            var app = new App<FileSystemNode>(viewModel, command);
+            return app;
         }).UsePlatformDetect();
 
     private static void Run(Application app, bool keyHandler)
     {
         app.Run(CancellationToken.None);
     }
-    
-    private static readonly IComparer<Entry> HistoryComparer = Comparer<Entry>.Create((x, y) =>
-    {
-        int scoreComparison = y.Score.CompareTo(x.Score);
-        if (scoreComparison != 0) return scoreComparison;
-
-        return x.Index.CompareTo(y.Index);
-    });
 }

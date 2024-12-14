@@ -563,13 +563,82 @@ public static class FuzzySearcher
 
         return new FzfResult { End = -1, Start = -1, Score = 0 };
     }
+    
+    public static int GetScore(string[] paths, ReadOnlySpan<char> fileName, Pattern pattern, Slab slab)
+    {
+        Span<char> combined = stackalloc char[2048];
+        var combinedResult = JoinFilePath(paths, fileName, combined);
+        return GetScore(combinedResult, pattern, slab);
+    }
+    
+    public static int GetScore(string[] paths, Pattern pattern, Slab slab)
+    {
+        Span<char> combined = stackalloc char[2048];
+        var combinedResult = JoinFilePath(paths, combined);
+        return GetScore(combinedResult, pattern, slab);
+    }
+    
+    private static ReadOnlySpan<char> JoinFilePath(string[] dirs, Span<char> target)
+    {
+        var position = 0;
+
+        for (var i = 0; i < dirs.Length; i++)
+        {
+            var dir = dirs[i];
+            if (string.IsNullOrEmpty(dir))
+                continue;
+
+            var dirSpan = dir.AsSpan();
+
+            if (position + dirSpan.Length > target.Length)
+                throw new ArgumentException("The target buffer is not large enough to hold the joined file path.");
+
+            dirSpan.CopyTo(target[position..]);
+            position += dirSpan.Length;
+
+            if (i != dirs.Length - 1 && dirSpan[^1] != '\\')
+            {
+                if (position >= target.Length)
+                    throw new ArgumentException("The target buffer is not large enough to hold the joined file path.");
+            
+                target[position] = '\\';
+                position++;
+            }
+        }
+
+        return target[..position];
+    }
+    
+    private static ReadOnlySpan<char> JoinFilePath(string[] dirs, ReadOnlySpan<char> fileName, Span<char> target)
+    {
+        var position = 0;
+        foreach (var dir in dirs)
+        {
+            var dirSpan = dir.AsSpan();
+            dirSpan.CopyTo(target[position..]);
+            position += dirSpan.Length;
+            if (dirSpan.Length > 0 && dirSpan[^1] != '\\')
+            {
+                target[position] = '\\';
+                position++;
+            }
+        }
+        fileName.CopyTo(target.Slice(position));
+        position += fileName.Length;
+        return target[..position];
+    }
 
     public static int GetScore(ReadOnlySpan<char> text, ReadOnlySpan<char> text2, Pattern pattern, Slab slab)
     {
+        if (text.Length + text2.Length > 2048)
+        {
+            throw new ArgumentException("Combined text length exceeds buffer size.");
+        }
+        
         Span<char> combined = stackalloc char[2048];
         text.CopyTo(combined);
         text2.CopyTo(combined[(text.Length)..]);
-        return GetScore(combined, pattern, slab);
+        return GetScore(combined[0..(text.Length + text2.Length)], pattern, slab);
     }
 
     public static int GetScore(ReadOnlySpan<char> text, Pattern pattern, Slab slab)

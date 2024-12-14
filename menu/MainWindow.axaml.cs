@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
+using System.Net.Mime;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -15,13 +19,14 @@ namespace nfm.menu;
 
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel _viewModel;
+    private readonly IMainViewModel _viewModel;
     private readonly ListBox? _listBox;
     private TextEditor _editor;
     private RegistryOptions _registryOptions;
     private TextMate.Installation? _textMateInstallation;
+    private Image _image;
 
-    public MainWindow(MainViewModel viewModel)
+    public MainWindow(IMainViewModel viewModel)
     {
         DataContext = viewModel;
         Topmost = true;
@@ -98,19 +103,20 @@ public partial class MainWindow : Window
     {
         BringToForeground();
         TextBox.Focus();
-        
-        _editor = new TextEditor
-        {
-            IsReadOnly = true,
-        };
+        InitTextEditorControl();
+        _image = new Image();
+    }
+    
+    private void InitTextEditorControl()
+    {
+        _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
+        _editor = new TextEditor();
+        _textMateInstallation = _editor.InstallTextMate(_registryOptions);
         _editor.KeyUp += EditorOnKeyUp;
         if (Resources.TryGetResource("ForegroundBrush", null, out var resource) && resource is SolidColorBrush brush)
         {
             _editor.Foreground = brush;
         }
-        _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
-
-        _textMateInstallation = _editor.InstallTextMate(_registryOptions);
     }
 
     protected override void OnGotFocus(GotFocusEventArgs e)
@@ -118,7 +124,7 @@ public partial class MainWindow : Window
         base.OnGotFocus(e);
         TextBox.Focus();
     }
-
+    
     private void ViewModelOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == "HasPreview")
@@ -159,13 +165,14 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(() =>
             {
                 _editor.Text = _viewModel.PreviewText;
-                if (_viewModel.PreviewExtension != ".txt")
+
+                if (_viewModel.PreviewExtension != null && _viewModel.PreviewExtension != ".txt")
                 {
                     var languageByExtension = _registryOptions.GetLanguageByExtension(_viewModel.PreviewExtension);
                     if (languageByExtension != null)
                     {
                         var byLanguageId = _registryOptions.GetScopeByLanguageId(languageByExtension.Id);
-                        _textMateInstallation.SetGrammar( byLanguageId);
+                        _textMateInstallation.SetGrammar(byLanguageId);
                     }
                 }
 
@@ -175,11 +182,10 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == "PreviewImage")
         {
-            var image = new Image();
-            image.Source = _viewModel.PreviewImage;
             Dispatcher.UIThread.Post(() =>
             {
-                PreviewContainer.Child = image;
+                _image.Source = _viewModel.PreviewImage;
+                PreviewContainer.Child = _image;
             });
         }
 
@@ -187,16 +193,16 @@ public partial class MainWindow : Window
         {
             Dispatcher.UIThread.Invoke(() =>
             {
-                ListBox.Items.Clear();
-                foreach (var displayItem in _viewModel.DisplayItems)
-                {
-                    ListBox.Items.Add(displayItem);
-                }
+                //ListBox.Items.Clear();
+                //foreach (var displayItem in _viewModel.DisplayItems)
+                //{
+                //    ListBox.Items.Add(displayItem);
+                //}
 
-                if (_viewModel.SelectedIndex >= 0 && _viewModel.SelectedIndex <= ListBox.Items.Count - 1)
-                {
-                    ListBox.SelectedIndex = _viewModel.SelectedIndex;
-                }
+                //if (_viewModel.SelectedIndex >= 0 && _viewModel.SelectedIndex <= ListBox.Items.Count - 1)
+                //{
+                //    ListBox.SelectedIndex = _viewModel.SelectedIndex;
+                //}
             });
         }
     }

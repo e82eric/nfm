@@ -2,7 +2,7 @@
 
 namespace nfm.menu;
 
-public interface IResultHandler
+public interface IResultHandler<T>
 {
-    Task HandleAsync(string output, MainViewModel viewModel);
+    Task HandleAsync(T output, MainViewModel<T> viewModel);
 }

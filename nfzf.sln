@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "temp", "temp\temp.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LibNfm", "LibNfm\LibNfm.csproj", "{A001B501-67DC-4425-B15E-AA78402A02C3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tempA", "tempA\tempA.csproj", "{8276062A-B7D7-47D7-BE43-369C8F4315A6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -78,5 +80,9 @@ Global
 		{A001B501-67DC-4425-B15E-AA78402A02C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A001B501-67DC-4425-B15E-AA78402A02C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A001B501-67DC-4425-B15E-AA78402A02C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8276062A-B7D7-47D7-BE43-369C8F4315A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8276062A-B7D7-47D7-BE43-369C8F4315A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8276062A-B7D7-47D7-BE43-369C8F4315A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8276062A-B7D7-47D7-BE43-369C8F4315A6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

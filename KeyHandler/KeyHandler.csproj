@@ -22,8 +22,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Update="KeyHandlerApp.axaml.cs">
-        <DependentUpon>KeyHandlerApp.axaml</DependentUpon>
+      <Compile Update="KeyHandlerApp.cs">
+        <DependentUpon>KeyHandlerApp</DependentUpon>
         <SubType>Code</SubType>
       </Compile>
     </ItemGroup>

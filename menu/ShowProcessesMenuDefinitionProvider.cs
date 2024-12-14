@@ -7,13 +7,14 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Input;
+using nfzf;
 using nfzf.ListProcesses;
 
 namespace nfm.menu;
 
-public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Action? onClosed) : IMenuDefinitionProvider
+public class ShowProcessesMenuDefinitionProvider2(MainViewModel<string> mainViewModel, Action? onClosed) : IMenuDefinitionProvider<string>
 {
-    public MenuDefinition Get()
+    public MenuDefinition<string> Get()
     {
         var header = string.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
             "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)");
@@ -118,12 +119,12 @@ public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Ac
         });
     }
 
-    private MenuDefinition CreateDefinition(
+    private MenuDefinition<string> CreateDefinition(
         Func<ChannelWriter<string>, CancellationToken, Task> resultFunc,
         string? header,
-        Dictionary<(KeyModifiers, Key), Func<string, Task>> keyBindings, IComparer<Entry> comparer)
+        Dictionary<(KeyModifiers, Key), Func<string, Task>> keyBindings, IComparer<Entry<string>> comparer)
     {
-        var definition = new MenuDefinition
+        var definition = new MenuDefinition<string>
         {
             AsyncFunction = resultFunc,
             Header = header,
@@ -133,9 +134,20 @@ public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Ac
             ShowHeader = true,
             Comparer = comparer,
             OnClosed = onClosed,
+            //SortAction = SortAction
+            ScoreFunc = (s, pattern, slab) =>
+            {
+                var result = FuzzySearcher.GetScore(s, pattern, slab);
+                return (s.Length, result);
+            },
+            StrConverter = new StringConverter(),
         };
         return definition;
     }
-    
-    private static readonly IComparer<Entry> Comparer = Comparer<Entry>.Create((x, y) => y.Score.CompareTo(x.Score));
+
+    private void SortAction(string s, int i, int arg3, int arg4, List<Entry<string>> arg5)
+    {
+    }
+
+    private static readonly IComparer<Entry<string>> Comparer = Comparer<Entry<string>>.Create((x, y) => y.Score.CompareTo(x.Score));
 }

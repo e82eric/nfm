@@ -18,7 +18,7 @@ public class HighlightedTextConverter : IMultiValueConverter
 
     public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values?.Count != 3 || values[0] is not string text || values[1] is not IList<int> highlights || values[2] is not bool isSelected)
+        if (values?.Count != 4 || values[0] is not string _text || values[1] is not IList<int> _highlights || values[2] is not bool isSelected || values[3] is not HighlightedText viewModel)
         {
             return new InlineCollection { new Run { Text = values?[0]?.ToString() ?? string.Empty } };
         }
@@ -26,7 +26,7 @@ public class HighlightedTextConverter : IMultiValueConverter
         var inlines = new InlineCollection();
         var currentIndex = 0;
 
-        var sortedHighlights = highlights.OrderBy(i => i).Distinct().ToList();
+        var sortedHighlights = viewModel.HighlightIndexes.OrderBy(i => i).Distinct().ToList();
 
         var normalBrush = isSelected ? SelectedItemTextBrush : NormalTextBrush;
 
@@ -36,16 +36,16 @@ public class HighlightedTextConverter : IMultiValueConverter
             {
                 inlines.Add(new Run
                 {
-                    Text = text[currentIndex..highlightIndex],
+                    Text = viewModel.Text[currentIndex..highlightIndex],
                     Foreground = normalBrush
                 });
             }
 
-            if (highlightIndex < text.Length)
+            if (highlightIndex < viewModel.Text.Length)
             {
                 inlines.Add(new Run
                 {
-                    Text = text[highlightIndex].ToString(),
+                    Text = viewModel.Text[highlightIndex].ToString(),
                     Foreground = HighlightBrush
                 });
             }
@@ -53,11 +53,11 @@ public class HighlightedTextConverter : IMultiValueConverter
             currentIndex = highlightIndex + 1;
         }
 
-        if (currentIndex < text.Length)
+        if (currentIndex < viewModel.Text.Length)
         {
             inlines.Add(new Run
             {
-                Text = text[currentIndex..],
+                Text = viewModel.Text[currentIndex..],
                 Foreground = normalBrush
             });
         }

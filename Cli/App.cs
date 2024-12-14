@@ -1,15 +1,16 @@
-using Avalonia;
-using Avalonia.Markup.Xaml;
+﻿using Avalonia;
+using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
+using nfm.menu;
 
-namespace nfm.menu;
+namespace nfm.Cli;
 
-public class App : Application
+public class App<T> : Application where T:class
 {
-    private readonly MainViewModel _viewModel;
-    private readonly IMenuDefinitionProvider? _definitionProvider;
+    private readonly MainViewModel<T> _viewModel;
+    private readonly IMenuDefinitionProvider<T>? _definitionProvider;
 
-    public App(MainViewModel viewModel, IMenuDefinitionProvider definitionProvider)
+    public App(MainViewModel<T> viewModel, IMenuDefinitionProvider<T> definitionProvider)
     {
         _viewModel = viewModel;
         _definitionProvider = definitionProvider;
@@ -17,7 +18,8 @@ public class App : Application
 
     public override void Initialize()
     {
-        AvaloniaXamlLoader.Load(this);
+        var fluentTheme = new FluentTheme { };
+        Styles.Add(fluentTheme);
         if (_definitionProvider != null)
         {
             Dispatcher.UIThread.InvokeAsync(async () =>

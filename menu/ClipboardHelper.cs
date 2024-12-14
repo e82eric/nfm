@@ -31,19 +31,27 @@ public class ClipboardHelper
     private static extern bool GlobalUnlock(IntPtr hMem);
     
     private const uint GMEM_MOVEABLE = 0x0002;
-
-    public static async Task CopyStringToClipboard(string text, MainViewModel viewModel)
+    
+    public static async Task CopyStringToClipboard<T>(T t, MainViewModel<T> viewModel) where T:class
     {
+        var text = t.ToString();
         // Ensure we're running on STA thread
         if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
         {
-            Thread thread = new Thread(() => CopyStringToClipboard(text, viewModel));
+            Thread thread = new Thread(() => CopyStringToClipboard(t, viewModel));
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             thread.Join();
             return;
         }
 
+        Copy(text);
+
+        await viewModel.ShowToast($"Copied '{text}' to clipboard");
+    }
+
+    private static void Copy(string text)
+    {
         IntPtr hGlobal = IntPtr.Zero;
         try
         {
@@ -97,7 +105,5 @@ public class ClipboardHelper
             }
             CloseClipboard();
         }
-        
-        await viewModel.ShowToast($"Copied '{text}' to clipboard");
     }
 }

@@ -1,15 +1,16 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using nfzf.FileSystem;
 
 namespace nfm.menu;
 
 public class FileSystemResultHandler(
-    IResultHandler fileResultHandler,
-    IResultHandler directoryResultHandler,
+    IResultHandler<FileSystemNode> fileResultHandler,
+    IResultHandler<FileSystemNode> directoryResultHandler,
     bool quitAfter,
     bool searchDirectories)
-    : IResultHandler
+    : IResultHandler<FileSystemNode>
 {
     private static bool IsDirectory(string path)
     {
@@ -17,9 +18,10 @@ public class FileSystemResultHandler(
         return attributes.HasFlag(FileAttributes.Directory);
     }
 
-    public async Task HandleAsync(string output, MainViewModel viewModel)
+    public async Task HandleAsync(FileSystemNode output, MainViewModel<FileSystemNode> viewModel)
     {
-        if (!IsDirectory(output) || !searchDirectories)
+        var path = output.ToString();
+        if (!IsDirectory(path) || !searchDirectories)
         {
             await viewModel.Close();
             await fileResultHandler.HandleAsync(output, viewModel);

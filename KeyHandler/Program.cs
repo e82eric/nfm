@@ -1,12 +1,12 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using nfzf.FileSystem;
 
 namespace nfm.menu;
 
 class Program
 {
-    private static MainViewModel _viewModel;
     private static KeyHandlerApp _keyHandlerApp;
 
     [STAThread]
@@ -18,9 +18,11 @@ class Program
     private static AppBuilder BuildAvaloniaApp(string[] args) 
         => AppBuilder.Configure(() =>
         {
-            _viewModel = new MainViewModel();
-            _viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _keyHandlerApp = new KeyHandlerApp(_viewModel);
+            _fileSystemViewModel = new MainViewModel<FileSystemNode>();
+            _stringViewModel = new MainViewModel<string>();
+            _fileSystemViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            _stringViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            _keyHandlerApp = new KeyHandlerApp(_stringViewModel);
             return _keyHandlerApp;
         }).UsePlatformDetect();
 
@@ -40,12 +42,12 @@ class Program
             @"c:\users\eric\utilities",
             @"C:\Program Files\sysinternals\"};
 
-        var keyBindings = new Dictionary<(GlobalKeyHandler.Modifiers, int), IMenuDefinitionProvider>();
+        var keyBindings = new Dictionary<(GlobalKeyHandler.Modifiers, int), Func<Task>>();
         var runFileResultHandler = new RunFileResultHandler();
-        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_P), new FileSystemMenuDefinitionProvider(
+        var systemMenuDefinitionProvider2 = new FileSystemMenuDefinitionProvider(
             new FileSystemResultHandler(
                 runFileResultHandler,
-                new ShowDirectoryResultHandler(runFileResultHandler, false, false, false, true, null, programLauncherTitle),
+                new ShowDirectoryResultHandler(runFileResultHandler, false, false, false, true, null),
                 false,
                 true),
             Int32.MaxValue,
@@ -54,15 +56,30 @@ class Program
             false,
             false,
             true,
-            _viewModel,
+            _fileSystemViewModel,
             ProgramComparer,
-            null));
-        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_I), new ShowWindowsMenuDefinitionProvider(new StdOutResultHandler(), null));
-        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_U), new ShowProcessesMenuDefinitionProvider(_viewModel, null));
-        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_L), new FileSystemMenuDefinitionProvider(
+            null);
+        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_P), async () =>
+        {
+            var def =  systemMenuDefinitionProvider2.Get();
+            await _keyHandlerApp.RunDefinition(def);
+        });
+        var showWindowsMenuDefinitionProvider = new ShowWindowsMenuDefinitionProvider(new StdOutResultHandler(), null);
+        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_I), async () =>
+        {
+            var def = showWindowsMenuDefinitionProvider.Get();
+            await _keyHandlerApp.RunDefinition(def);
+        });
+        var showProcessesMenuDefinitionProvider2 = new ShowProcessesMenuDefinitionProvider2(_stringViewModel, null);
+        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_U), async () =>
+        {
+            var def = showProcessesMenuDefinitionProvider2.Get();
+            await _keyHandlerApp.RunDefinition(def);
+        });
+        var fileSystemMenuDefinitionProvider2 = new FileSystemMenuDefinitionProvider(
             new FileSystemResultHandler(
                 runFileResultHandler,
-                new ShowDirectoryResultHandler(runFileResultHandler, false, true, false, false, null, fileSystemTitle),
+                new ShowDirectoryResultHandler(runFileResultHandler, false, true, false, false, null),
                 false,
                 true),
             5,
@@ -71,14 +88,19 @@ class Program
             true,
             false,
             false,
-            _viewModel,
+            _fileSystemViewModel,
             null,
-            null));
-        GlobalKeyHandler.SetHook(_keyHandlerApp, keyBindings);
+            null);
+        keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_L), async () =>
+        {
+            var def = fileSystemMenuDefinitionProvider2.Get();
+            await _keyHandlerApp.RunDefinition(def);
+        });
+        GlobalKeyHandler.SetHook(keyBindings);
         app.Run(CancellationToken.None);
     }
     
-    private static readonly IComparer<Entry> ProgramComparer = Comparer<Entry>.Create((x, y) =>
+    private static readonly IComparer<Entry<FileSystemNode>> ProgramComparer = Comparer<Entry<FileSystemNode>>.Create((x, y) =>
     {
         static int GetExtensionPriority(string line)
         {
@@ -97,16 +119,21 @@ class Program
         // Compare based on score
         int scoreComparison = y.Score.CompareTo(x.Score);
         if (scoreComparison != 0) return scoreComparison;
+        return scoreComparison;
 
         // Compare based on extension priority
-        int extensionPriorityComparison = GetExtensionPriority(y.Line).CompareTo(GetExtensionPriority(x.Line));
-        if (extensionPriorityComparison != 0) return extensionPriorityComparison;
+        //int extensionPriorityComparison = GetExtensionPriority(y.Line).CompareTo(GetExtensionPriority(x.Line));
+        // return extensionPriorityComparison;
+        //if (extensionPriorityComparison != 0) return extensionPriorityComparison;
 
-        // Compare based on line length
-        int lengthComparison = x.Line.Length.CompareTo(y.Line.Length);
-        if (lengthComparison != 0) return lengthComparison;
+        //// Compare based on line length
+        //int lengthComparison = x.Line.Length.CompareTo(y.Line.Length);
+        //if (lengthComparison != 0) return lengthComparison;
 
-        // Compare based on string content
-        return string.Compare(x.Line, y.Line, StringComparison.Ordinal);
+        //// Compare based on string content
+        //return string.Compare(x.Line, y.Line, StringComparison.Ordinal);
     });
+
+    private static MainViewModel<FileSystemNode> _fileSystemViewModel;
+    private static MainViewModel<string> _stringViewModel;
 }

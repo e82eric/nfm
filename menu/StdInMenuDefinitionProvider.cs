@@ -4,14 +4,15 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Input;
+using nfzf;
 
 namespace nfm.menu;
 
-public class StdInMenuDefinitionProvider : IMenuDefinitionProvider
+public class StdInMenuDefinitionProvider : IMenuDefinitionProvider<string>
 {
-    public MenuDefinition Get()
+    public MenuDefinition<string> Get()
     {
-        var definition = new MenuDefinition
+        var definition = new MenuDefinition<string>
         {
             AsyncFunction = Run,
             Header = null,
@@ -19,7 +20,14 @@ public class StdInMenuDefinitionProvider : IMenuDefinitionProvider
             ResultHandler = new StdOutResultHandler(),
             MinScore = 0,
             ShowHeader = false,
-            QuitOnEscape = true
+            QuitOnEscape = true,
+            ScoreFunc = (s, pattern, slab) =>
+            {
+                var score = FuzzySearcher.GetScore(s, pattern, slab);
+                return (s.Length, score);
+            },
+            Comparer = Comparers.StringScoreLengthAndValue,
+            StrConverter = new StringConverter()
         };
         return definition;
     }

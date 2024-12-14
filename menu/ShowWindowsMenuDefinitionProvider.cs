@@ -2,14 +2,15 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Input;
+using nfzf;
 
 namespace nfm.menu;
 
-public class ShowWindowsMenuDefinitionProvider(IResultHandler resultHandler, Action? onClosed) : IMenuDefinitionProvider
+public class ShowWindowsMenuDefinitionProvider(IResultHandler<string> resultHandler, Action? onClosed) : IMenuDefinitionProvider<string>
 {
-    public MenuDefinition Get()
+    public MenuDefinition<string> Get()
     {
-        var definition = new MenuDefinition
+        var definition = new MenuDefinition<string>
         {
             AsyncFunction = ListWindows.Run,
             Header = null,
@@ -18,6 +19,13 @@ public class ShowWindowsMenuDefinitionProvider(IResultHandler resultHandler, Act
             MinScore = 0,
             ShowHeader = false,
             OnClosed = onClosed,
+            ScoreFunc = (s, pattern, slab) =>
+            {
+                var score = FuzzySearcher.GetScore(s, pattern, slab);
+                return (s.Length, score);
+            },
+            Comparer = Comparers.StringScoreLengthAndValue,
+            StrConverter = new StringConverter()
         };
         return definition;
     }

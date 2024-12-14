@@ -3,8 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -12,9 +10,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 using nfzf;
-using TextMateSharp.Grammars;
 
 namespace nfm.menu;
 
@@ -29,25 +25,52 @@ public static class EnumerableExtensions
         }
     }
 }
-
-public readonly struct Entry(string line, string line2, int score, int index)
+public readonly struct Entry<T>(T line, int length, int score, int index)
 {
-    public readonly string Line = line;
-    public readonly string Line2 = line2;
+    public readonly T Line = line;
     public readonly int Score = score;
     public readonly int Index = index;
+    public readonly int Length = length;
 }
-public sealed class MainViewModel : INotifyPropertyChanged
-{
-    public Dictionary<(KeyModifiers, Key), Func<string, MainViewModel, Task>> GlobalKeyBindings { get; }
 
-    private class ThreadLocalData(Slab slab)
+public interface IMainViewModel: INotifyPropertyChanged
+{
+    string PreviewExtension { get; set; }
+    Bitmap PreviewImage { get; set; }
+    string PreviewText { get; set; }
+    string ToastMessage { get; set; }
+    bool IsToastVisible { get; set; }
+    bool HasPreview { get; set; }
+    bool IsHeaderVisible { get; set; }
+    string? Header { get; set; }
+    ObservableCollection<HighlightedText> DisplayItems { get; set; }
+    bool ShowResults { get; set; }
+    string SearchText { get; set; }
+    int SelectedIndex { get; set; }
+    int NumberOfScoredItems { get; set; }
+    int NumberOfItems { get; set; }
+    bool IsWorking { get; set; }
+    bool IsVisible { get; set; }
+    event PropertyChangedEventHandler? PropertyChanged;
+    Task HandleKeyUp(Key eKey, KeyModifiers eKeyModifiers);
+    Task HandleKey(Key eKey, KeyModifiers eKeyModifiers);
+    Task ShowToast(string message, int duration = 3000);
+    Task Clear();
+    Task Close();
+    void Closed();
+}
+
+public class MainViewModel<T> : IMainViewModel, IPreviewRenderer
+{
+    public Dictionary<(KeyModifiers, Key), Func<T, MainViewModel<T>, Task>> GlobalKeyBindings { get; }
+
+    private class ThreadLocalData<T>(Slab slab)
     {
-        public List<Entry> Entries { get; } = new(MaxItems);
+        public List<Entry<T>> Entries { get; } = new(MaxItems);
         public Slab Slab { get; } = slab;
     }
     
-    private readonly ConcurrentBag<ThreadLocalData> _localResultsPool = new();
+    private readonly ConcurrentBag<ThreadLocalData<T>> _localResultsPool = new();
     private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount / 2;
     private int _selectedIndex;
     private bool _reading;
@@ -55,8 +78,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _numberOfItems;
     private bool _isWorking;
     private int _numberOfScoredItems;
-    private const int MaxItems = 256 * 2;
-    private readonly List<Chunk> _chunks = new();
+    private const int MaxItems = 250;
+    private readonly List<Chunk<T>> _chunks = new();
     private readonly CancellationTokenSource _cancellation;
     private string _searchText;
     private readonly AsyncAutoResetEvent _restartSearchSignal = new();
@@ -67,7 +90,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isVisible;
     private string? _header;
     private bool _isHeaderVisible;
-    private MenuDefinition _definition;
+    private MenuDefinition<T> _definition;
     private CancellationTokenSource? _currentSearchCancellationTokenSource;
     private CancellationTokenSource? _currentPreviewCancellationTokenSource;
     private bool _hasPreview;
@@ -77,30 +100,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly UnboundedChannelOptions _channelOptions;
     private string _previewText;
     private Bitmap _previewImage;
-    private string? _title;
-    private bool _showTitle;
-
-    public string? Title
-    {
-        get => _title;
-        set
-        {
-            if (Equals(value, _title)) return;
-            _title = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool ShowTitle
-    {
-        get => _showTitle;
-        set
-        {
-            if (value == _showTitle) return;
-            _showTitle = value;
-            OnPropertyChanged();
-        }
-    }
 
     public string PreviewExtension { get; set; }
 
@@ -109,8 +108,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => _previewImage;
         set
         {
-            if (Equals(value, _previewImage)) return;
+            //if (Equals(value, _previewImage)) return;
             _previewImage = value;
+            _previewText = string.Empty;
             OnPropertyChanged();
         }
     }
@@ -274,7 +274,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-    
+
+    public object? Preview
+    {
+        get => _preview;
+        set
+        {
+            if (Equals(value, _preview)) return;
+            _preview = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool IsVisible
     {
         get => _isVisible;
@@ -288,7 +299,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     
     public MainViewModel()
     {
-        GlobalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, MainViewModel, Task>>();
+        GlobalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<T, MainViewModel<T>, Task>>();
         _channelOptions = new UnboundedChannelOptions 
         { 
             SingleReader = true,
@@ -300,17 +311,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
         
         for (var i = 0; i < _maxDegreeOfParallelism; i++)
         {
-            _localResultsPool.Add(new ThreadLocalData(Slab.MakeDefault()));
+            _localResultsPool.Add(new ThreadLocalData<T>(Slab.MakeDefault()));
         }
 
         //Start the processing loop.  need to handle the task better.
-        _ = ProcessLoop();
-        _ = PreviewLoop();
+        _ = Task.Run(ProcessLoop);
+        _ = Task.Run(PreviewLoop);
 
-        var firstChunk = new Chunk();
+        var firstChunk = new Chunk<T>();
         _chunks.Add(firstChunk);
         SelectedIndex = -1;
         SearchText = string.Empty;
+
+        for (int i = 0; i < MaxItems; i++)
+        {
+            DisplayItems.Add(new HighlightedText<T>("", new List<int>(), default(T)));
+        }
     }
 
     private void SetIsWorking()
@@ -318,30 +334,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsWorking = Reading || Searching;
     }
 
-    public async Task RunDefinitionAsync(MenuDefinition definition)
+    public async Task RunDefinitionAsync(MenuDefinition<T> definition)
     {
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
         _definition = definition;
         HasPreview = _definition.HasPreview;
         SearchText = definition.SearchString;
         IsVisible = true;
-        DisplayItems.Clear();
-        OnPropertyChanged(nameof(DisplayItems));
+        //DisplayItems.Clear();
+        //OnPropertyChanged(nameof(DisplayItems));
         IsHeaderVisible = definition.Header != null;
         Header = definition.Header;
         SelectedIndex = 0;
         
         if (definition.AsyncFunction != null)
         {
-            var channel = Channel.CreateUnbounded<string>(_channelOptions);
+            var channel = Channel.CreateUnbounded<T>(_channelOptions);
             var writerTask = definition.AsyncFunction(channel.Writer, _currentDefinitionCancellationTokenSource.Token);
-            await ReadFromSourceAsync(channel.Reader, _currentDefinitionCancellationTokenSource.Token);
-            await writerTask;
-        }
-        if (definition.AsyncFunction2 != null)
-        {
-            var channel = Channel.CreateUnbounded<(string, string)>(_channelOptions);
-            var writerTask = definition.AsyncFunction2(channel.Writer, _currentDefinitionCancellationTokenSource.Token);
             await ReadFromSourceAsync(channel.Reader, _currentDefinitionCancellationTokenSource.Token);
             await writerTask;
         }
@@ -358,61 +367,102 @@ public sealed class MainViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
+    private CancellationTokenSource _debounceCts = new();
+
     private async Task ProcessLoop()
     {
+        const int debounceDelayMilliseconds = 0;
+
         while (!_cancellation.Token.IsCancellationRequested)
         {
             await _restartSearchSignal.WaitAsync();
-            if (_currentSearchCancellationTokenSource != null)
-            {
-                await _currentSearchCancellationTokenSource.CancelAsync();
-            }
-            _currentSearchCancellationTokenSource = new CancellationTokenSource();
-            await Render(_currentSearchCancellationTokenSource.Token);
-        }
-    }
 
-    private async Task PreviewLoop()
-    {
-        const int debounceDelay = 50;
-        CancellationTokenSource debounceCts = null;
+            _debounceCts.Cancel();
+            _debounceCts.Dispose();
 
-        while (!_cancellation.Token.IsCancellationRequested)
-        {
-            await _restartPreviewSignal.WaitAsync();
-
-            debounceCts?.Cancel();
-
-            debounceCts = new CancellationTokenSource();
-            CancellationToken debounceToken = debounceCts.Token;
+            _debounceCts = new CancellationTokenSource();
+            var debounceToken = _debounceCts.Token;
 
             try
             {
-                await Task.Delay(debounceDelay, debounceToken);
+                await Task.Delay(debounceDelayMilliseconds, debounceToken);
             }
             catch (TaskCanceledException)
             {
                 continue;
             }
 
-            if (_currentPreviewCancellationTokenSource != null)
+            if (_currentSearchCancellationTokenSource != null)
             {
-                await _currentPreviewCancellationTokenSource.CancelAsync();
+                await _currentSearchCancellationTokenSource.CancelAsync();
             }
+            _currentSearchCancellationTokenSource = new CancellationTokenSource();
 
-            _currentPreviewCancellationTokenSource = new CancellationTokenSource();
+            await Render(_currentSearchCancellationTokenSource.Token);
+        }
+    }
+
+    private Task? _lastPreviewTask;
+    private object? _preview;
+
+    private async Task PreviewLoop()
+    {
+        const int debounceDelay = 300;
+        CancellationTokenSource debounceCts = null;
+
+        var ctr = 0;
+        while (!_cancellation.Token.IsCancellationRequested)
+        {
             try
             {
-                await RenderPreview(_currentPreviewCancellationTokenSource.Token);
+                await _restartPreviewSignal.WaitAsync();
+                ctr++;
+
+                if (_currentPreviewCancellationTokenSource != null && !_currentPreviewCancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    await _currentPreviewCancellationTokenSource.CancelAsync();
+                }
+
+                if (debounceCts != null)
+                {
+                    await debounceCts.CancelAsync();
+                }
+
+                debounceCts = new CancellationTokenSource();
+                CancellationToken debounceToken = debounceCts.Token;
+
+                try
+                {
+                    await Task.Delay(debounceDelay, debounceToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    //continue;
+                }
+
+                if (_lastPreviewTask != null)
+                {
+                    //await _lastPreviewTask;
+                }
+
+                _currentPreviewCancellationTokenSource = new CancellationTokenSource();
+                try
+                {
+                    _lastPreviewTask = RenderPreview(_currentPreviewCancellationTokenSource.Token);
+                }
+                catch (Exception e)
+                {
+                    PreviewText = e.Message;
+                }
             }
             catch (Exception e)
             {
-                PreviewText = e.Message;
+                RenderError(e.Message);
             }
         }
     }
     
-    private ThreadLocalData GetLocalResultFromPool()
+    private ThreadLocalData<T> GetLocalResultFromPool()
     {
         if (_localResultsPool.TryTake(out var result))
         {
@@ -422,226 +472,27 @@ public sealed class MainViewModel : INotifyPropertyChanged
         throw new Exception("Number of outstanding thread locals exceeded");
     }
     
-    private void ReturnLocalResultToPool(ThreadLocalData threadLocalData)
+    private void ReturnLocalResultToPool(ThreadLocalData<T> threadLocalData)
     {
         _localResultsPool.Add(threadLocalData);
     }
-    
-    private static readonly IComparer<Entry> EntryComparer = Comparer<Entry>.Create((x, y) =>
-    {
-        int scoreComparison = y.Score.CompareTo(x.Score);
-        if (scoreComparison != 0) return scoreComparison;
-
-        int lengthComparison = x.Line.Length.CompareTo(y.Line.Length);
-        if (lengthComparison != 0) return lengthComparison;
-
-        return string.Compare(x.Line, y.Line, StringComparison.Ordinal);
-    });
 
     private async Task RenderPreview(CancellationToken ct)
     {
         if (DisplayItems.Count > SelectedIndex && HasPreview)
         {
             var selected = DisplayItems[SelectedIndex];
-            var path = selected.Text;
-            
-            if (selected.Text.EndsWith(".mp4") || selected.Text.EndsWith(".wmv"))
+            if (selected != null)
             {
-                string arguments =
-                    $"-ss 00:00:15 -i \"{selected.Text}\" -frames:v 1 -f image2pipe -vcodec png pipe:1";
-
-                try
+                var backing = (selected as HighlightedText<T>).Backing;
+                if (_definition.PreviewHandler != null && backing != null)
                 {
-                    var process = new Process
-                    {
-                        StartInfo = new ProcessStartInfo
-                        {
-                            FileName = @"C:\msys64\mingw64\bin\ffmpeg.exe",
-                            Arguments = arguments,
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            UseShellExecute = false,
-                            CreateNoWindow = true,
-                            StandardOutputEncoding = null,
-                        }
-                    };
-
-                    if (ct.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    process.Start();
-
-                    using (var memoryStream = new MemoryStream())
-                    {
-                        await process.StandardOutput.BaseStream.CopyToAsync(memoryStream, ct);
-                        await process.WaitForExitAsync(ct);
-
-                        string error = await process.StandardError.ReadToEndAsync(ct);
-                        if (process.ExitCode != 0)
-                        {
-                            return;
-                        }
-
-                        Dispatcher.UIThread.Invoke(() =>
-                        {
-                            if (ct.IsCancellationRequested)
-                            {
-                                return;
-                            }
-                            memoryStream.Seek(0, SeekOrigin.Begin);
-                            try
-                            {
-                                PreviewImage = new Bitmap(memoryStream);
-                            }
-                            catch (Exception e)
-                            {
-                            }
-                        });
-                    }
+                    await _definition.PreviewHandler.Handle(this, backing, ct);
                 }
-                catch (Exception ex)
-                {
-                    // Handle exception
-                }
-            }
-            else
-            {
-                var displayText = string.Empty;
-                if (File.Exists(path))
-                {
-                    var info = new FileInfo(path);
-                    var (isText, lines) = await TryReadTextFile(info, Int32.MaxValue, ct);
-                    if (isText)
-                    {
-                        if (lines.Any())
-                        {
-                            displayText += $"{string.Join("\n", lines)}";
-                        }
-                        else
-                        {
-                            displayText += "\n\nThe file is empty.";
-                        }
-
-                        PreviewExtension = info.Extension;
-                    }
-                    else
-                    {
-                        var fileInfo = new FileInfo(path);
-                        displayText = $"File: {fileInfo.Name}\n" +
-                                      $"Path: {fileInfo.FullName}\n" +
-                                      $"Size: {fileInfo.Length} bytes\n" +
-                                      $"Created: {fileInfo.CreationTime}\n" +
-                                      $"Last Accessed: {fileInfo.LastAccessTime}\n" +
-                                      $"Last Modified: {fileInfo.LastWriteTime}\n" +
-                                      $"Extension: {fileInfo.Extension}\n" +
-                                      $"Is Read-Only: {fileInfo.IsReadOnly}\n" +
-                                      $"Attributes: {fileInfo.Attributes}";
-
-                        displayText += "\n\nThe file appears to be binary and was not read.";
-                        PreviewExtension = ".txt";
-                    }
-                }
-                else if (Directory.Exists(path))
-                {
-                    var dirInfo = new DirectoryInfo(path);
-                    displayText = $"Directory: {dirInfo.Name}\n" +
-                                  $"Path: {dirInfo.FullName}\n" +
-                                  $"Created: {dirInfo.CreationTime}\n" +
-                                  $"Last Modified: {dirInfo.LastWriteTime}\n" +
-                                  $"Attributes: {dirInfo.Attributes}\n\n" +
-                                  $"Items\n";
-
-                    var i = 0;
-                    foreach (var fileSystemInfo in dirInfo.EnumerateFileSystemInfos())
-                    {
-                        if (ct.IsCancellationRequested)
-                        {
-                            return;
-                        }
-                        if (i > 15)
-                        {
-                            break;
-                        }
-
-                        displayText += $"  {fileSystemInfo.Name}\n";
-                    }
-
-                    PreviewExtension = ".txt";
-                }
-                else
-                {
-                    displayText = "The provided path does not exist.";
-                }
-                PreviewText = displayText;
             }
         }
     }
-    
-    private async Task<(bool IsText, List<string> Lines)> TryReadTextFile(FileInfo path, int maxLines, CancellationToken ct)
-    {
-        var registryOptions = new RegistryOptions(ThemeName.Dark);
-        var language = registryOptions.GetLanguageByExtension(path.Extension);
-        
-        var lines = new List<string>();
 
-        try
-        {
-            if (language == null)
-            {
-                if (ct.IsCancellationRequested)
-                {
-                    return (false, null);
-                }
-                
-                using (var stream = new FileStream(path.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
-                using (var reader = new StreamReader(stream))
-                {
-                    if (ct.IsCancellationRequested)
-                    {
-                        return (false, null);
-                    }
-                    
-                    var buffer = new char[1024];
-                    int charsRead = await reader.ReadAsync(buffer, 0, buffer.Length);
-
-                    // Check for binary content in the first 1024 characters
-                    for (int i = 0; i < charsRead; i++)
-                    {
-                        if (buffer[i] == '\0' ||
-                            (buffer[i] < 32 && buffer[i] != '\t' && buffer[i] != '\n' && buffer[i] != '\r'))
-                        {
-                            return (false, null); // File appears to be binary
-                        }
-                    }
-                }
-            }
-
-            using (var stream = new FileStream(path.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
-            using (var reader = new StreamReader(stream))
-            {
-                // If the file is determined to be text, read the first `maxLines`
-                stream.Position = 0; // Reset to the beginning for reading lines
-                while (!reader.EndOfStream && lines.Count < maxLines)
-                {
-                    if (ct.IsCancellationRequested)
-                    {
-                        return (false, null);
-                    }
-                    var line = await reader.ReadLineAsync(ct);
-                    lines.Add(line);
-                }
-            }
-
-            return (true, lines); // File is text and lines are read
-        }
-        catch
-        {
-            return (false, null); // If an error occurs, assume it's not a valid text file
-        }
-    }
-    
     private Task Render(CancellationToken ct)
     {
         var searchString = _searchText;
@@ -649,8 +500,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (string.IsNullOrEmpty(_searchText))
         {
-            DisplayItems.Clear();
+            //DisplayItems.Clear();
             var itemsAdded = 0;
+            Span<char> fullFilePathBuffer = stackalloc char[2048];
+            var ctr = 0;
             foreach (var chunk in completeChunks)
             {
                 foreach (var item in chunk.Items)
@@ -659,7 +512,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     {
                         break;
                     }
-                    DisplayItems.Add(new HighlightedText(item.Item1 + item.Item2, new List<int>()));
+                    var fullFilePathSpan = _definition.StrConverter.Convert(item, fullFilePathBuffer);
+                    //var fullFilePathSpan = JoinFilePath(item, fullFilePathBuffer);
+                    var fullFilePath = fullFilePathSpan.ToString();
+                    (DisplayItems[ctr] as HighlightedText<T>).Set(fullFilePath, new List<int>(), item);
+                    ctr++;
+                    //DisplayItems.Add(new HighlightedText<T>(fullFilePath, new List<int>(), item));
                     itemsAdded++;
                 }
                 if (itemsAdded >= MaxItems)
@@ -668,7 +526,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
             
-            OnPropertyChanged(nameof(DisplayItems));
+            //OnPropertyChanged(nameof(DisplayItems));
 
             Searching = false;
             ShowResults = DisplayItems.Count > 0;
@@ -679,7 +537,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         
         var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, searchString, true);
         Searching = true;
-        var globalList = new List<Entry>(MaxItems);
+        var globalList = new List<Entry<T>>(MaxItems);
 
         var parallelOptions = new ParallelOptions
         {
@@ -687,7 +545,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         };
 
         var numberOfItemsWithScores = 0;
-        IComparer<Entry> comparer = _definition.Comparer ?? EntryComparer;
         
         Parallel.ForEach(completeChunks.Select((chunk, index) => (chunk, chunkNumber: index)), parallelOptions, 
             GetLocalResultFromPool, 
@@ -700,11 +557,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         return localData;
                     }
                     var line = chunkWithIndex.chunk.Items[i];
-                    var score = FuzzySearcher.GetScore(line.Item1, line.Item2, pattern, localData.Slab);
-                    if (score > _definition.MinScore)
+                    var score = _definition.ScoreFunc(line, pattern, localData.Slab);
+                    if (score.Item2 > _definition.MinScore)
                     {
                         Interlocked.Increment(ref numberOfItemsWithScores);
-                        ProcessNewScore(line.Item1, line.Item2, score, chunkWithIndex.chunkNumber * Chunk.MaxSize + i, localData, comparer);
+                        SortAction(
+                            line,
+                            score.Item1,
+                            score.Item2,
+                            chunkWithIndex.chunkNumber * Chunk<T>.MaxSize + i,
+                            localData.Entries,
+                            _definition.Comparer);
                     }
                 }
                 return localData;
@@ -723,16 +586,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
             localData.Entries.Clear();
         }
 
-        globalList.Sort(comparer);
+        globalList.Sort(_definition.FinalComparer);
         var topEntries = globalList.Take(MaxItems).ToList();
 
         var previousIndex = SelectedIndex;
-        DisplayItems.Clear();
-        foreach (var item in topEntries)
+        //DisplayItems.Clear();
+        Span<char> fullFilePathBuffer2 = stackalloc char[2048];
+        //var ctr2 = 0;
+        //foreach (var item in topEntries)
+        //{
+        //    var fullFilePathSpan = _definition.StrConverter.Convert(item.Line, fullFilePathBuffer2);
+        //    var fullFilePath = fullFilePathSpan.ToString();
+        //    var pos = FuzzySearcher.GetPositions(fullFilePath, pattern, _positionsSlab);
+        //    _positionsSlab.Reset();
+        //    DisplayItems[ctr2].Set(fullFilePath, pos);
+        //    ctr2++;
+        //    //DisplayItems.Add(new HighlightedText<T>(fullFilePath, pos, item.Line));
+        //}
+
+        for (int i = 0; i < MaxItems; i++)
         {
-            var pos = FuzzySearcher.GetPositions(item.Line + item.Line2, pattern, _positionsSlab);
-            _positionsSlab.Reset();
-            DisplayItems.Add(new HighlightedText(item.Line + item.Line2, pos));
+            if (i < topEntries.Count)
+            {
+                var item = topEntries[i];
+                var fullFilePathSpan = _definition.StrConverter.Convert(item.Line, fullFilePathBuffer2);
+                var fullFilePath = fullFilePathSpan.ToString();
+                var pos = FuzzySearcher.GetPositions(fullFilePath, pattern, _positionsSlab);
+                _positionsSlab.Reset();
+                (DisplayItems[i] as HighlightedText<T>).Set(fullFilePath, pos, item.Line);
+            }
+            else
+            {
+                (DisplayItems[i] as HighlightedText<T>).Set(string.Empty, new List<int>(), default(T));
+            }
         }
 
         if (DisplayItems.Any() && previousIndex < 0)
@@ -744,7 +630,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             previousIndex = 0;
         }
 
-        OnPropertyChanged(nameof(DisplayItems));
+        //OnPropertyChanged(nameof(DisplayItems));
 
         Searching = false;
         ShowResults = DisplayItems.Count > 0;
@@ -757,15 +643,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
     
-    private static void ProcessNewScore(string line, string line2, int score, int i, ThreadLocalData localData, IComparer<Entry> comparer)
+    void SortAction(T node, int length, int score, int i, List<Entry<T>> results, IComparer<Entry<T>>? comparer)
     {
-        if (line == null)
-        {
-            return;
-        }
-
-        var entry = new Entry(line, line2, score, i);
-        var list = localData.Entries;
+        var entry = new Entry<T>(node, length, score, i);
+        var list = results;
         int index = list.BinarySearch(entry, comparer);
         
         // BinarySearch returns a negative value for the insertion point
@@ -781,7 +662,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
     
-    private async Task ReadFromSourceAsync(IAsyncEnumerable<(string, string)> source, CancellationToken cancellationToken)
+    private async Task ReadFromSourceAsync(IAsyncEnumerable<T> source, CancellationToken cancellationToken)
     {
         var numberOfItems = 0;
         NumberOfItems = 0;
@@ -801,9 +682,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 numberOfItems++;
                 if (!currentChunk.TryAdd(line))
                 {
-                    currentChunk = new Chunk();
+                    currentChunk = new Chunk<T>();
                     _chunks.Add(currentChunk);
-                    Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
+                    Chunk<T>? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
                     if (lastFullChunk != null)
                     {
                         _restartSearchSignal.Set();
@@ -829,115 +710,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _restartSearchSignal.Set();
     }
     
-    private async Task ReadFromSourceAsync(IAsyncEnumerable<string> source, CancellationToken cancellationToken)
-    {
-        var numberOfItems = 0;
-        NumberOfItems = 0;
-        Reading = true;
-
-        var currentChunk = _chunks.Last();
-
-        try
-        {
-            await foreach (var line in source.WithCancellation(cancellationToken))
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
-            
-                numberOfItems++;
-                if (!currentChunk.TryAdd(line))
-                {
-                    currentChunk = new Chunk();
-                    _chunks.Add(currentChunk);
-                    Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
-                    if (lastFullChunk != null)
-                    {
-                        _restartSearchSignal.Set();
-                    }
-
-                    if (!currentChunk.TryAdd(line))
-                    {
-                        throw new Exception("Could not add line to Chunk");
-                    }
-
-                    NumberOfItems = numberOfItems;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        NumberOfItems = numberOfItems;
-        Reading = false;
-
-        currentChunk.SetComplete();
-        _restartSearchSignal.Set();
-    }
-    
-    private async Task ReadFromSourceAsync(ChannelReader<(string, string)> channelReader, CancellationToken cancellationToken)
+    private async Task ReadFromSourceAsync(ChannelReader<T> channelReader, CancellationToken cancellationToken)
     {
         await ReadFromSourceAsync(channelReader.ReadAllAsync(cancellationToken), cancellationToken);
     }
 
-    private async Task ReadFromSourceAsync(ChannelReader<string> channelReader, CancellationToken cancellationToken)
-    {
-        await ReadFromSourceAsync(channelReader.ReadAllAsync(cancellationToken), cancellationToken);
-    }
-
-    private async Task ReadFromSourceAsync(IEnumerable<string> enumerable, CancellationToken cancellationToken)
+    private async Task ReadFromSourceAsync(IEnumerable<T> enumerable, CancellationToken cancellationToken)
     {
         await ReadFromSourceAsync(enumerable.ToAsyncEnumerable(), cancellationToken);
     }
-
-    //private async Task ReadFromSourceAsync(ChannelReader<string> channelReader, CancellationToken cancellationToken)
-    //{
-    //    var numberOfItems = 0;
-    //    NumberOfItems = 0;
-    //    Reading = true;
-
-    //    var currentChunk = _chunks.Last();
-
-    //    try
-    //    {
-    //        await foreach (var line in channelReader.ReadAllAsync(cancellationToken))
-    //        {
-    //            if (cancellationToken.IsCancellationRequested)
-    //            {
-    //                return;
-    //            }
-    //            numberOfItems++;
-    //            if (!currentChunk.TryAdd(line))
-    //            {
-    //                currentChunk = new Chunk();
-    //                _chunks.Add(currentChunk);
-    //                Chunk? lastFullChunk = _chunks.LastOrDefault(c => c.IsComplete);
-    //                if (lastFullChunk != null)
-    //                {
-    //                    _restartSearchSignal.Set();
-    //                }
-
-    //                if (!currentChunk.TryAdd(line))
-    //                {
-    //                    throw new Exception("Could not add line to Chunk");
-    //                }
-
-    //                NumberOfItems = numberOfItems;
-    //            }
-    //        }
-    //    }
-    //    catch (OperationCanceledException)
-    //    {
-    //    }
-
-    //    NumberOfItems = numberOfItems;
-    //    Reading = false;
-
-    //    currentChunk.SetComplete();
-    //    _restartSearchSignal.Set();
-    //}
     
     public async Task HandleKeyUp(Key eKey, KeyModifiers eKeyModifiers)
     {
@@ -967,11 +748,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (_definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
-                await action(DisplayItems[SelectedIndex].Text);
+                var highlightedText = DisplayItems[SelectedIndex] as HighlightedText<T>;
+                if (highlightedText != null)
+                {
+                    await action(highlightedText.Backing);
+                }
             }
             else if (GlobalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
             {
-                await globalAction(DisplayItems[SelectedIndex].Text, this);
+                var highlightedText = DisplayItems[SelectedIndex] as HighlightedText<T>;
+                if (highlightedText != null)
+                {
+                    await globalAction(highlightedText.Backing, this);
+                }
             }
         }
     }
@@ -1010,7 +799,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             case Key.Enter:
                 if (SelectedIndex >= 0 && SelectedIndex < DisplayItems.Count)
                 {
-                    await _definition.ResultHandler.HandleAsync(DisplayItems[SelectedIndex].Text, this);
+                    var highlightedText = DisplayItems[SelectedIndex] as HighlightedText<T>;
+                    if (highlightedText != null)
+                    {
+                        await _definition.ResultHandler.HandleAsync(highlightedText.Backing, this);
+                    }
                 }
                 break;
         }
@@ -1035,16 +828,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             await _currentDefinitionCancellationTokenSource.CancelAsync();
         }
-        if (_currentPreviewCancellationTokenSource is { Token.IsCancellationRequested: false })
-        {
-            await _currentPreviewCancellationTokenSource.CancelAsync();
-        }
+        //if (_currentPreviewCancellationTokenSource is { Token.IsCancellationRequested: false })
+        //{
+        //    await _currentPreviewCancellationTokenSource.CancelAsync();
+        //}
                 
-        DisplayItems.Clear();
-        OnPropertyChanged(nameof(DisplayItems));
+        //DisplayItems.Clear();
+        //OnPropertyChanged(nameof(DisplayItems));
         ShowResults = false;
         _chunks.Clear();
-        _chunks.Add(new Chunk());
+        _chunks.Add(new Chunk<T>());
     }
 
     public async Task Close()
@@ -1059,5 +852,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             _definition.OnClosed();
         }
+    }
+
+    public void RenderImage(Bitmap bitmap)
+    {
+        PreviewImage = bitmap;
+    }
+
+    public void RenderText(string info, string fileExtension)
+    {
+        PreviewText = info;
+        PreviewExtension = fileExtension;
+    }
+
+    public void RenderError(string errorInfo)
+    {
+        PreviewText = errorInfo;
+        PreviewExtension = ".txt";
     }
 }

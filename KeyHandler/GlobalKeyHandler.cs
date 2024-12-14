@@ -21,13 +21,11 @@ public class GlobalKeyHandler
     private static LowLevelKeyboardProc _proc = HookCallback;
     private static IntPtr _hookID = IntPtr.Zero;
     private static bool isWinKeyPressed;
-    private static KeyHandlerApp _app;
-    private static Dictionary<(Modifiers, int), IMenuDefinitionProvider> _keyBindings;
+    private static Dictionary<(Modifiers, int), Func<Task>> _keyBindings;
     
 
-    public static void SetHook(KeyHandlerApp app, Dictionary<(Modifiers, int), IMenuDefinitionProvider> keyBindings)
+    public static void SetHook(Dictionary<(Modifiers, int), Func<Task>> keyBindings)
     {
-        _app = app;
         _keyBindings = keyBindings;
         using (Process curProcess = Process.GetCurrentProcess())
         using (ProcessModule curModule = curProcess.MainModule)
@@ -111,8 +109,9 @@ public class GlobalKeyHandler
                     {
                         try
                         {
-                            var definition = action.Get();
-                            await _app.RunDefinition(definition);
+                            await action();
+                            //var definition = action.Get();
+                            //await _app.RunDefinition(definition);
                         }
                         catch (Exception e)
                         {
