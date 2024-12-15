@@ -5,22 +5,21 @@ using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using nfzf.FileSystem;
+using nfzf;
 
 namespace nfm.menu;
 
 public static class NativeBridge
 {
     private static Thread? _appThread;
-    private static MainViewModel<string>? _stringViewModel;
-    private static MainViewModel<FileSystemNode>? _fileSystemViewModel;
-    private static IMainViewModel? _currentViewModel;
     private static App? _app;
+    private static readonly MainViewModel ViewModel = new();
     
-    private unsafe class ListWindowsNativeResultHandler(delegate* unmanaged<IntPtr, void*, void> onSelect, void* state) : IResultHandler<string>
+    private unsafe class ListWindowsNativeResultHandler(delegate* unmanaged<IntPtr, void*, void> onSelect, void* state) : IResultHandler
     {
-        public Task HandleAsync(string output, MainViewModel<string> viewModel)
+        public Task HandleAsync(object objOutput, MainViewModel viewModel)
         {
+            var output = (string)objOutput;
             if (output.Length >= 8)
             {
                 if (int.TryParse(
@@ -39,19 +38,50 @@ public static class NativeBridge
         }
     }
 
-    private unsafe class NativeItemsListMenuDefinitionProvider(
-        delegate* unmanaged<void*, byte**> nativeItemsAction,
-        delegate* unmanaged<byte*, void*, void> onSelect,
-        delegate* unmanaged<void> onClosed,
-        void* state) : IMenuDefinitionProvider<string>
+    private unsafe class NativeItemsListMenuDefinitionProvider : IMenuDefinitionProvider
     {
-        public MenuDefinition<string> Get()
+        private readonly MenuDefinition _menuDefinition;
+        private readonly delegate* unmanaged<void*, byte**> _nativeItemsAction;
+        private readonly delegate* unmanaged<byte*, void*, void> _onSelect;
+        private readonly delegate* unmanaged<void> _onClosed;
+        private readonly void* _state;
+
+        public NativeItemsListMenuDefinitionProvider(delegate* unmanaged<void*, byte**> nativeItemsAction,
+            delegate* unmanaged<byte*, void*, void> onSelect,
+            delegate* unmanaged<void> onClosed,
+            void* state)
         {
+            _nativeItemsAction = nativeItemsAction;
+            _onSelect = onSelect;
+            _onClosed = onClosed;
+            _state = state;
+
+            _menuDefinition = new MenuDefinition
+            {
+                AsyncFunction = null,
+                ItemsFunction = ConvertToManagedStrings,
+                HasPreview = false,
+                Header = null,
+                Comparer = Comparers.StringScoreLengthAndValue,
+                FinalComparer = Comparers.StringScoreLengthAndValue,
+                MinScore = 0,
+                QuitOnEscape = false,
+                ResultHandler = new NativeResultHandler(_onSelect, _state),
+                OnClosed = () => _onClosed(),
+                ScoreFunc = (item, pattern, slab) =>
+                {
+                    var text = (string)item;
+                    var score = FuzzySearcher.GetScore(text, pattern, slab);
+                    return (text.Length, score);
+                }
+            };
+            return;
+
             IEnumerable<string> ConvertToManagedStrings()
             {
-                if (nativeItemsAction == null) return [];
+                if (_nativeItemsAction == null) return [];
 
-                byte** nativeArray = nativeItemsAction(state);
+                byte** nativeArray = _nativeItemsAction(_state);
                 if (nativeArray == null) return [];
 
                 var result = new List<string>();
@@ -63,22 +93,15 @@ public static class NativeBridge
 
                 return result;
             }
+        }
 
-            return new MenuDefinition<string>
-            {
-                AsyncFunction = null,
-                ItemsFunction = ConvertToManagedStrings,
-                HasPreview = false,
-                Header = null,
-                MinScore = 0,
-                QuitOnEscape = false,
-                ResultHandler = new NativeResultHandler(onSelect, state),
-                OnClosed = () => onClosed()
-            };
+        public MenuDefinition Get()
+        {
+            return _menuDefinition;
         }
     }
     
-    private unsafe class NativeResultHandler(delegate* unmanaged<byte*, void*, void> onSelect, void* state) : IResultHandler<string>, IResultHandler<FileSystemNode>
+    private unsafe class NativeResultHandler(delegate* unmanaged<byte*, void*, void> onSelect, void* state) : IResultHandler
     {
         private Task HandleAsync(string output)
         {
@@ -92,15 +115,9 @@ public static class NativeBridge
             return Task.CompletedTask;
         }
 
-        public Task HandleAsync(string output, MainViewModel<string> viewModel)
+        public Task HandleAsync(object output, MainViewModel viewModel)
         {
-            return HandleAsync(output);
-        }
-
-        public Task HandleAsync(FileSystemNode output, MainViewModel<FileSystemNode> viewModel)
-        {
-            var path = output.ToString();
-            return HandleAsync(path);
+            return HandleAsync(output.ToString());
         }
     }
 
@@ -111,7 +128,7 @@ public static class NativeBridge
         {
             _appThread = new Thread(() =>
             {
-                BuildFileSystemApp()
+                BuildApp()
                     .Start((application, args) => RunApp(application), Array.Empty<string>());
                 _app?.Initialize();
             });
@@ -128,11 +145,10 @@ public static class NativeBridge
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowFileSystem), CallConvs = [typeof(CallConvCdecl)])]
     public static unsafe void ShowFileSystem(delegate* unmanaged<byte*, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
     {
-        var title = "File System";
         var command = new FileSystemMenuDefinitionProvider(
             new FileSystemResultHandler(
                 new NativeResultHandler(onSelect, state),
-                new ShowDirectoryResultHandler(new NativeResultHandler(onSelect, state), false, true, false, false, () => onClosed()),
+                new ShowDirectoryResultHandler2(new NativeResultHandler(onSelect, state), false, true, false, false, () => onClosed()),
                 false,
                 true),
             5,
@@ -141,7 +157,7 @@ public static class NativeBridge
             true,
             false,
             false,
-            _fileSystemViewModel,
+            ViewModel,
             null,
             () => onClosed());
         _app?.RunDefinition(command);
@@ -150,7 +166,6 @@ public static class NativeBridge
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowProgramsList), CallConvs = [typeof(CallConvCdecl)])]
     public static unsafe void ShowProgramsList(delegate* unmanaged<byte*, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
     {
-        var title = "Program Launcher";
         var appDirectories = new []{ @"c:\users\eric\AppData\Roaming\Microsoft\Windows\Start Menu",
             @"C:\ProgramData\Microsoft\Windows\Start Menu",
             @"c:\users\eric\AppData\Local\Microsoft\WindowsApps",
@@ -165,7 +180,7 @@ public static class NativeBridge
             false,
             false,
             true,
-            _fileSystemViewModel,
+            ViewModel,
             ProgramComparer,
             () => onClosed());
         _app?.RunDefinition(command);
@@ -174,7 +189,7 @@ public static class NativeBridge
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowWindowsList), CallConvs = [typeof(CallConvCdecl)])]
     public static unsafe void ShowWindowsList(delegate* unmanaged<IntPtr, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
     {
-        var command = new ShowWindowsMenuDefinitionProvider(
+        var command = new ShowWindowsMenuDefinitionProvider2(
             new ListWindowsNativeResultHandler(onSelect, state), () => onClosed());
         _app?.RunDefinition(command);
     }
@@ -182,7 +197,7 @@ public static class NativeBridge
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowProcessesList), CallConvs = [typeof(CallConvCdecl)])]
     public static unsafe void ShowProcessesList(delegate* unmanaged<byte*, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
     {
-        var command = new ShowProcessesMenuDefinitionProvider2(_stringViewModel, ()=> onClosed());
+        var command = new ShowProcessesMenuDefinitionProvider(ViewModel, () => onClosed());
         _app?.RunDefinition(command);
     }
     
@@ -207,7 +222,7 @@ public static class NativeBridge
     {
         try
         {
-            await _currentViewModel!.Close();
+            await ViewModel!.Close();
         }
         catch (Exception)
         {
@@ -215,12 +230,15 @@ public static class NativeBridge
         }
     }
     
-    private static AppBuilder BuildFileSystemApp() 
+    private static AppBuilder BuildApp() 
         => AppBuilder.Configure(() =>
         {
-            _fileSystemViewModel = new MainViewModel<FileSystemNode>();
-            _fileSystemViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _app = new App(_stringViewModel, _fileSystemViewModel);
+            ViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            ViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.P), (_, vm) => {
+                vm.TogglePreview();
+                return Task.CompletedTask;
+            });
+            _app = new App(ViewModel);
             return _app;
         }).UsePlatformDetect();
 
@@ -229,7 +247,7 @@ public static class NativeBridge
         app.Run(CancellationToken.None);
     } 
     
-    private static readonly IComparer<Entry<FileSystemNode>> ProgramComparer = Comparer<Entry<FileSystemNode>>.Create((x, y) =>
+    private static readonly IComparer<Entry> ProgramComparer = Comparer<Entry>.Create((x, y) =>
     {
         static int GetExtensionPriority(string line)
         {

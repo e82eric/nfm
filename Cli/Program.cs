@@ -91,7 +91,7 @@ class Program
     private static AppBuilder BuildStdInApp() 
         => AppBuilder.Configure(() =>
         {
-            var viewModel = new MainViewModel<string>();
+            var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
             var command = new StdInMenuDefinitionProvider();
             var app = new App<string>(viewModel, command);
@@ -101,9 +101,9 @@ class Program
     private static AppBuilder BuildCommandApp(string command)
         => AppBuilder.Configure(() =>
         {
-            var viewModel = new MainViewModel<string>();
+            var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var definitionProvider = new RunCommandMenuDefinitionProvider(command);
+            var definitionProvider = new RunCommandMenuDefinitionProvider2(command);
             var app = new App<string>(viewModel, definitionProvider);
             return app;
         }).UsePlatformDetect();
@@ -111,9 +111,9 @@ class Program
     private static AppBuilder BuildFileReaderApp(string path, string? searchString) 
         => AppBuilder.Configure(() =>
         {
-            var viewModel = new MainViewModel<string>();
+            var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var definitionProvider = new ReadFileMenuDefinitionProvider2(path, Comparers.StringScoreOnly, searchString);
+            var definitionProvider = new ReadFileMenuDefinitionProvider(path, Comparers.StringScoreOnly, searchString);
             var app = new App<string>(viewModel, definitionProvider);
             return app;
         }).UsePlatformDetect();
@@ -126,8 +126,13 @@ class Program
         bool filesOnly) 
         => AppBuilder.Configure(() =>
         {
-            var viewModel = new MainViewModel<FileSystemNode>();
+            var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.P), (_, vm) => {
+                vm.TogglePreview();
+                return Task.CompletedTask;
+            });
+            
 
             var command = new FileSystemMenuDefinitionProvider(
                 new StdOutResultHandler(),

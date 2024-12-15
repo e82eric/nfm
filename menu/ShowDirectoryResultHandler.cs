@@ -4,16 +4,17 @@ using nfzf.FileSystem;
 
 namespace nfm.menu;
 
-public class ShowDirectoryResultHandler(
-    IResultHandler<FileSystemNode> fileResultHandler,
+public class ShowDirectoryResultHandler2(
+    IResultHandler fileResultHandler,
     bool quitOnEscape,
     bool hasPreview,
     bool directoriesOnly,
     bool filesOnly,
-    Action? onClosed) : IResultHandler<FileSystemNode>
+    Action? onClosed) : IResultHandler
 {
-    public async Task HandleAsync(FileSystemNode output, MainViewModel<FileSystemNode> viewModel)
+    public async Task HandleAsync(object outputObj, MainViewModel viewModel)
     {
+        var output = (FileSystemNode)outputObj;
         var definition =
             new FileSystemMenuDefinitionProvider(
                 new FileSystemResultHandler(fileResultHandler, this, quitOnEscape, true),

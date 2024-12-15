@@ -8,31 +8,31 @@ using nfzf;
 
 namespace nfm.menu;
 
-public class StdInMenuDefinitionProvider : IMenuDefinitionProvider<string>
+public class StdInMenuDefinitionProvider : IMenuDefinitionProvider
 {
-    public MenuDefinition<string> Get()
+    public MenuDefinition Get()
     {
-        var definition = new MenuDefinition<string>
+        var definition = new MenuDefinition
         {
             AsyncFunction = Run,
             Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>(),
+            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<object, Task>>(),
             ResultHandler = new StdOutResultHandler(),
             MinScore = 0,
             ShowHeader = false,
             QuitOnEscape = true,
-            ScoreFunc = (s, pattern, slab) =>
+            ScoreFunc = (sObj, pattern, slab) =>
             {
+                var s = (string)sObj;
                 var score = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, score);
             },
             Comparer = Comparers.StringScoreLengthAndValue,
-            StrConverter = new StringConverter()
         };
         return definition;
     }
 
-    private static async Task Run(ChannelWriter<string> writer, CancellationToken cancellationToken)
+    private static async Task Run(ChannelWriter<object> writer, CancellationToken cancellationToken)
     {
         await Task.Run(async () =>
         {

@@ -1,12 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
-using System.Net.Mime;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -19,14 +15,14 @@ namespace nfm.menu;
 
 public partial class MainWindow : Window
 {
-    private readonly IMainViewModel _viewModel;
+    private readonly MainViewModel _viewModel;
     private readonly ListBox? _listBox;
     private TextEditor _editor;
     private RegistryOptions _registryOptions;
     private TextMate.Installation? _textMateInstallation;
     private Image _image;
 
-    public MainWindow(IMainViewModel viewModel)
+    public MainWindow(MainViewModel viewModel)
     {
         DataContext = viewModel;
         Topmost = true;
@@ -129,18 +125,34 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName == "HasPreview")
         {
-            AdjustWindowSizeAndPosition();
+            Dispatcher.UIThread.Post(() =>
+            {
+                AdjustWindowSizeAndPosition();
+                ListBoxContainer.InvalidateArrange();
+                Root.InvalidateArrange();
+            });
         }
         
         if (e.PropertyName == "IsVisible")
         {
             if (!_viewModel.IsVisible)
             {
-                Dispatcher.UIThread.Post(() =>
+                Dispatcher.UIThread.Invoke(() =>
                 {
-                    //ListBoxContainer.IsVisible = false;
-                    Close();
+                    PreviewContainer.Child = null;
                 });
+                var timer = new System.Timers.Timer(100);
+                timer.AutoReset = false;
+                timer.Elapsed += (sender, args) =>
+                {
+                    Dispatcher.UIThread.Invoke(() =>
+                    {
+                        Hide();
+                    });
+
+                    timer.Dispose();
+                };
+                timer.Start();
             }
             else
             {
@@ -210,6 +222,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _viewModel.Closed();
+        _viewModel.PropertyChanged -= ViewModelOnPropertyChanged;
         base.OnClosed(e);
     }
 

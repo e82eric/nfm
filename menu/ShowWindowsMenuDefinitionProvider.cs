@@ -6,26 +6,27 @@ using nfzf;
 
 namespace nfm.menu;
 
-public class ShowWindowsMenuDefinitionProvider(IResultHandler<string> resultHandler, Action? onClosed) : IMenuDefinitionProvider<string>
+public class ShowWindowsMenuDefinitionProvider2(IResultHandler resultHandler, Action? onClosed) : IMenuDefinitionProvider
 {
-    public MenuDefinition<string> Get()
+    public MenuDefinition Get()
     {
-        var definition = new MenuDefinition<string>
+        var definition = new MenuDefinition
         {
             AsyncFunction = ListWindows.Run,
             Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>(),
+            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<object, Task>>(),
             ResultHandler = resultHandler,
             MinScore = 0,
             ShowHeader = false,
             OnClosed = onClosed,
-            ScoreFunc = (s, pattern, slab) =>
+            ScoreFunc = (sObj, pattern, slab) =>
             {
+                var s = (string)sObj;
                 var score = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, score);
             },
             Comparer = Comparers.StringScoreLengthAndValue,
-            StrConverter = new StringConverter()
+            FinalComparer = Comparers.StringScoreLengthAndValue,
         };
         return definition;
     }

@@ -2,22 +2,22 @@
 
 namespace nfm.menu;
 
-public class RunCommandMenuDefinitionProvider(string command) : IMenuDefinitionProvider<string>
+public class RunCommandMenuDefinitionProvider2(string command) : IMenuDefinitionProvider
 {
-    public MenuDefinition<string> Get()
+    public MenuDefinition Get()
     {
-        var definition = new MenuDefinition<string>
+        var definition = new MenuDefinition
         {
             AsyncFunction = (writer, ct) => ProcessRunner.RunCommand(command, writer),
             MinScore = 0,
             ResultHandler = new StdOutResultHandler(),
             ShowHeader = true,
-            ScoreFunc = (s, pattern, slab) =>
+            ScoreFunc = (sObj, pattern, slab) =>
             {
+                var s = (string)sObj;
                 var score = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, score);
             },
-            StrConverter = new StringConverter(),
             Comparer = Comparers.StringScoreLengthAndValue
         };
         return definition;

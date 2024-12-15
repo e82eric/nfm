@@ -7,46 +7,31 @@ namespace nfm.menu;
 
 public class App : Application
 {
-    private readonly MainViewModel<FileSystemNode> _fileSystemViewModel;
-    private readonly MainViewModel<string> _stringViewModel;
+    private readonly MainViewModel _viewModel;
+    private MainWindow _mainWindow;
 
-    public App(MainViewModel<string> stringViewModel, MainViewModel<FileSystemNode> fileSystemViewModel)
+    public App(MainViewModel viewModel)
     {
-        _fileSystemViewModel = fileSystemViewModel;
-        _stringViewModel = stringViewModel;
+        _viewModel = viewModel;
     }
 
     public override void Initialize()
     {
-        var fluentTheme = new FluentTheme
-        {
-            Resources = null,
-            DensityStyle = DensityStyle.Normal
-        };
+        var fluentTheme = new FluentTheme { };
         Styles.Add(fluentTheme);
         IsInitialized = true;
+        _mainWindow = new MainWindow(_viewModel);
     }
     
     public bool IsInitialized { get; set; }
 
-    public void RunDefinition(IMenuDefinitionProvider<string> definitionProvider)
+    public void RunDefinition(IMenuDefinitionProvider definitionProvider)
     {
         Dispatcher.UIThread.InvokeAsync(async () =>
         {
             var definition = definitionProvider.Get();
-            var window = new MainWindow(_stringViewModel);
-            await _stringViewModel.RunDefinitionAsync(definition);
-            window.Show();
-        });
-    }
-    public void RunDefinition(IMenuDefinitionProvider<FileSystemNode> definitionProvider)
-    {
-        Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            var definition = definitionProvider.Get();
-            var window = new MainWindow(_fileSystemViewModel);
-            await _fileSystemViewModel.RunDefinitionAsync(definition);
-            window.Show();
+            _mainWindow.Show();
+            await _viewModel.RunDefinitionAsync(definition);
         });
     }
 }

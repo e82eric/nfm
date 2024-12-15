@@ -14,8 +14,8 @@
         FontFamily="Consolas, Courier New, Liberation Mono, Menlo, monospace"
         WindowStartupLocation="Manual"
         x:Class="nfm.menu.MainWindow"
-        x:DataType="menu:IMainViewModel"
-        IsVisible="{Binding IsVisible}"
+        x:DataType="menu:MainViewModel"
+        ExtendClientAreaChromeHints="NoChrome"
         Title="menu">
 
     <Window.Resources>
@@ -49,8 +49,17 @@
                     <Setter Property="BorderThickness" Value="0" />
                 </Style>
             </Style>
+            <Style Selector="^:pointerover">
+                <Setter Property="BorderBrush" Value="{x:Null}" />
+                <Style Selector="^ /template/ Border#PART_BorderElement">
+                    <Setter Property="Background" Value="{x:Null}" />
+                    <Setter Property="BorderBrush" Value="{x:Null}" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </Style>
+            </Style>
         </Style>
 
+        
         <Style Selector="Ellipse.LoadingDot1">
             <Style.Animations>
                 <Animation Duration="0:0:1" IterationCount="Infinite">
@@ -136,7 +145,7 @@
     </Window.Styles>
 
     <Grid
-        x:DataType="menu:IMainViewModel"
+        x:DataType="menu:MainViewModel"
         x:Name="Root"
         >
         <Grid.RowDefinitions>
@@ -146,7 +155,7 @@
         </Grid.RowDefinitions>
         <Border
             x:Name="PreviewContainer"
-            Margin="10,10,10,0"
+            Margin="0,0,0,10"
             Background="{StaticResource BackgroundBrush}"
             BorderThickness="2"
             Padding="4"
@@ -158,7 +167,7 @@
         
         <Border
             Background="{StaticResource BackgroundBrush}"
-            Margin="10"
+            Margin="0, 0, 0, 10"
             BorderThickness="2"
             BorderBrush="{StaticResource BorderBrush}"
             Grid.Row="1"
@@ -168,7 +177,7 @@
                     Padding="10"
                     Grid.Column="0"
                     x:Name="TextBox"
-                    x:DataType="menu:IMainViewModel"
+                    x:DataType="menu:MainViewModel"
                     BorderThickness="0"
                     Background="{StaticResource BackgroundBrush}"
                     CaretIndex="{x:Static System:Int32.MaxValue}"
@@ -187,7 +196,7 @@
                     VerticalAlignment="Center"
                     Grid.Column="1">
                     <Grid
-                        x:DataType="menu:IMainViewModel"
+                        x:DataType="menu:MainViewModel"
                         Width="15"
                         Height="{Binding ElementName=LoadingTextBox, Path=Height}"
                         HorizontalAlignment="Right"
@@ -212,7 +221,7 @@
                                  Opacity="0" />
                     </Grid>
                     <TextBlock
-                        x:DataType="menu:IMainViewModel"
+                        x:DataType="menu:MainViewModel"
                         Foreground="{StaticResource ForegroundBrush}"
                         Text="{Binding NumberOfScoredItems}">
                     </TextBlock>
@@ -220,7 +229,7 @@
                         Foreground="{StaticResource ForegroundBrush}"
                         Text="/" Margin="3,0,3,0" />
                     <TextBlock
-                        x:DataType="menu:IMainViewModel"
+                        x:DataType="menu:MainViewModel"
                         x:Name="LoadingTextBox"
                         Foreground="{StaticResource ForegroundBrush}"
                         HorizontalAlignment="Right"
@@ -235,10 +244,11 @@
             BorderThickness="2"
             BorderBrush="{StaticResource BorderBrush}"
             CornerRadius="5"
-            x:DataType="menu:IMainViewModel"
+            ClipToBounds="True"
+            x:DataType="menu:MainViewModel"
             Grid.Row="2"
             Padding="5"
-            Margin="10,0,10,10">
+            Margin="0,0,0,0">
             <Grid RowDefinitions="Auto,*">
                 <Border
                     BorderBrush="{StaticResource BorderBrush}"
@@ -252,8 +262,8 @@
                         Padding="15,0,15,5"
                         Text="{Binding Header}" />
                 </Border>
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1">
-                    <ListBox x:DataType="menu:IMainViewModel"
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1" Margin="5">
+                    <ListBox x:DataType="menu:MainViewModel"
                              x:Name="ListBox"
                              ItemsSource="{Binding DisplayItems}"
                              Padding="5"

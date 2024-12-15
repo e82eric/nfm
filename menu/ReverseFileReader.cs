@@ -5,9 +5,9 @@ using PSFzf.IO;
 
 namespace nfm.menu;
 
-public class ReverseFileReader
+public static class ReverseFileReader
 {
-    public static async Task Read(string path, ChannelWriter<string> writer)
+    public static async Task Read(string path, ChannelWriter<object> writer)
     {
         var alreadyAdded = new HashSet<string>();
         var reader = new ReverseLineReader(path);

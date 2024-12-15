@@ -30,7 +30,7 @@ class Program
         => AppBuilder.Configure(() =>
         {
             var title = "File System";
-            var viewModel = new MainViewModel<FileSystemNode>();
+            var viewModel = new MainViewModel();
             //viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
 
             var command = new FileSystemMenuDefinitionProvider(

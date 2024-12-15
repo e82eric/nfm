@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 
 namespace nfm.menu;
 
-public class ProcessRunner
+public static class ProcessRunner
 {
-    public static async Task RunCommand(string command, ChannelWriter<string> writer)
+    public static async Task RunCommand(string command, ChannelWriter<object> writer)
     {
         using (var process = new Process())
         {

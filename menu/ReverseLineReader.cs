@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using nfm.menu;
 
 // borrowed from https://stackoverflow.com/a/452945
 namespace PSFzf.IO;

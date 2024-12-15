@@ -12,15 +12,16 @@ using nfzf.ListProcesses;
 
 namespace nfm.menu;
 
-public class ShowProcessesMenuDefinitionProvider2(MainViewModel<string> mainViewModel, Action? onClosed) : IMenuDefinitionProvider<string>
+public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Action? onClosed) : IMenuDefinitionProvider
 {
-    public MenuDefinition<string> Get()
+    public MenuDefinition Get()
     {
         var header = string.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
             "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)");
-        var keyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>();
-        keyBindings.Add((KeyModifiers.Control, Key.K), async line =>
+        var keyBindings = new Dictionary<(KeyModifiers, Key), Func<object, Task>>();
+        keyBindings.Add((KeyModifiers.Control, Key.K), async lineObj =>
         {
+            var line = (string)lineObj;
             var match = Regex.Match(line, @"\s+([0-9]+)\s+");
             if (!match.Success)
             {
@@ -34,8 +35,9 @@ public class ShowProcessesMenuDefinitionProvider2(MainViewModel<string> mainView
             await mainViewModel.ShowToast($"Killed process {pid}", 500);
             await ProcessLister.KillProcessById(line, pid);
         });
-        keyBindings.Add((KeyModifiers.Control, Key.M), async line =>
+        keyBindings.Add((KeyModifiers.Control, Key.M), async lineObj =>
         {
+            var line = (string)lineObj;
             var match = Regex.Match(line, @"\s+([0-9]+)\s+");
             if (!match.Success)
             {
@@ -67,8 +69,9 @@ public class ShowProcessesMenuDefinitionProvider2(MainViewModel<string> mainView
                 }
             });
         });
-        keyBindings.Add((KeyModifiers.Control, Key.Z), async line =>
+        keyBindings.Add((KeyModifiers.Control, Key.Z), async lineObj =>
         {
+            var line = (string)lineObj;
             var match = Regex.Match(line, @"\s+([0-9]+)\s+");
             if (!match.Success)
             {
@@ -96,19 +99,19 @@ public class ShowProcessesMenuDefinitionProvider2(MainViewModel<string> mainView
             //});
         });
 
-        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByCpu, (KeyModifiers.Control, Key.D1));
-        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByPid, (KeyModifiers.Control, Key.D2));
-        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByPrivateBytes, (KeyModifiers.Control, Key.D3));
-        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByWorkingSet, (KeyModifiers.Control, Key.D4));
+        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByCpu2, (KeyModifiers.Control, Key.D1));
+        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByPid2, (KeyModifiers.Control, Key.D2));
+        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByPrivateBytes2, (KeyModifiers.Control, Key.D3));
+        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByWorkingSet2, (KeyModifiers.Control, Key.D4));
 
-        var definition = CreateDefinition(ProcessLister.RunSortedByWorkingSet, header, keyBindings, null);
+        var definition = CreateDefinition(ProcessLister.RunSortedByWorkingSet2, header, keyBindings, Comparers.StringScoreLengthAndValue);
         return definition;
     }
 
     private void AddResultKeyBinding(
-        Dictionary<(KeyModifiers, Key), Func<string, Task>> keyBindings,
+        Dictionary<(KeyModifiers, Key), Func<object, Task>> keyBindings,
         string header,
-        Func<ChannelWriter<string>, CancellationToken, Task> asyncFunc,
+        Func<ChannelWriter<object>, CancellationToken, Task> asyncFunc,
         (KeyModifiers Control, Key D4) keys)
     {
         keyBindings.Add(keys, async _ =>
@@ -119,12 +122,12 @@ public class ShowProcessesMenuDefinitionProvider2(MainViewModel<string> mainView
         });
     }
 
-    private MenuDefinition<string> CreateDefinition(
-        Func<ChannelWriter<string>, CancellationToken, Task> resultFunc,
+    private MenuDefinition CreateDefinition(
+        Func<ChannelWriter<object>, CancellationToken, Task> resultFunc,
         string? header,
-        Dictionary<(KeyModifiers, Key), Func<string, Task>> keyBindings, IComparer<Entry<string>> comparer)
+        Dictionary<(KeyModifiers, Key), Func<object, Task>> keyBindings, IComparer<Entry> comparer)
     {
-        var definition = new MenuDefinition<string>
+        var definition = new MenuDefinition
         {
             AsyncFunction = resultFunc,
             Header = header,
@@ -133,21 +136,17 @@ public class ShowProcessesMenuDefinitionProvider2(MainViewModel<string> mainView
             ResultHandler = new StdOutResultHandler(),
             ShowHeader = true,
             Comparer = comparer,
+            FinalComparer = comparer,
             OnClosed = onClosed,
-            //SortAction = SortAction
-            ScoreFunc = (s, pattern, slab) =>
+            ScoreFunc = (sObj, pattern, slab) =>
             {
+                var s = (string)sObj;
                 var result = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, result);
             },
-            StrConverter = new StringConverter(),
         };
         return definition;
     }
 
-    private void SortAction(string s, int i, int arg3, int arg4, List<Entry<string>> arg5)
-    {
-    }
-
-    private static readonly IComparer<Entry<string>> Comparer = Comparer<Entry<string>>.Create((x, y) => y.Score.CompareTo(x.Score));
+    private static readonly IComparer<Entry> Comparer = Comparer<Entry>.Create((x, y) => y.Score.CompareTo(x.Score));
 }

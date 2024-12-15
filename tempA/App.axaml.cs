@@ -6,7 +6,7 @@ using nfzf.FileSystem;
 
 namespace tempA;
 
-public partial class App(MainViewModel<FileSystemNode> viewModel, IMenuDefinitionProvider<FileSystemNode> command) : Application
+public partial class App(MainViewModel viewModel, IMenuDefinitionProvider command) : Application
 {
     public override void Initialize()
     {

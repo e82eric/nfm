@@ -6,26 +6,27 @@ using nfzf;
 
 namespace nfm.menu;
 
-public class ReadFileMenuDefinitionProvider2(string path, IComparer<Entry<string>>? comparer, string? searchString) : IMenuDefinitionProvider<string>
+public class ReadFileMenuDefinitionProvider(string path, IComparer<Entry>? comparer, string? searchString) : IMenuDefinitionProvider
 {
-    public MenuDefinition<string> Get()
+    public MenuDefinition Get()
     {
-        var definition = new MenuDefinition<string>
+        var definition = new MenuDefinition
         {
             AsyncFunction = (writer, ct) => ReverseFileReader.Read(path, writer),
             MinScore = 0,
             ResultHandler = new StdOutResultHandler(),
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<string, Task>>(),
+            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<object, Task>>(),
             ShowHeader = true,
             QuitOnEscape = true,
             Comparer = comparer,
+            FinalComparer = comparer,
             SearchString = searchString,
-            ScoreFunc = (s, pattern, slab) =>
+            ScoreFunc = (sObj, pattern, slab) =>
             {
+                var s = (string)sObj;
                 var score = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, score);
             },
-            StrConverter = new StringConverter()
         };
         return definition;
     }

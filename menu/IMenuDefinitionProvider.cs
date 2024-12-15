@@ -1,6 +1,6 @@
 ﻿namespace nfm.menu;
 
-public interface IMenuDefinitionProvider<T> where T:class
+public interface IMenuDefinitionProvider
 {
-    MenuDefinition<T> Get();
+    MenuDefinition Get();
 }

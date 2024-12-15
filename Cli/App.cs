@@ -7,10 +7,10 @@ namespace nfm.Cli;
 
 public class App<T> : Application where T:class
 {
-    private readonly MainViewModel<T> _viewModel;
-    private readonly IMenuDefinitionProvider<T>? _definitionProvider;
+    private readonly MainViewModel _viewModel;
+    private readonly IMenuDefinitionProvider? _definitionProvider;
 
-    public App(MainViewModel<T> viewModel, IMenuDefinitionProvider<T> definitionProvider)
+    public App(MainViewModel viewModel, IMenuDefinitionProvider definitionProvider)
     {
         _viewModel = viewModel;
         _definitionProvider = definitionProvider;
@@ -26,8 +26,8 @@ public class App<T> : Application where T:class
             {
                 var definition = _definitionProvider.Get();
                 var window = new MainWindow(_viewModel);
-                await _viewModel.RunDefinitionAsync(definition);
                 window.Show();
+                await _viewModel.RunDefinitionAsync(definition);
             });
         }
     }

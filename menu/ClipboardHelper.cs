@@ -32,7 +32,7 @@ public class ClipboardHelper
     
     private const uint GMEM_MOVEABLE = 0x0002;
     
-    public static async Task CopyStringToClipboard<T>(T t, MainViewModel<T> viewModel) where T:class
+    public static async Task CopyStringToClipboard(object t, MainViewModel viewModel)
     {
         var text = t.ToString();
         // Ensure we're running on STA thread

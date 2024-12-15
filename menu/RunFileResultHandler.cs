@@ -4,10 +4,11 @@ using nfzf.FileSystem;
 
 namespace nfm.menu;
 
-public class RunFileResultHandler : IResultHandler<FileSystemNode>
+public class RunFileResultHandler : IResultHandler
 {
-    public async Task HandleAsync(FileSystemNode output, MainViewModel<FileSystemNode> viewModel)
+    public async Task HandleAsync(object outputObj, MainViewModel viewModel)
     {
+        var output = (FileSystemNode)outputObj;
         var startInfo = new ProcessStartInfo
         {
             FileName = output.ToString(),

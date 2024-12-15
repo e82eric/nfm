@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Threading.Tasks;
-using nfzf.FileSystem;
 
 namespace nfm.menu;
 
-public class StdOutResultHandler : IResultHandler<string>, IResultHandler<FileSystemNode>
+public class StdOutResultHandler : IResultHandler
 {
     private void Handle(string output)
     {
@@ -12,13 +11,7 @@ public class StdOutResultHandler : IResultHandler<string>, IResultHandler<FileSy
         Environment.Exit(0);
     }
 
-    public async Task HandleAsync(string output, MainViewModel<string> viewModel)
-    {
-        await viewModel.Close();
-        Handle(output);
-    }
-
-    public async Task HandleAsync(FileSystemNode output, MainViewModel<FileSystemNode> viewModel)
+    public async Task HandleAsync(object output, MainViewModel viewModel)
     {
         await viewModel.Close();
         Handle(output.ToString());

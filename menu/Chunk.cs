@@ -1,15 +1,15 @@
 ﻿namespace nfm.menu;
 
-class Chunk<T>
+class Chunk
 {
     public int Size { get; private set; } = 0;
-    public readonly T[] Items;
+    public readonly object[] Items;
     public const int MaxSize = 10000;
     private bool _manualComplete = false;
 
     public Chunk()
     {
-        Items = new T[MaxSize];
+        Items = new object[MaxSize];
     }
 
     public void SetComplete()
@@ -19,7 +19,7 @@ class Chunk<T>
 
     public bool IsComplete => _manualComplete || Size >= MaxSize;
 
-    public bool TryAdd(T val)
+    public bool TryAdd(object val)
     {
         if (IsComplete)
         {

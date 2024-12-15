@@ -18,11 +18,9 @@ class Program
     private static AppBuilder BuildAvaloniaApp(string[] args) 
         => AppBuilder.Configure(() =>
         {
-            _fileSystemViewModel = new MainViewModel<FileSystemNode>();
-            _stringViewModel = new MainViewModel<string>();
-            _fileSystemViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _stringViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            _keyHandlerApp = new KeyHandlerApp(_stringViewModel);
+            //_fileSystemViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            //_stringViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            _keyHandlerApp = new KeyHandlerApp();
             return _keyHandlerApp;
         }).UsePlatformDetect();
 
@@ -34,67 +32,22 @@ class Program
     
     private static void Run(Application app)
     {
-        var fileSystemTitle = "File System";
-        var programLauncherTitle = "Program Launcher";
-        var appDirectories = new []{ @"c:\users\eric\AppData\Roaming\Microsoft\Windows\Start Menu",
-            @"C:\ProgramData\Microsoft\Windows\Start Menu",
-            @"c:\users\eric\AppData\Local\Microsoft\WindowsApps",
-            @"c:\users\eric\utilities",
-            @"C:\Program Files\sysinternals\"};
-
         var keyBindings = new Dictionary<(GlobalKeyHandler.Modifiers, int), Func<Task>>();
-        var runFileResultHandler = new RunFileResultHandler();
-        var systemMenuDefinitionProvider2 = new FileSystemMenuDefinitionProvider(
-            new FileSystemResultHandler(
-                runFileResultHandler,
-                new ShowDirectoryResultHandler(runFileResultHandler, false, false, false, true, null),
-                false,
-                true),
-            Int32.MaxValue,
-            appDirectories,
-            false,
-            false,
-            false,
-            true,
-            _fileSystemViewModel,
-            ProgramComparer,
-            null);
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_P), async () =>
         {
-            var def =  systemMenuDefinitionProvider2.Get();
-            await _keyHandlerApp.RunDefinition(def);
+            await _keyHandlerApp.RunProgramsMenu();
         });
-        var showWindowsMenuDefinitionProvider = new ShowWindowsMenuDefinitionProvider(new StdOutResultHandler(), null);
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_I), async () =>
         {
-            var def = showWindowsMenuDefinitionProvider.Get();
-            await _keyHandlerApp.RunDefinition(def);
+            await _keyHandlerApp.RunShowWindows();
         });
-        var showProcessesMenuDefinitionProvider2 = new ShowProcessesMenuDefinitionProvider2(_stringViewModel, null);
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_U), async () =>
         {
-            var def = showProcessesMenuDefinitionProvider2.Get();
-            await _keyHandlerApp.RunDefinition(def);
+            await _keyHandlerApp.RunProcesses();
         });
-        var fileSystemMenuDefinitionProvider2 = new FileSystemMenuDefinitionProvider(
-            new FileSystemResultHandler(
-                runFileResultHandler,
-                new ShowDirectoryResultHandler(runFileResultHandler, false, true, false, false, null),
-                false,
-                true),
-            5,
-            null,
-            false,
-            true,
-            false,
-            false,
-            _fileSystemViewModel,
-            null,
-            null);
         keyBindings.Add((GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_L), async () =>
         {
-            var def = fileSystemMenuDefinitionProvider2.Get();
-            await _keyHandlerApp.RunDefinition(def);
+            await _keyHandlerApp.RunFileSystemMenu();
         });
         GlobalKeyHandler.SetHook(keyBindings);
         app.Run(CancellationToken.None);
@@ -134,6 +87,6 @@ class Program
         //return string.Compare(x.Line, y.Line, StringComparison.Ordinal);
     });
 
-    private static MainViewModel<FileSystemNode> _fileSystemViewModel;
-    private static MainViewModel<string> _stringViewModel;
+    //private static MainViewModel<FileSystemNode> _fileSystemViewModel;
+    //private static MainViewModel<string> _stringViewModel;
 }

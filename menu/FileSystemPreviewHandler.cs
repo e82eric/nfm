@@ -6,22 +6,15 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
-using nfzf.FileSystem;
 using TextMateSharp.Grammars;
 
 namespace nfm.menu;
 
-public class FileSystemPreviewHandler : IPreviewHandler<FileSystemNode>
+public class FileSystemPreviewHandler : IPreviewHandler
 {
-    private string _lastPath;
-    public async Task Handle(IPreviewRenderer renderer, FileSystemNode node, CancellationToken ct)
+    public async Task Handle(IPreviewRenderer renderer, object node, CancellationToken ct)
     {
         var path = node.ToString();
-        
-        if (path == _lastPath)
-        {
-            return;
-        }
             
         if (path.EndsWith(".mp4", StringComparison.InvariantCultureIgnoreCase) || path.EndsWith(".wmv", StringComparison.InvariantCultureIgnoreCase))
         {
@@ -103,7 +96,6 @@ public class FileSystemPreviewHandler : IPreviewHandler<FileSystemNode>
                 memoryStream.Seek(0, SeekOrigin.Begin);
                 try
                 {
-                    _lastPath = path;
                     renderer.RenderImage(new Bitmap(memoryStream));
                 }
                 catch (Exception e)
@@ -114,7 +106,6 @@ public class FileSystemPreviewHandler : IPreviewHandler<FileSystemNode>
             catch (Exception ex)
             {
                 renderer.RenderError(ex.Message);
-                _lastPath = string.Empty;
             }
         }
         else
@@ -125,6 +116,10 @@ public class FileSystemPreviewHandler : IPreviewHandler<FileSystemNode>
             {
                 var info = new FileInfo(path);
                 var (isText, lines) = await TryReadTextFile(info, Int32.MaxValue, ct);
+                if (ct.IsCancellationRequested)
+                {
+                    return;
+                }
                 if (isText)
                 {
                     if (lines.Any())

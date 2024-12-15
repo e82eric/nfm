@@ -176,7 +176,7 @@ public class ProcessLister
         return String.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
             process.FileName, process.Pid, workingSetStr, privateBytesStr, cpuSecondsStr);
     }
-
+    
     static async Task Run(bool sort, Comparison<ProcessInfo> sortFunc, ChannelWriter<string> writer)
     {
         List<string> linesToFill = new List<string>();
@@ -227,12 +227,82 @@ public class ProcessLister
         writer.Complete();
     }
 
-    public static async Task RunNoSort(ChannelWriter<string> writer, CancellationToken cancellationToken)
+    static async Task Run(bool sort, Comparison<ProcessInfo> sortFunc, ChannelWriter<object> writer)
+    {
+        List<string> linesToFill = new List<string>();
+
+        string header = String.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
+            "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)");
+        linesToFill.Add(header);
+
+        List<ProcessInfo> processes = new List<ProcessInfo>();
+
+        using (SafeSnapshotHandle hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0))
+        {
+            if (!hSnapshot.IsInvalid)
+            {
+                PROCESSENTRY32 pEntry = new PROCESSENTRY32();
+                pEntry.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32));
+
+                if (Process32First(hSnapshot, ref pEntry))
+                {
+                    do
+                    {
+                        ProcessInfo processInfo = new ProcessInfo
+                        {
+                            Pid = pEntry.th32ProcessID,
+                            FileName = pEntry.szExeFile
+                        };
+                        FillProcessStats(processInfo);
+                        processes.Add(processInfo);
+
+                    } while (Process32Next(hSnapshot, ref pEntry));
+                }
+            }
+        }
+
+        if (sort && sortFunc != null)
+        {
+            processes.Sort(sortFunc);
+        }
+
+        int count = 0;
+        foreach (var process in processes)
+        {
+            string line = FormatProcessLine(process);
+            await writer.WriteAsync(line);
+            linesToFill.Add(line);
+            count++;
+        }
+        writer.Complete();
+    }
+
+    public static async Task RunNoSort(ChannelWriter<object> writer, CancellationToken cancellationToken)
     {
         await Run(false, null, writer);
     }
+    
+    public static async Task RunSortedByCpu2(ChannelWriter<object> writer, CancellationToken cancellationToken)
+    {
+        await Run(true, CompareProcessCpu, writer);
+    }
 
-    public static async Task  RunSortedByCpu(ChannelWriter<string> writer, CancellationToken cancellationToken)
+    public static async Task RunSortedByPrivateBytes2(ChannelWriter<object> writer, CancellationToken cancellationToken)
+    {
+        await Run(true, CompareProcessPrivateBytes, writer);
+    }
+
+    public static async Task RunSortedByWorkingSet2(ChannelWriter<object> writer, CancellationToken cancellationToken)
+    {
+        await Run(true, CompareProcessWorkingSet, writer);
+    }
+
+    public static async Task RunSortedByPid2(ChannelWriter<object> writer, CancellationToken cancellationToken)
+    {
+        await Run(true, CompareProcessPid, writer);
+    }
+
+    public static async Task RunSortedByCpu(ChannelWriter<string> writer, CancellationToken cancellationToken)
     {
         await Run(true, CompareProcessCpu, writer);
     }
