@@ -10,19 +10,44 @@ namespace nfm.menu;
 
 public class MenuDefinition
 {
-    public int MinScore { get; init; }
-    public Func<IEnumerable<object>>? ItemsFunction { get; init; }
-    public Func<ChannelWriter<object>, CancellationToken, Task>? AsyncFunction { get; init; }
-    public IResultHandler ResultHandler { get; init; }
-    public Dictionary<(KeyModifiers, Key), Func<object, Task>> KeyBindings { get; init; }
-    public Func<object, Pattern, Slab, (int, int)> ScoreFunc { get; set; }
-    public bool ShowHeader { get; set; }
-    public string? Header { get; init; }
-    public bool QuitOnEscape { get; init; }
-    public bool HasPreview { get; init; }
-    public IComparer<Entry>? Comparer { get; init; }
-    public IComparer<Entry>? FinalComparer { get; init; }
-    public Action? OnClosed { get; init; }
-    public string? SearchString { get; init; }
-    public IPreviewHandler? PreviewHandler { get; set; }
+    private readonly IComparer<Entry>? _comparer;
+    private readonly IComparer<Entry>? _finalComparer;
+    public int MinScore { get; init; } = 0;
+    public required Func<ChannelWriter<object>, CancellationToken, Task>? AsyncFunction { get; init; }
+    public required IResultHandler ResultHandler { get; init; }
+    public Dictionary<(KeyModifiers, Key), Func<object, Task>> KeyBindings { get; } = new();
+    public required Func<object, Pattern, Slab, (int, int)> ScoreFunc { get; init; }
+    public string? Header { get; init; } = null;
+    public bool QuitOnEscape { get; init; } = false;
+    public bool HasPreview { get; init; } = false;
+
+    public IComparer<Entry>? Comparer
+    {
+        get
+        {
+            if (_comparer == null)
+            {
+                return Comparers.ScoreLengthAndValue;
+            }
+            return _comparer;
+        }
+        init => _comparer = value;
+    }
+
+    public IComparer<Entry>? FinalComparer
+    {
+        get
+        {
+            if (_finalComparer == null)
+            {
+                return Comparer;
+            }
+
+            return _finalComparer;
+        }
+        init => _finalComparer = value;
+    }
+    public Action? OnClosed { get; init; } = null;
+    public string? SearchString { get; init; } = null;
+    public IPreviewHandler? PreviewHandler { get; init; } = null;
 }

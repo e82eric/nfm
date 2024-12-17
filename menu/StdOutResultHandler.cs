@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace nfm.menu;
 
-public class StdOutResultHandler : IResultHandler
+public class StdOutResultHandler(MainViewModel viewModel) : IResultHandler
 {
     private void Handle(string output)
     {
@@ -11,7 +11,7 @@ public class StdOutResultHandler : IResultHandler
         Environment.Exit(0);
     }
 
-    public async Task HandleAsync(object output, MainViewModel viewModel)
+    public async Task HandleAsync(object output)
     {
         await viewModel.Close();
         Handle(output.ToString());

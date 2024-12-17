@@ -14,33 +14,13 @@ using nfzf;
 
 namespace nfm.menu;
 
-public static class EnumerableExtensions
+public readonly struct Entry(object item, int length, int score, int index)
 {
-    public static async IAsyncEnumerable<object> ToAsyncEnumerable(this IEnumerable<object> source)
-    {
-        foreach (var item in source)
-        {
-            yield return item;
-            await Task.Yield();
-        }
-    }
-}
-
-public readonly struct Entry(object line, int length, int score, int index)
-{
-    public readonly object Line = line;
+    public readonly object Item = item;
     public readonly int Score = score;
     public readonly int Index = index;
     public readonly int Length = length;
 }
-public readonly struct Entry<T>(T line, int length, int score, int index)
-{
-    public readonly T Line = line;
-    public readonly int Score = score;
-    public readonly int Index = index;
-    public readonly int Length = length;
-}
-
 
 public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
 {
@@ -82,6 +62,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
     private readonly UnboundedChannelOptions _channelOptions;
     private string _previewText;
     private Bitmap _previewImage;
+    private string _selectedText;
 
     public string PreviewExtension { get; set; }
 
@@ -271,17 +252,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
         }
     }
 
-    public object? Preview
-    {
-        get => _preview;
-        set
-        {
-            if (Equals(value, _preview)) return;
-            _preview = value;
-            OnPropertyChanged();
-        }
-    }
-
     public bool IsVisible
     {
         get => _isVisible;
@@ -350,10 +320,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
             await ReadFromSourceAsync(channel.Reader, _currentDefinitionCancellationTokenSource.Token);
             await writerTask;
         }
-        else if (definition.ItemsFunction != null)
-        {
-            await ReadFromSourceAsync(definition.ItemsFunction(), _currentDefinitionCancellationTokenSource.Token);
-        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -405,10 +371,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
         }
     }
 
-    private Task? _lastPreviewTask;
-    private object? _preview;
-    private string _selectedText;
-
     private async Task PreviewLoop()
     {
         const int debounceDelay = 150;
@@ -444,15 +406,10 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
                     //continue;
                 }
 
-                if (_lastPreviewTask != null)
-                {
-                    //await _lastPreviewTask;
-                }
-
                 _currentPreviewCancellationTokenSource = new CancellationTokenSource();
                 try
                 {
-                    _lastPreviewTask = RenderPreview(_currentPreviewCancellationTokenSource.Token);
+                    await RenderPreview(_currentPreviewCancellationTokenSource.Token);
                 }
                 catch (Exception e)
                 {
@@ -506,13 +463,12 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
         {
             //DisplayItems.Clear();
             var itemsAdded = 0;
-            Span<char> fullFilePathBuffer = stackalloc char[2048];
             var ctr = 0;
             foreach (var chunk in completeChunks)
             {
                 foreach (var item in chunk.Items)
                 {
-                    if (itemsAdded >= MaxItems)
+                    if (item == null || itemsAdded >= MaxItems)
                     {
                         break;
                     }
@@ -526,11 +482,16 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
                     break;
                 }
             }
+            for (var i = ctr; i < MaxItems; i++)
+            {
+                DisplayItems[i].Set(string.Empty, new List<int>(), null);
+            }
             
             //OnPropertyChanged(nameof(DisplayItems));
 
             Searching = false;
             ShowResults = DisplayItems.Count > 0;
+            NumberOfScoredItems = NumberOfItems;
             //SelectedIndex = 0;
 
             return Task.CompletedTask;
@@ -610,10 +571,10 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
             if (i < topEntries.Count)
             {
                 var item = topEntries[i];
-                var fullFilePath = item.Line.ToString();
+                var fullFilePath = item.Item.ToString();
                 var pos = FuzzySearcher.GetPositions(fullFilePath, pattern, _positionsSlab);
                 _positionsSlab.Reset();
-                DisplayItems[i].Set(fullFilePath, pos, item.Line);
+                DisplayItems[i].Set(fullFilePath, pos, item.Item);
             }
             else
             {
@@ -715,25 +676,14 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
         await ReadFromSourceAsync(channelReader.ReadAllAsync(cancellationToken), cancellationToken);
     }
 
-    private async Task ReadFromSourceAsync(IEnumerable<object> enumerable, CancellationToken cancellationToken)
-    {
-        await ReadFromSourceAsync(enumerable.ToAsyncEnumerable(), cancellationToken);
-    }
-    
     public async Task HandleKeyUp(Key eKey, KeyModifiers eKeyModifiers)
     {
         switch (eKey)
         {
-            case Key.PageUp:
-                SelectedIndex = Math.Max(0, SelectedIndex - 7);
-                break;
-            case Key.PageDown:
-                SelectedIndex = Math.Min(DisplayItems.Count - 1, SelectedIndex + 7);
-                break;
             case Key.End:
                 if (eKeyModifiers == KeyModifiers.Control)
                 {
-                    SelectedIndex = DisplayItems.Count - 1;
+                    SelectedIndex = NumberOfScoredItems - 1;
                 }
                 break;
             case Key.Home:
@@ -769,8 +719,14 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
     {
         switch (eKey)
         {
+            case Key.PageUp:
+                SelectedIndex = Math.Max(0, SelectedIndex - 7);
+                break;
+            case Key.PageDown:
+                SelectedIndex = Math.Min(NumberOfScoredItems - 1, SelectedIndex + 7);
+                break;
             case Key.Down:
-                var nextIndex = Math.Min(DisplayItems.Count - 1, SelectedIndex + 1);
+                var nextIndex = Math.Min(NumberOfScoredItems - 1, SelectedIndex + 1);
                 SelectedIndex = nextIndex;
                 break;
             case Key.Up:
@@ -780,7 +736,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
             case Key.D:
                 if (eKeyModifiers == KeyModifiers.Control)
                 {
-                    SelectedIndex = Math.Min(DisplayItems.Count - 1, SelectedIndex + 7);
+                    SelectedIndex = Math.Min(NumberOfScoredItems - 1, SelectedIndex + 7);
                 }
                 break;
             case Key.U:
@@ -802,7 +758,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged
                     var highlightedText = DisplayItems[SelectedIndex] as HighlightedText;
                     if (highlightedText != null)
                     {
-                        await _definition.ResultHandler.HandleAsync(highlightedText.BackingObj, this);
+                        await _definition.ResultHandler.HandleAsync(highlightedText.BackingObj);
                     }
                 }
                 break;

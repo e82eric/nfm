@@ -2,6 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Channels;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -17,7 +18,7 @@ public static class NativeBridge
     
     private unsafe class ListWindowsNativeResultHandler(delegate* unmanaged<IntPtr, void*, void> onSelect, void* state) : IResultHandler
     {
-        public Task HandleAsync(object objOutput, MainViewModel viewModel)
+        public Task HandleAsync(object objOutput)
         {
             var output = (string)objOutput;
             if (output.Length >= 8)
@@ -42,32 +43,22 @@ public static class NativeBridge
     {
         private readonly MenuDefinition _menuDefinition;
         private readonly delegate* unmanaged<void*, byte**> _nativeItemsAction;
-        private readonly delegate* unmanaged<byte*, void*, void> _onSelect;
-        private readonly delegate* unmanaged<void> _onClosed;
         private readonly void* _state;
 
-        public NativeItemsListMenuDefinitionProvider(delegate* unmanaged<void*, byte**> nativeItemsAction,
+        public NativeItemsListMenuDefinitionProvider(
+            delegate* unmanaged<void*, byte**> nativeItemsAction,
             delegate* unmanaged<byte*, void*, void> onSelect,
             delegate* unmanaged<void> onClosed,
             void* state)
         {
             _nativeItemsAction = nativeItemsAction;
-            _onSelect = onSelect;
-            _onClosed = onClosed;
             _state = state;
 
             _menuDefinition = new MenuDefinition
             {
-                AsyncFunction = null,
-                ItemsFunction = ConvertToManagedStrings,
-                HasPreview = false,
-                Header = null,
-                Comparer = Comparers.StringScoreLengthAndValue,
-                FinalComparer = Comparers.StringScoreLengthAndValue,
-                MinScore = 0,
-                QuitOnEscape = false,
-                ResultHandler = new NativeResultHandler(_onSelect, _state),
-                OnClosed = () => _onClosed(),
+                AsyncFunction = ConvertToManagedStrings,
+                ResultHandler = new NativeResultHandler(onSelect, _state),
+                OnClosed = () => onClosed(),
                 ScoreFunc = (item, pattern, slab) =>
                 {
                     var text = (string)item;
@@ -77,21 +68,29 @@ public static class NativeBridge
             };
             return;
 
-            IEnumerable<string> ConvertToManagedStrings()
+            Task ConvertToManagedStrings(ChannelWriter<object> writer, CancellationToken _)
             {
-                if (_nativeItemsAction == null) return [];
+                if (_nativeItemsAction == null)
+                {
+                    writer.Complete();
+                    return Task.CompletedTask;
+                };
 
                 byte** nativeArray = _nativeItemsAction(_state);
-                if (nativeArray == null) return [];
+                if (nativeArray == null)
+                {
+                    writer.Complete();
+                    return Task.CompletedTask;
+                }
 
-                var result = new List<string>();
                 for (byte** ptr = nativeArray; *ptr != null; ptr++)
                 {
                     string managedString = Marshal.PtrToStringAnsi((IntPtr)(*ptr)) ?? string.Empty;
-                    result.Add(managedString);
+                    writer.TryWrite(managedString);
                 }
-
-                return result;
+                
+                writer.Complete();
+                return Task.CompletedTask;
             }
         }
 
@@ -115,8 +114,13 @@ public static class NativeBridge
             return Task.CompletedTask;
         }
 
-        public Task HandleAsync(object output, MainViewModel viewModel)
+        public Task HandleAsync(object output)
         {
+            if (output == null)
+            {
+                return Task.CompletedTask;
+            }
+            
             return HandleAsync(output.ToString());
         }
     }
@@ -145,16 +149,25 @@ public static class NativeBridge
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowFileSystem), CallConvs = [typeof(CallConvCdecl)])]
     public static unsafe void ShowFileSystem(delegate* unmanaged<byte*, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
     {
+        var showPreview = false;
         var command = new FileSystemMenuDefinitionProvider(
             new FileSystemResultHandler(
+                ViewModel,
                 new NativeResultHandler(onSelect, state),
-                new ShowDirectoryResultHandler2(new NativeResultHandler(onSelect, state), false, true, false, false, () => onClosed()),
+                new ShowDirectoryResultHandler(
+                    ViewModel,
+                    new NativeResultHandler(onSelect, state),
+                    false,
+                    showPreview,
+                    false,
+                    false,
+                    () => onClosed()),
                 false,
                 true),
             5,
             null,
             false,
-            true,
+            showPreview,
             false,
             false,
             ViewModel,
@@ -268,8 +281,8 @@ public static class NativeBridge
         if (scoreComparison != 0) return scoreComparison;
 
         // Compare based on extension priority
-        var strB = y.Line.ToString();
-        var strA = x.Line.ToString();
+        var strB = y.Item.ToString();
+        var strA = x.Item.ToString();
         int extensionPriorityComparison = GetExtensionPriority(strB).CompareTo(GetExtensionPriority(strA));
         if (extensionPriorityComparison != 0) return extensionPriorityComparison;
 

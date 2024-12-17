@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using CommandLine;
 using nfm.Cli;
-using nfzf.FileSystem;
 
 namespace nfm.menu;
 
@@ -93,8 +92,8 @@ class Program
         {
             var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var command = new StdInMenuDefinitionProvider();
-            var app = new App<string>(viewModel, command);
+            var command = new StdInMenuDefinitionProvider(viewModel);
+            var app = new App(viewModel, command);
             return app;
         }).UsePlatformDetect();
     
@@ -103,8 +102,8 @@ class Program
         {
             var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var definitionProvider = new RunCommandMenuDefinitionProvider2(command);
-            var app = new App<string>(viewModel, definitionProvider);
+            var definitionProvider = new RunCommandMenuDefinitionProvider(command, viewModel);
+            var app = new App(viewModel, definitionProvider);
             return app;
         }).UsePlatformDetect();
     
@@ -113,8 +112,8 @@ class Program
         {
             var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var definitionProvider = new ReadFileMenuDefinitionProvider(path, Comparers.StringScoreOnly, searchString);
-            var app = new App<string>(viewModel, definitionProvider);
+            var definitionProvider = new ReadFileMenuDefinitionProvider(path, Comparers.ScoreOnly, searchString, viewModel);
+            var app = new App(viewModel, definitionProvider);
             return app;
         }).UsePlatformDetect();
     
@@ -135,7 +134,7 @@ class Program
             
 
             var command = new FileSystemMenuDefinitionProvider(
-                new StdOutResultHandler(),
+                new StdOutResultHandler(viewModel),
                 maxDepth,
                 [rootDirectory],
                 true,
@@ -145,7 +144,7 @@ class Program
                 viewModel,
                 null,
                 null);
-            var app = new App<FileSystemNode>(viewModel, command);
+            var app = new App(viewModel, command);
             return app;
         }).UsePlatformDetect();
 

@@ -1,6 +1,5 @@
 using System;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -139,6 +138,7 @@ public partial class MainWindow : Window
             {
                 Dispatcher.UIThread.Invoke(() =>
                 {
+                    ListBox.IsVisible = false;
                     PreviewContainer.Child = null;
                 });
                 var timer = new System.Timers.Timer(100);
@@ -159,6 +159,9 @@ public partial class MainWindow : Window
                 BringToForeground();
                 Dispatcher.UIThread.Invoke(() =>
                 {
+                    ListBox.IsVisible = true;
+                    AdjustWindowSizeAndPosition();
+                    Show();
                     TextBox.Focus();
                 });
             }
@@ -256,96 +259,13 @@ public partial class MainWindow : Window
         TextBox?.Focus();
         e.Handled = true;
     }
-    
-    private void FocusWindowWithWin32()
-    {
-        var handle = TryGetPlatformHandle();
-        IntPtr? hwnd = handle?.Handle;
-
-        if (hwnd != null)
-        {
-            keybd_event(0x12, 0, 0, UIntPtr.Zero);
-            keybd_event(0x12, 0, 0x0002, UIntPtr.Zero);
-            SetForegroundWindow(hwnd.Value);
-        }
-    }
 
     private void BringToForeground()
     {
-        FocusWindowWithWin32();
-        INPUT input = new INPUT { Type = INPUTTYPE.INPUTMOUSE, Data = { } };
-        INPUT[] inputs = new INPUT[] { input };
-
-        _ = SendInput(1, inputs, INPUT.Size);
-    }
-    
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-    
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct INPUT
-    {
-        public INPUTTYPE Type;
-        public InputUnion Data;
-
-        public static int Size
+        var platformHandle = TryGetPlatformHandle();
+        if (platformHandle != null)
         {
-            get { return Marshal.SizeOf(typeof(INPUT)); }
+            FocusStealer.BringToForeground(platformHandle);
         }
     }
-
-    [StructLayout(LayoutKind.Explicit)]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("StyleCop.CSharp.NamingRules", "SA1307:Accessible fields should begin with upper-case letter", Justification = "Matching COM")]
-    internal struct InputUnion
-    {
-        [FieldOffset(0)]
-        internal MOUSEINPUT mi;
-        [FieldOffset(0)]
-        internal KEYBDINPUT ki;
-        [FieldOffset(0)]
-        internal HARDWAREINPUT hi;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("StyleCop.CSharp.NamingRules", "SA1307:Accessible fields should begin with upper-case letter", Justification = "Matching COM")]
-    internal struct MOUSEINPUT
-    {
-        internal int dx;
-        internal int dy;
-        internal int mouseData;
-        internal uint dwFlags;
-        internal uint time;
-        internal UIntPtr dwExtraInfo;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("StyleCop.CSharp.NamingRules", "SA1307:Accessible fields should begin with upper-case letter", Justification = "Matching COM")]
-    internal struct KEYBDINPUT
-    {
-        internal short wVk;
-        internal short wScan;
-        internal uint dwFlags;
-        internal int time;
-        internal UIntPtr dwExtraInfo;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("StyleCop.CSharp.NamingRules", "SA1307:Accessible fields should begin with upper-case letter", Justification = "Matching COM")]
-    internal struct HARDWAREINPUT
-    {
-        internal int uMsg;
-        internal short wParamL;
-        internal short wParamH;
-    }
-
-    internal enum INPUTTYPE : uint
-    {
-        INPUTMOUSE = 0,
-    }
-    
-    [DllImport("user32.dll")]
-    internal static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 }

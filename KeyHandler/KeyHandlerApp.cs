@@ -37,7 +37,7 @@ public class KeyHandlerApp : Application
             null);
         var definition = definitionProvider.Get();
         await _mainViewModel.Clear();
-        _mainWindow.Show();
+        //_mainWindow.Show();
         await _mainViewModel.RunDefinitionAsync(definition);
     }
 
@@ -55,26 +55,24 @@ public class KeyHandlerApp : Application
             true,
             ProgramComparer);
         var definition = definitionProvider.Get();
-        _mainViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
         await _mainViewModel.Clear();
-        _mainWindow.Show();
+        //_mainWindow.Show();
         await _mainViewModel.RunDefinitionAsync(definition);
     }
     public async Task RunProcesses()
     {
         var definitionProvider = new ShowProcessesMenuDefinitionProvider(_mainViewModel, null);
         var definition = definitionProvider.Get();
-        //var window = new MainWindow(_mainViewModel);
         await _mainViewModel.Clear();
         await _mainViewModel.RunDefinitionAsync(definition);
     }
     public async Task RunShowWindows()
     {
-        var definitionProvider = new ShowWindowsMenuDefinitionProvider2(new StdOutResultHandler(), null);
+        var definitionProvider = new ShowWindowsMenuDefinitionProvider2(new StdOutResultHandler(_mainViewModel), null);
         var definition = definitionProvider.Get();
         await _mainViewModel.Clear();
         await _mainViewModel.RunDefinitionAsync(definition);
-        _mainWindow.Show();
+        //_mainWindow.Show();
     }
     
     private static FileSystemMenuDefinitionProvider CreateDefinitionProvider(
@@ -88,8 +86,10 @@ public class KeyHandlerApp : Application
         var runFileResultHandler = new RunFileResultHandler();
         return new FileSystemMenuDefinitionProvider(
             new FileSystemResultHandler(
+                _fileSystemViewModel,
                 runFileResultHandler,
-                new ShowDirectoryResultHandler2(
+                new ShowDirectoryResultHandler(
+                    _fileSystemViewModel,
                     runFileResultHandler,
                     false,
                     hasPreview,
@@ -107,68 +107,7 @@ public class KeyHandlerApp : Application
             _fileSystemViewModel,
             programComparer,
             null);
-        //var fileSystemMenuDefinitionProvider2 = new FileSystemMenuDefinitionProvider(
-        //    new FileSystemResultHandler(
-        //        runFileResultHandler,
-        //        new ShowDirectoryResultHandler(
-        //            runFileResultHandler,
-        //            false,
-        //            true,
-        //            false,
-        //            false,
-        //            null),
-        //        false,
-        //        true),
-        //    5,
-        //    null,
-        //    false,
-        //    true,
-        //    false,
-        //    false,
-        //    _fileSystemViewModel,
-        //    null,
-        //    null);
     }
-    // private static void Run(MainViewModel<FileSystemNode> _fileSystemViewModel)
-    // {
-    //     var appDirectories = new []{ @"c:\users\eric\AppData\Roaming\Microsoft\Windows\Start Menu",
-    //         @"C:\ProgramData\Microsoft\Windows\Start Menu",
-    //         @"c:\users\eric\AppData\Local\Microsoft\WindowsApps",
-    //         @"c:\users\eric\utilities",
-    //         @"C:\Program Files\sysinternals\"};
-    //
-    //     var runFileResultHandler = new RunFileResultHandler();
-    //     var systemMenuDefinitionProvider2 = new FileSystemMenuDefinitionProvider(
-    //         new FileSystemResultHandler(
-    //             runFileResultHandler,
-    //             new ShowDirectoryResultHandler(runFileResultHandler, false, false, false, true, null),
-    //             false,
-    //             true),
-    //         Int32.MaxValue,
-    //         appDirectories,
-    //         false,
-    //         false,
-    //         false,
-    //         true,
-    //         _fileSystemViewModel,
-    //         ProgramComparer,
-    //         null);
-    //     var fileSystemMenuDefinitionProvider2 = new FileSystemMenuDefinitionProvider(
-    //         new FileSystemResultHandler(
-    //             runFileResultHandler,
-    //             new ShowDirectoryResultHandler(runFileResultHandler, false, true, false, false, null),
-    //             false,
-    //             true),
-    //         5,
-    //         null,
-    //         false,
-    //         true,
-    //         false,
-    //         false,
-    //         _fileSystemViewModel,
-    //         null,
-    //         null);
-    // }
     
     private static readonly IComparer<Entry> ProgramComparer = Comparer<Entry>.Create((x, y) =>
     {

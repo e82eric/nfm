@@ -1,14 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Avalonia.Input;
 using nfzf;
 
 namespace nfm.menu;
 
-public class StdInMenuDefinitionProvider : IMenuDefinitionProvider
+public class StdInMenuDefinitionProvider(MainViewModel viewModel) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -16,10 +14,8 @@ public class StdInMenuDefinitionProvider : IMenuDefinitionProvider
         {
             AsyncFunction = Run,
             Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<object, Task>>(),
-            ResultHandler = new StdOutResultHandler(),
+            ResultHandler = new StdOutResultHandler(viewModel),
             MinScore = 0,
-            ShowHeader = false,
             QuitOnEscape = true,
             ScoreFunc = (sObj, pattern, slab) =>
             {
@@ -27,7 +23,7 @@ public class StdInMenuDefinitionProvider : IMenuDefinitionProvider
                 var score = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, score);
             },
-            Comparer = Comparers.StringScoreLengthAndValue,
+            Comparer = Comparers.ScoreLengthAndValue,
         };
         return definition;
     }

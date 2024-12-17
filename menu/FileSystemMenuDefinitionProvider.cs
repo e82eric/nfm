@@ -36,7 +36,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
         int lengthComparison = x.Length.CompareTo(y.Length);
         if (lengthComparison != 0) return lengthComparison;
 
-        return string.Compare(x.Line.ToString(), y.Line.ToString(), StringComparison.Ordinal);
+        return string.Compare(x.Item.ToString(), y.Item.ToString(), StringComparison.Ordinal);
     });
 
     private readonly IResultHandler _resultHandler;
@@ -81,10 +81,8 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
                 (writer, ct) => ListDrives(_maxDepth, writer, ct) :
                 (writer, ct) => ListDrives(_rootDirectory, _maxDepth, writer, ct),
             Header = null,
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<object, Task>>(),
             MinScore = 0,
             ResultHandler = _resultHandler,
-            ShowHeader = false,
             QuitOnEscape = _quitOnEscape,
             HasPreview = _hasPreview,
             Comparer = _comparer ?? EntryComparer,

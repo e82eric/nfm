@@ -2,7 +2,7 @@
 
 namespace nfm.menu;
 
-public class RunCommandMenuDefinitionProvider2(string command) : IMenuDefinitionProvider
+public class RunCommandMenuDefinitionProvider(string command, MainViewModel viewModel) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -10,15 +10,14 @@ public class RunCommandMenuDefinitionProvider2(string command) : IMenuDefinition
         {
             AsyncFunction = (writer, ct) => ProcessRunner.RunCommand(command, writer),
             MinScore = 0,
-            ResultHandler = new StdOutResultHandler(),
-            ShowHeader = true,
+            ResultHandler = new StdOutResultHandler(viewModel),
             ScoreFunc = (sObj, pattern, slab) =>
             {
                 var s = (string)sObj;
                 var score = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, score);
             },
-            Comparer = Comparers.StringScoreLengthAndValue
+            Comparer = Comparers.ScoreLengthAndValue
         };
         return definition;
     }

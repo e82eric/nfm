@@ -6,6 +6,7 @@ using nfzf.FileSystem;
 namespace nfm.menu;
 
 public class FileSystemResultHandler(
+    MainViewModel viewModel,
     IResultHandler fileResultHandler,
     IResultHandler directoryResultHandler,
     bool quitAfter,
@@ -18,14 +19,14 @@ public class FileSystemResultHandler(
         return attributes.HasFlag(FileAttributes.Directory);
     }
 
-    public async Task HandleAsync(object outputObj, MainViewModel viewModel)
+    public async Task HandleAsync(object outputObj)
     {
         var output = (FileSystemNode)outputObj;
         var path = output.ToString();
         if (!IsDirectory(path) || !searchDirectories)
         {
             await viewModel.Close();
-            await fileResultHandler.HandleAsync(output, viewModel);
+            await fileResultHandler.HandleAsync(output);
 
             if (quitAfter)
             {
@@ -34,7 +35,7 @@ public class FileSystemResultHandler(
         }
         else
         {
-            await directoryResultHandler.HandleAsync(output, viewModel);
+            await directoryResultHandler.HandleAsync(output);
         }
     }
 }

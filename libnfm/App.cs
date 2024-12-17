@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
-using nfzf.FileSystem;
 
 namespace nfm.menu;
 

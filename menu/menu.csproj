@@ -9,6 +9,9 @@
         <RootNamespace>nfm.menu</RootNamespace>
         <AssemblyName>NfmMenu</AssemblyName>
     </PropertyGroup>
+    <PropertyGroup>
+        <DefineConstants>WINDOWS</DefineConstants>
+    </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Avalonia" Version="11.2.1" />
         <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.1.0" />

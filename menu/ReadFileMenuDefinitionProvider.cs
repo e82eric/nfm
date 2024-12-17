@@ -6,7 +6,7 @@ using nfzf;
 
 namespace nfm.menu;
 
-public class ReadFileMenuDefinitionProvider(string path, IComparer<Entry>? comparer, string? searchString) : IMenuDefinitionProvider
+public class ReadFileMenuDefinitionProvider(string path, IComparer<Entry>? comparer, string? searchString, MainViewModel viewModel) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -14,9 +14,7 @@ public class ReadFileMenuDefinitionProvider(string path, IComparer<Entry>? compa
         {
             AsyncFunction = (writer, ct) => ReverseFileReader.Read(path, writer),
             MinScore = 0,
-            ResultHandler = new StdOutResultHandler(),
-            KeyBindings = new Dictionary<(KeyModifiers, Key), Func<object, Task>>(),
-            ShowHeader = true,
+            ResultHandler = new StdOutResultHandler(viewModel),
             QuitOnEscape = true,
             Comparer = comparer,
             FinalComparer = comparer,

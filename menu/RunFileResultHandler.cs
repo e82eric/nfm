@@ -6,7 +6,7 @@ namespace nfm.menu;
 
 public class RunFileResultHandler : IResultHandler
 {
-    public async Task HandleAsync(object outputObj, MainViewModel viewModel)
+    public async Task HandleAsync(object outputObj)
     {
         var output = (FileSystemNode)outputObj;
         var startInfo = new ProcessStartInfo

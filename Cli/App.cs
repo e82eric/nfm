@@ -5,7 +5,7 @@ using nfm.menu;
 
 namespace nfm.Cli;
 
-public class App<T> : Application where T:class
+public class App : Application
 {
     private readonly MainViewModel _viewModel;
     private readonly IMenuDefinitionProvider? _definitionProvider;

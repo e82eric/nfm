@@ -40,6 +40,7 @@
     </Window.Resources>
     
     <Window.Styles>
+        
         <Style Selector="TextBox">
             <Style Selector="^:focus">
                 <Setter Property="BorderBrush" Value="{x:Null}" />
@@ -262,9 +263,11 @@
                         Padding="15,0,15,5"
                         Text="{Binding Header}" />
                 </Border>
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1" Margin="5">
                     <ListBox x:DataType="menu:MainViewModel"
                              x:Name="ListBox"
+                             AutoScrollToSelectedItem="True"
+                             Grid.Row="1"
+                             Margin="5"
                              ItemsSource="{Binding DisplayItems}"
                              Padding="5"
                              FontSize="16"
@@ -284,8 +287,12 @@
                                 </TextBlock>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
+                        <ListBox.Styles>
+                            <Style Selector="ScrollViewer">
+                                <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+                            </Style>
+                        </ListBox.Styles>
                     </ListBox>
-                </ScrollViewer>
             </Grid>
         </Border>
         <Border Name="ToastNotification"

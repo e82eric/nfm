@@ -99,12 +99,12 @@ public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Ac
             //});
         });
 
-        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByCpu2, (KeyModifiers.Control, Key.D1));
-        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByPid2, (KeyModifiers.Control, Key.D2));
-        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByPrivateBytes2, (KeyModifiers.Control, Key.D3));
-        AddResultKeyBinding(keyBindings, header, ProcessLister.RunSortedByWorkingSet2, (KeyModifiers.Control, Key.D4));
+        var definition = CreateDefinition(ProcessLister.RunSortedByWorkingSet2, header ,Comparers.ScoreLengthAndValue);
+        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByCpu2, (KeyModifiers.Control, Key.D1));
+        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByPid2, (KeyModifiers.Control, Key.D2));
+        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByPrivateBytes2, (KeyModifiers.Control, Key.D3));
+        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByWorkingSet2, (KeyModifiers.Control, Key.D4));
 
-        var definition = CreateDefinition(ProcessLister.RunSortedByWorkingSet2, header, keyBindings, Comparers.StringScoreLengthAndValue);
         return definition;
     }
 
@@ -116,7 +116,7 @@ public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Ac
     {
         keyBindings.Add(keys, async _ =>
         {
-            var definition = CreateDefinition(asyncFunc, header, keyBindings, Comparer);
+            var definition = CreateDefinition(asyncFunc, header, Comparer);
             await mainViewModel.Clear();
             await mainViewModel.RunDefinitionAsync(definition);
         });
@@ -125,16 +125,14 @@ public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Ac
     private MenuDefinition CreateDefinition(
         Func<ChannelWriter<object>, CancellationToken, Task> resultFunc,
         string? header,
-        Dictionary<(KeyModifiers, Key), Func<object, Task>> keyBindings, IComparer<Entry> comparer)
+        IComparer<Entry> comparer)
     {
         var definition = new MenuDefinition
         {
             AsyncFunction = resultFunc,
             Header = header,
-            KeyBindings = keyBindings,
             MinScore = 0,
-            ResultHandler = new StdOutResultHandler(),
-            ShowHeader = true,
+            ResultHandler = new StdOutResultHandler(mainViewModel),
             Comparer = comparer,
             FinalComparer = comparer,
             OnClosed = onClosed,
