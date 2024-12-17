@@ -6,7 +6,7 @@ using nfzf;
 
 namespace nfm.menu;
 
-public class StdInMenuDefinitionProvider(MainViewModel viewModel) : IMenuDefinitionProvider
+public class StdInMenuDefinitionProvider(IMainViewModel viewModel) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {

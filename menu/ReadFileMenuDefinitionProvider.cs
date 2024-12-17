@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Avalonia.Input;
+﻿using System.Collections.Generic;
 using nfzf;
 
 namespace nfm.menu;
 
-public class ReadFileMenuDefinitionProvider(string path, IComparer<Entry>? comparer, string? searchString, MainViewModel viewModel) : IMenuDefinitionProvider
+public class ReadFileMenuDefinitionProvider(
+    string path,
+    IComparer<Entry>? comparer, string? searchString,
+    MainViewModel viewModel) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {

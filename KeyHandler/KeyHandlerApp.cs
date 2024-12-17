@@ -1,7 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Input;
 using Avalonia.Themes.Fluent;
-using nfzf.FileSystem;
 
 namespace nfm.menu;
 
@@ -37,7 +36,6 @@ public class KeyHandlerApp : Application
             null);
         var definition = definitionProvider.Get();
         await _mainViewModel.Clear();
-        //_mainWindow.Show();
         await _mainViewModel.RunDefinitionAsync(definition);
     }
 
@@ -56,7 +54,6 @@ public class KeyHandlerApp : Application
             ProgramComparer);
         var definition = definitionProvider.Get();
         await _mainViewModel.Clear();
-        //_mainWindow.Show();
         await _mainViewModel.RunDefinitionAsync(definition);
     }
     public async Task RunProcesses()
@@ -72,7 +69,6 @@ public class KeyHandlerApp : Application
         var definition = definitionProvider.Get();
         await _mainViewModel.Clear();
         await _mainViewModel.RunDefinitionAsync(definition);
-        //_mainWindow.Show();
     }
     
     private static FileSystemMenuDefinitionProvider CreateDefinitionProvider(

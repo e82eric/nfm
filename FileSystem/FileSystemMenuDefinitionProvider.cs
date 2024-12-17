@@ -46,7 +46,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
     private readonly bool _hasPreview;
     private readonly bool _directoriesOnly;
     private readonly bool _filesOnly;
-    private readonly MainViewModel _viewModel;
+    private readonly IMainViewModel _viewModel;
     private readonly IComparer<Entry>? _comparer;
     private readonly Action? _onClosed;
     private MenuDefinition _definition;
@@ -59,7 +59,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
         bool hasPreview,
         bool directoriesOnly,
         bool filesOnly,
-        MainViewModel viewModel,
+        IMainViewModel viewModel,
         IComparer<Entry>? comparer,
         Action? onClosed)
     {

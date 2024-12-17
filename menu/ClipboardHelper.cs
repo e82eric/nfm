@@ -6,7 +6,7 @@ using nfm.menu;
 
 public class ClipboardHelper
 {
-    // Clipboard formats
+#if WINDOWS
     private const uint CF_UNICODETEXT = 13;
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -31,9 +31,10 @@ public class ClipboardHelper
     private static extern bool GlobalUnlock(IntPtr hMem);
     
     private const uint GMEM_MOVEABLE = 0x0002;
-    
-    public static async Task CopyStringToClipboard(object t, MainViewModel viewModel)
+#endif 
+    public static Task CopyStringToClipboard(object t, MainViewModel viewModel)
     {
+#if WINDOWS
         var text = t.ToString();
         // Ensure we're running on STA thread
         if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
@@ -42,14 +43,17 @@ public class ClipboardHelper
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             thread.Join();
-            return;
+            return Task.CompletedTask;
         }
 
         Copy(text);
 
-        await viewModel.ShowToast($"Copied '{text}' to clipboard");
+        return viewModel.ShowToast($"Copied '{text}' to clipboard");
+#else
+        return Task.CompletedTask;
+#endif
     }
-
+#if WINDOWS
     private static void Copy(string text)
     {
         IntPtr hGlobal = IntPtr.Zero;
@@ -106,4 +110,5 @@ public class ClipboardHelper
             CloseClipboard();
         }
     }
+#endif
 }

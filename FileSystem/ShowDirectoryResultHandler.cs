@@ -1,11 +1,9 @@
-﻿using System;
-using System.Threading.Tasks;
-using nfzf.FileSystem;
+﻿using nfzf.FileSystem;
 
 namespace nfm.menu;
 
 public class ShowDirectoryResultHandler(
-    MainViewModel viewModel,
+    IMainViewModel viewModel,
     IResultHandler fileResultHandler,
     bool quitOnEscape,
     bool hasPreview,

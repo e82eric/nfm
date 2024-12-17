@@ -1,18 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
+﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 using Avalonia.Input;
 using nfzf;
 using nfzf.ListProcesses;
 
 namespace nfm.menu;
 
-public class ShowProcessesMenuDefinitionProvider(MainViewModel mainViewModel, Action? onClosed) : IMenuDefinitionProvider
+public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, Action? onClosed) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {

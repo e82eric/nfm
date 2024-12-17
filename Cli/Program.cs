@@ -131,7 +131,6 @@ class Program
                 vm.TogglePreview();
                 return Task.CompletedTask;
             });
-            
 
             var command = new FileSystemMenuDefinitionProvider(
                 new StdOutResultHandler(viewModel),

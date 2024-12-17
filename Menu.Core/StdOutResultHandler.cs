@@ -1,9 +1,6 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿namespace nfm.menu;
 
-namespace nfm.menu;
-
-public class StdOutResultHandler(MainViewModel viewModel) : IResultHandler
+public class StdOutResultHandler(IMainViewModel viewModel) : IResultHandler
 {
     private void Handle(string output)
     {

@@ -1,6 +1,6 @@
 ﻿namespace nfm.menu;
 
-class Chunk
+internal class Chunk
 {
     public int Size { get; private set; } = 0;
     public readonly object[] Items;

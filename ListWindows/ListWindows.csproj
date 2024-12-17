@@ -7,4 +7,8 @@
         <AssemblyName>NfmListWindows</AssemblyName>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Menu.Core\Menu.Core.csproj" />
+    </ItemGroup>
+
 </Project>

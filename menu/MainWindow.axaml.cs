@@ -204,22 +204,22 @@ public partial class MainWindow : Window
             });
         }
 
-        if (e.PropertyName == "DisplayItems")
-        {
-            Dispatcher.UIThread.Invoke(() =>
-            {
-                //ListBox.Items.Clear();
-                //foreach (var displayItem in _viewModel.DisplayItems)
-                //{
-                //    ListBox.Items.Add(displayItem);
-                //}
+        //if (e.PropertyName == "DisplayItems")
+        //{
+        //    Dispatcher.UIThread.Invoke(() =>
+        //    {
+        //        //ListBox.Items.Clear();
+        //        //foreach (var displayItem in _viewModel.DisplayItems)
+        //        //{
+        //        //    ListBox.Items.Add(displayItem);
+        //        //}
 
-                //if (_viewModel.SelectedIndex >= 0 && _viewModel.SelectedIndex <= ListBox.Items.Count - 1)
-                //{
-                //    ListBox.SelectedIndex = _viewModel.SelectedIndex;
-                //}
-            });
-        }
+        //        //if (_viewModel.SelectedIndex >= 0 && _viewModel.SelectedIndex <= ListBox.Items.Count - 1)
+        //        //{
+        //        //    ListBox.SelectedIndex = _viewModel.SelectedIndex;
+        //        //}
+        //    });
+        //}
     }
 
     protected override void OnClosed(EventArgs e)

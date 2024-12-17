@@ -29,6 +29,7 @@
       <ProjectReference Include="..\FileSystem\FileSystem.csproj" />
       <ProjectReference Include="..\ListProcesses\ListProcesses.csproj" />
       <ProjectReference Include="..\ListWindows\ListWindows.csproj" />
+      <ProjectReference Include="..\Menu.Core\Menu.Core.csproj" />
       <ProjectReference Include="..\nfzf\nfzf.csproj" />
     </ItemGroup>
 </Project>

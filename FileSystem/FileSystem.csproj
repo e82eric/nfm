@@ -9,7 +9,12 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Menu.Core\Menu.Core.csproj" />
       <ProjectReference Include="..\nfzf\nfzf.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="AvaloniaEdit.TextMate" Version="11.1.0" />
     </ItemGroup>
 
 </Project>

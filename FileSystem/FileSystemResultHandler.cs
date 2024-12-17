@@ -6,7 +6,7 @@ using nfzf.FileSystem;
 namespace nfm.menu;
 
 public class FileSystemResultHandler(
-    MainViewModel viewModel,
+    IMainViewModel viewModel,
     IResultHandler fileResultHandler,
     IResultHandler directoryResultHandler,
     bool quitAfter,
