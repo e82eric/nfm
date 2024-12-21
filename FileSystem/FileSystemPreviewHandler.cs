@@ -37,7 +37,7 @@ public class FileSystemPreviewHandler : IPreviewHandler
                 {
                     StartInfo = new ProcessStartInfo
                     {
-                        FileName = @"C:\msys64\mingw64\bin\ffmpeg.exe",
+                        FileName = @"ffmpeg",
                         Arguments = arguments,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -189,7 +189,7 @@ public class FileSystemPreviewHandler : IPreviewHandler
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "C:\\msys64\\mingw64\\bin\\ffprobe.exe",
+                FileName = "ffprobe",
                 Arguments = $"-i \"{filePath}\" -show_entries format=duration -v quiet -of csv=p=0",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
