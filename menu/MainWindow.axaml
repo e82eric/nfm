@@ -17,7 +17,6 @@
         x:DataType="menu:MainViewModel"
         ExtendClientAreaChromeHints="NoChrome"
         Title="menu">
-
     <Window.Resources>
         <Color x:Key="SelectedItemColor">#504945</Color>
         <Color x:Key="SelectedItemTextColor">#ebdbb2 </Color>

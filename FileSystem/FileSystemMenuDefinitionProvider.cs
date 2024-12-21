@@ -86,7 +86,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
             QuitOnEscape = _quitOnEscape,
             HasPreview = _hasPreview,
             Comparer = _comparer ?? EntryComparer,
-            FinalComparer = FinalEntryComparer,
+            FinalComparer = _comparer ?? FinalEntryComparer,
             OnClosed = _onClosed,
             ScoreFunc = ScoreFunc,
             PreviewHandler = new FileSystemPreviewHandler()

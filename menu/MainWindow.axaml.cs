@@ -69,29 +69,22 @@ public partial class MainWindow : Window
             margin = .1;
         }
         var screens = Screens.Primary;
-        var screen = screens ?? Screens.All[0]; // Fallback in case Primary is null
+        var screen = screens ?? Screens.All[0];
 
-        // Calculate 15% of the screen height
         var marginPercentage = margin;
         var topBottomMargin = screen.Bounds.Height * marginPercentage;
 
-        // Calculate the desired window height (70% of the screen height)
         var windowHeight = screen.Bounds.Height - (2 * topBottomMargin);
 
-        // Set the window height
-        this.Height = windowHeight;
+        Height = windowHeight;
 
-        // Optionally, set the window width to match the screen width or any desired value
-        // For example, set width to 80% of screen width
         var windowWidth = screen.Bounds.Width * 0.5;
-        this.Width = windowWidth;
+        Width = windowWidth;
 
-        // Calculate the position to center the window horizontally and apply top margin
         var left = screen.Bounds.X + (screen.Bounds.Width - this.Width) / 2;
         var top = screen.Bounds.Y + topBottomMargin;
 
-        // Set the window position
-        this.Position = new PixelPoint((int)left, (int)top);
+        Position = new PixelPoint((int)left, (int)top);
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -203,23 +196,6 @@ public partial class MainWindow : Window
                 PreviewContainer.Child = _image;
             });
         }
-
-        //if (e.PropertyName == "DisplayItems")
-        //{
-        //    Dispatcher.UIThread.Invoke(() =>
-        //    {
-        //        //ListBox.Items.Clear();
-        //        //foreach (var displayItem in _viewModel.DisplayItems)
-        //        //{
-        //        //    ListBox.Items.Add(displayItem);
-        //        //}
-
-        //        //if (_viewModel.SelectedIndex >= 0 && _viewModel.SelectedIndex <= ListBox.Items.Count - 1)
-        //        //{
-        //        //    ListBox.SelectedIndex = _viewModel.SelectedIndex;
-        //        //}
-        //    });
-        //}
     }
 
     protected override void OnClosed(EventArgs e)

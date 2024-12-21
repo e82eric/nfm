@@ -264,33 +264,27 @@ public static class NativeBridge
     {
         static int GetExtensionPriority(string line)
         {
-            // Define extensions to prioritize
             string[] prioritizedExtensions = { ".exe", ".lnk", ".com", ".bat", ".cmd" };
 
-            // Check if the line ends with one of the prioritized extensions
             foreach (var ext in prioritizedExtensions)
             {
                 if (line.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-                    return 1; // Higher priority
+                    return 1;
             }
-            return 0; // Default priority
+            return 0;
         }
 
-        // Compare based on score
         int scoreComparison = y.Score.CompareTo(x.Score);
         if (scoreComparison != 0) return scoreComparison;
 
-        // Compare based on extension priority
         var strB = y.Item.ToString();
         var strA = x.Item.ToString();
         int extensionPriorityComparison = GetExtensionPriority(strB).CompareTo(GetExtensionPriority(strA));
         if (extensionPriorityComparison != 0) return extensionPriorityComparison;
 
-        // Compare based on line length
         int lengthComparison = strA.Length.CompareTo(strB.Length);
         if (lengthComparison != 0) return lengthComparison;
 
-        // Compare based on string content
         return string.Compare(strA, strB, StringComparison.Ordinal);
     });
 }
