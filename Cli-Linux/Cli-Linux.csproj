@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <RootNamespace>Cli_Linux</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PublishAot>true</PublishAot>
+        <TrimMode>Full</TrimMode>
+        <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <SelfContained>true</SelfContained>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimmerDefaultAction>link</TrimmerDefaultAction>
+        <EnableNativeAot>true</EnableNativeAot>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\menu\menu.csproj" />
+    </ItemGroup>
+
+</Project>

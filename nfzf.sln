@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tempA", "tempA\tempA.csproj
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Menu.Core", "Menu.Core\Menu.Core.csproj", "{ADAA595E-D58B-45B7-937C-01633CBA8C05}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cli-Linux", "Cli-Linux\Cli-Linux.csproj", "{2E00EAC1-4987-42F1-9DA8-06A5FCD3A31D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -90,5 +92,9 @@ Global
 		{ADAA595E-D58B-45B7-937C-01633CBA8C05}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ADAA595E-D58B-45B7-937C-01633CBA8C05}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ADAA595E-D58B-45B7-937C-01633CBA8C05}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2E00EAC1-4987-42F1-9DA8-06A5FCD3A31D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E00EAC1-4987-42F1-9DA8-06A5FCD3A31D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E00EAC1-4987-42F1-9DA8-06A5FCD3A31D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E00EAC1-4987-42F1-9DA8-06A5FCD3A31D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

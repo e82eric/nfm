@@ -57,12 +57,6 @@ public class AsciiFuzzyIndexBenchmarks
     private Slab _slab;
     private Pattern _pat;
     private byte[] _testData;
-    private FileWalker _walker;
-    private FileWalker2 _walker2;
-    private FileWalker5 _walker5;
-    private FileWalker6 _walker6;
-    private FileWalker8 _walker7;
-    private FileWalker9 _walker9;
     private ArrayPool<string> _arrayPool;
 
 
