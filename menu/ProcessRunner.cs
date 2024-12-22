@@ -11,8 +11,14 @@ public static class ProcessRunner
     {
         using (var process = new Process())
         {
+#if WINDOWS
             process.StartInfo.FileName = "cmd.exe";
             process.StartInfo.Arguments = $"/C {command}";
+#endif
+#if LINUX
+            process.StartInfo.FileName = "/bin/bash";
+            process.StartInfo.Arguments = $"-c \"{command}\"";
+#endif
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.CreateNoWindow = true;

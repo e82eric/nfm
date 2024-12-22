@@ -15,6 +15,7 @@
         <TrimmerDefaultAction>link</TrimmerDefaultAction>
         <EnableNativeAot>true</EnableNativeAot>
         <InvariantGlobalization>true</InvariantGlobalization>
+        <AssemblyName>nfm</AssemblyName>
     </PropertyGroup>
 
     <ItemGroup>

@@ -36,6 +36,10 @@ class Program
                     {
                     }
                 }
+                else
+                {
+                    BuildCommandApp("fd . /media").Start((app, _) => Run(app), args);
+                }
             });
     }
     
@@ -51,7 +55,24 @@ class Program
             var command = new StdInMenuDefinitionProvider(viewModel, hasPreview);
             var app = new App(viewModel, command);
             return app;
-        }).UsePlatformDetect().With(new X11PlatformOptions()
+        }).UsePlatformDetect().With(new X11PlatformOptions
+        {
+            WmClass = "netfuzzymenu"
+        });
+    
+    private static AppBuilder BuildCommandApp(string command)
+        => AppBuilder.Configure(() =>
+        {
+            var viewModel = new MainViewModel();
+            viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.P), (_, vm) => {
+                vm.TogglePreview();
+                return Task.CompletedTask;
+            });
+            viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
+            var definitionProvider = new RunCommandMenuDefinitionProvider(command, viewModel);
+            var app = new App(viewModel, definitionProvider);
+            return app;
+        }).UsePlatformDetect().With(new X11PlatformOptions
         {
             WmClass = "netfuzzymenu"
         });

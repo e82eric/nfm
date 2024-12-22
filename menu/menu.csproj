@@ -8,14 +8,8 @@
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
         <RootNamespace>nfm.menu</RootNamespace>
         <AssemblyName>NfmMenu</AssemblyName>
-    </PropertyGroup>
-    
-    <PropertyGroup Condition=" '$(RuntimeIdentifier)' == 'win-x64' ">
-        <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
-    </PropertyGroup>
-
-    <PropertyGroup Condition=" '$(RuntimeIdentifier)' == 'linux-x64' ">
-        <DefineConstants>$(DefineConstants);LINUX</DefineConstants>
+        <DefineConstants Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">WINDOWS</DefineConstants>
+        <DefineConstants Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">LINUX</DefineConstants>
     </PropertyGroup>
     
     <ItemGroup>

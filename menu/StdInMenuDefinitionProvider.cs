@@ -15,7 +15,7 @@ public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPrevi
             AsyncFunction = Run,
             Header = null,
             HasPreview = hasPreview,
-            PreviewHandler = hasPreview ? new FileSystemPreviewHandler() : null,
+            PreviewHandler = new FileSystemPreviewHandler(),
             ResultHandler = new StdOutResultHandler(viewModel),
             MinScore = 0,
             QuitOnEscape = true,
