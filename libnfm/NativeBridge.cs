@@ -224,6 +224,12 @@ public static class NativeBridge
         var command = new NativeItemsListMenuDefinitionProvider(nativeItemsAction, onSelect, onClosed, state);
         _app?.RunDefinition(command);
     }
+    
+    [UnmanagedCallersOnly(EntryPoint = nameof(RunLastDefinition), CallConvs = [typeof(CallConvCdecl)])]
+    public static void RunLastDefinition()
+    {
+        _app?.RunLastDefinition();
+    }
 
     [UnmanagedCallersOnly(EntryPoint = "Hide")]
     public static void Hide()

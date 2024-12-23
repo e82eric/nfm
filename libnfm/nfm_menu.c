@@ -8,6 +8,7 @@ nfm_show_windows_list_func nfm_show_windows_list = NULL;
 nfm_show_processes_list_func nfm_show_processes_list = NULL;
 nfm_show_items_list_func nfm_show_items_list = NULL;
 nfm_hide_func nfm_hide = NULL;
+nfm_run_last_definition nfm_run_last_definition = NULL;
 
 HMODULE nfm_load_library(const char* dllPath) {
     HMODULE hModule = LoadLibrary(dllPath);
@@ -23,6 +24,7 @@ HMODULE nfm_load_library(const char* dllPath) {
     nfm_show_processes_list = (nfm_show_processes_list_func)GetProcAddress(hModule, "ShowProcessesList");
     nfm_show_items_list = (nfm_show_items_list_func)GetProcAddress(hModule, "ShowItemsList");
     nfm_hide = (nfm_hide_func)GetProcAddress(hModule, "Hide");
+    nfm_run_last_definition = (nfm_run_last_definition_func)GetProcAddress(hModule, "RunLastDefinition");
 
     if (!nfm_initialize || !nfm_show_file_system || !nfm_show_programs_list || !nfm_show_windows_list ||
         !nfm_show_processes_list || !nfm_show_items_list || !nfm_hide) {

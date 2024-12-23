@@ -25,6 +25,7 @@ class Program
     private const int VK_I = 0x49;
     private const int VK_U = 0x55;
     private const int VK_L = 0x4c;
+    private const int VK_R = 0x52;
     
     private static void Run(Application app)
     {
@@ -45,7 +46,11 @@ class Program
             { (GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_L), async () =>
             {
                 await _keyHandlerApp.RunFileSystemMenu();
-            } }
+            } },
+            { (GlobalKeyHandler.Modifiers.LAlt | GlobalKeyHandler.Modifiers.LShift, VK_R), async () =>
+            {
+                await _keyHandlerApp.RunLastDefinition();
+            } },
         };
         GlobalKeyHandler.SetHook(keyBindings);
         app.Run(CancellationToken.None);

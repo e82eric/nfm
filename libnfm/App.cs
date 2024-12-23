@@ -33,4 +33,12 @@ public class App : Application
             await _viewModel.RunDefinitionAsync(definition);
         });
     }
+    
+    public void RunLastDefinition()
+    {
+        Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            await _viewModel.RunLastDefinition();
+        });
+    }
 }

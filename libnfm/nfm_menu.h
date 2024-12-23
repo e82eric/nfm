@@ -38,6 +38,7 @@ typedef void (*nfm_show_items_list_func)(
     void* state
 );
 typedef void (*nfm_hide_func)();
+typedef void (*nfm_run_last_definition_func)();
 
 HMODULE nfm_load_library(const char* dllPath);
 void nfm_unload_library(HMODULE hModule);

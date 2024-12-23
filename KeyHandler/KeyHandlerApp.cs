@@ -38,6 +38,11 @@ public class KeyHandlerApp : Application
         await _mainViewModel.Clear();
         await _mainViewModel.RunDefinitionAsync(definition);
     }
+    
+    public async Task RunLastDefinition()
+    {
+        await _mainViewModel.RunLastDefinition();
+    }
 
     public async Task RunProgramsMenu()
     {

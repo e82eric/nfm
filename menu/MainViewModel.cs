@@ -86,7 +86,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         get => _previewText;
         set
         {
-            if (value == _previewText) return;
             _previewText = value;
             OnPropertyChanged();
         }
@@ -323,6 +322,13 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         }
     }
 
+    public Task RunLastDefinition()
+    {
+        IsVisible = true;
+        _restartPreviewSignal.Set();
+        return Task.CompletedTask;
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -492,6 +498,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             ShowResults = DisplayItems.Count > 0;
             NumberOfScoredItems = NumberOfItems;
 
+            _restartPreviewSignal.Set();
             return Task.CompletedTask;
         }
         
