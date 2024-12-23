@@ -56,6 +56,17 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     private Bitmap _previewImage;
     private string _selectedText;
 
+    public bool EditDialogOpen
+    {
+        get => _editDialogOpen;
+        set
+        {
+            if (value == _editDialogOpen) return;
+            _editDialogOpen = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string PreviewExtension { get; set; }
 
     public Bitmap PreviewImage
@@ -299,8 +310,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         HasPreview = _definition.HasPreview;
         SearchText = definition.SearchString;
         IsVisible = true;
-        //DisplayItems.Clear();
-        //OnPropertyChanged(nameof(DisplayItems));
         IsHeaderVisible = definition.Header != null;
         Header = definition.Header;
         SelectedIndex = 0;
@@ -322,6 +331,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     }
 
     private CancellationTokenSource _debounceCts = new();
+    private bool _editDialogOpen;
 
     private async Task ProcessLoop()
     {
@@ -453,7 +463,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
 
         if (string.IsNullOrEmpty(_searchText))
         {
-            //DisplayItems.Clear();
             var itemsAdded = 0;
             var ctr = 0;
             foreach (var chunk in completeChunks)
@@ -478,13 +487,10 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             {
                 DisplayItems[i].Set(string.Empty, new List<int>(), null);
             }
-            
-            //OnPropertyChanged(nameof(DisplayItems));
 
             Searching = false;
             ShowResults = DisplayItems.Count > 0;
             NumberOfScoredItems = NumberOfItems;
-            //SelectedIndex = 0;
 
             return Task.CompletedTask;
         }
@@ -544,20 +550,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         var topEntries = globalList.Take(MaxItems).ToList();
 
         var previousIndex = SelectedIndex;
-        //DisplayItems.Clear();
-        Span<char> fullFilePathBuffer2 = stackalloc char[2048];
-        //var ctr2 = 0;
-        //foreach (var item in topEntries)
-        //{
-        //    var fullFilePathSpan = _definition.StrConverter.Convert(item.Line, fullFilePathBuffer2);
-        //    var fullFilePath = fullFilePathSpan.ToString();
-        //    var pos = FuzzySearcher.GetPositions(fullFilePath, pattern, _positionsSlab);
-        //    _positionsSlab.Reset();
-        //    DisplayItems[ctr2].Set(fullFilePath, pos);
-        //    ctr2++;
-        //    //DisplayItems.Add(new HighlightedText<T>(fullFilePath, pos, item.Line));
-        //}
-
         for (int i = 0; i < MaxItems; i++)
         {
             if (i < topEntries.Count)
@@ -582,8 +574,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         {
             previousIndex = 0;
         }
-
-        //OnPropertyChanged(nameof(DisplayItems));
 
         Searching = false;
         ShowResults = DisplayItems.Count > 0;
@@ -688,7 +678,14 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         
         if (eKeyModifiers == KeyModifiers.Control)
         {
-            if (_definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
+            if (eKey == Key.E)
+            {
+                if (_definition.EditAction != null)
+                {
+                    EditDialogOpen = true;
+                }
+            }
+            else if (_definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
                 var highlightedText = DisplayItems[SelectedIndex];
                 if (highlightedText != null)
@@ -776,13 +773,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         {
             await _currentDefinitionCancellationTokenSource.CancelAsync();
         }
-        //if (_currentPreviewCancellationTokenSource is { Token.IsCancellationRequested: false })
-        //{
-        //    await _currentPreviewCancellationTokenSource.CancelAsync();
-        //}
-                
-        //DisplayItems.Clear();
-        //OnPropertyChanged(nameof(DisplayItems));
+        
         ShowResults = false;
         _chunks.Clear();
         _chunks.Add(new Chunk());
@@ -807,7 +798,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         if (_definition.PreviewHandler != null)
         {
             HasPreview = !HasPreview;
-            RenderPreview(_cancellation.Token);
+            _restartPreviewSignal.Set();
         }
     }
 
@@ -826,5 +817,24 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     {
         PreviewText = errorInfo;
         PreviewExtension = ".txt";
+    }
+
+    public async Task RunEditAction(object item, string newValue)
+    {
+        if (_definition.EditAction != null)
+        {
+            var result = await _definition.EditAction(item, newValue);
+            if (result.Success)
+            {
+                var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, SearchText, true);
+                var pos = FuzzySearcher.GetPositions(newValue, pattern, _positionsSlab);
+                DisplayItems[SelectedIndex] = new HighlightedText(newValue, pos, item);
+                SelectedIndex = SelectedIndex;
+            }
+            else
+            {
+                await ShowToast(result.ErrorMessage);
+            }
+        }
     }
 }

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
+﻿using System.Threading.Channels;
 using Avalonia.Input;
 using nfzf;
 using nfzf.FileSystem;
@@ -50,7 +44,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
     private readonly IComparer<Entry>? _comparer;
     private readonly Action? _onClosed;
     private MenuDefinition _definition;
-    private FileWalker10 _fileScanner;
+    private FileWalker _fileScanner;
 
     public FileSystemMenuDefinitionProvider(IResultHandler resultHandler,
         int maxDepth,
@@ -73,7 +67,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
         _viewModel = viewModel;
         _comparer = comparer;
         _onClosed = onClosed;
-        _fileScanner = new FileWalker10();
+        _fileScanner = new FileWalker();
         
         _definition = new MenuDefinition
         {
@@ -89,7 +83,36 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
             FinalComparer = _comparer ?? FinalEntryComparer,
             OnClosed = _onClosed,
             ScoreFunc = ScoreFunc,
-            PreviewHandler = new FileSystemPreviewHandler()
+            PreviewHandler = new FileSystemPreviewHandler(),
+            EditAction = (itemObj, newText) =>
+            {
+                var itemStr = itemObj.ToString();
+                if (itemStr != null)
+                {
+                    var info = new FileInfo(itemStr);
+                    if (info.Exists)
+                    {
+                        try
+                        {
+                            if (!File.Exists(newText))
+                            {
+                                info.MoveTo(newText);
+                                var itemNode = (FileSystemNode)itemObj;
+                                itemNode.UpdateTextSlow(new FileInfo(newText));
+                                return Task.FromResult(new Result { Success = true });
+                            }
+
+                            return Task.FromResult(new Result { Success = false, ErrorMessage = $"{newText} already exists" });
+                        }
+                        catch (Exception e)
+                        {
+                            return Task.FromResult(new Result { Success = false, ErrorMessage = e.Message });
+                        }
+                    }
+                }
+
+                return Task.FromResult(new Result { Success = false, ErrorMessage = "Failed to update file path" });
+            }
         };
         _definition.KeyBindings.Add((KeyModifiers.Control, Key.O), _ => ParentDir(_rootDirectory));
 

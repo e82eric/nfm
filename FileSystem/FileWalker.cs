@@ -9,8 +9,8 @@ namespace nfzf.FileSystem;
 
 public class FileSystemNode
 {
-    public readonly string Text;
-    public readonly FileSystemNode? Previous;
+    public string Text;
+    public FileSystemNode? Previous;
 
     public FileSystemNode(string text, FileSystemNode? previous)
     {
@@ -27,6 +27,20 @@ public class FileSystemNode
 
 public static class FileSystemNodeExtensions
 {
+    public static void UpdateTextSlow(this FileSystemNode node, FileInfo info)
+    {
+        node.Text = info.Name;
+        var currentDirectory = info.Directory;
+        var currentNode = node;
+
+        while (currentDirectory != null)
+        {
+            var previousNode = new FileSystemNode(currentDirectory.Name, null);
+            currentNode.Previous = previousNode;
+            currentNode = previousNode;
+            currentDirectory = currentDirectory.Parent;
+        }
+    }
     public static ReadOnlySpan<char> ToString(this FileSystemNode t, Span<char> buf)
     {
         var length = 0;
@@ -84,7 +98,7 @@ public static class HashCodeHelper
         return hash;
     }
 }
-public class FileWalker10
+public class FileWalker
 {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private unsafe struct WIN32_FIND_DATA
@@ -180,7 +194,7 @@ public class FileWalker10
     return inputString;
     }
 
-    public FileWalker10(bool includeHidden = true)
+    public FileWalker(bool includeHidden = true)
     {
         _includeHidden = includeHidden;
     }

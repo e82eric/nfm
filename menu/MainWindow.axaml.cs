@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -115,6 +116,19 @@ public partial class MainWindow : Window
     
     private void ViewModelOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == "EditDialogOpen")
+        {
+            if (_viewModel.EditDialogOpen)
+            {
+                var dialog = new EditItemDialog(_viewModel);
+                dialog.ShowDialog(this);
+            }
+            else
+            {
+                BringToForeground();
+            }
+        }
+        
         if (e.PropertyName == "HasPreview")
         {
             Dispatcher.UIThread.Post(() =>
@@ -215,9 +229,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void TextBoxOnKeyDown(object? sender, KeyEventArgs e)
+    private void TextBoxOnKeyDown(object? sender, KeyEventArgs e)
     {
-        await _viewModel.HandleKey(e.Key, e.KeyModifiers);
+        Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            await _viewModel.HandleKey(e.Key, e.KeyModifiers);
+        });
 
         if (e.KeyModifiers == KeyModifiers.Control)
         {

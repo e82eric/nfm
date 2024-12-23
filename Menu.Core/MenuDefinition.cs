@@ -50,4 +50,5 @@ public class MenuDefinition
     public Action? OnClosed { get; init; } = null;
     public string? SearchString { get; init; } = null;
     public IPreviewHandler? PreviewHandler { get; init; } = null;
+    public Func<object, string, Task<Result>>? EditAction { get; init; } = null;
 }

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Diagnostics;
 using Avalonia.Media.Imaging;
 using TextMateSharp.Grammars;
 
@@ -14,12 +8,13 @@ public class FileSystemPreviewHandler : IPreviewHandler
 {
     public async Task Handle(IPreviewRenderer renderer, object node, CancellationToken ct)
     {
+        var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5));
         var path = node.ToString();
             
         if (path.EndsWith(".mp4", StringComparison.InvariantCultureIgnoreCase) || path.EndsWith(".wmv", StringComparison.InvariantCultureIgnoreCase))
         {
             Random random = new Random();
-            renderer.RenderText($"Loading...", ".txt");
+            //renderer.RenderText($"Loading...", ".txt");
             int randomNumber = random.Next(3, 9);
             var seconds = await CalculateThumbnailTime(renderer, path, randomNumber, ct);
             if (seconds == 0)
@@ -30,7 +25,7 @@ public class FileSystemPreviewHandler : IPreviewHandler
             string arguments =
                 $"-ss {TimeSpan.FromSeconds(seconds)} -i \"{path}\" -frames:v 1 -f image2pipe -vcodec png pipe:1";
 
-            renderer.RenderText($"Loading...", ".txt");
+            //renderer.RenderText($"Loading...", ".txt");
             try
             {
                 var process = new Process
@@ -62,8 +57,13 @@ public class FileSystemPreviewHandler : IPreviewHandler
                     var exitTask = process.WaitForExitAsync(ct);
 
                     // Wait for either the process to exit or the copy task to complete
-                    var completedTask = await Task.WhenAny(copyTask, exitTask);
+                    var completedTask = await Task.WhenAny(copyTask, exitTask, timeoutTask);
 
+                    if (completedTask == timeoutTask)
+                    {
+                        renderer.RenderError("Preview timed out");
+                        return;
+                    }
                     if (completedTask == exitTask)
                     {
                         // Process has exited, cancel the copy operation
@@ -200,7 +200,7 @@ public class FileSystemPreviewHandler : IPreviewHandler
 
         process.Start();
 
-        string output = await process.StandardOutput.ReadToEndAsync();
+        string output = await process.StandardOutput.ReadToEndAsync(ct);
         await process.WaitForExitAsync(ct);
         
         string error = await process.StandardError.ReadToEndAsync(ct);

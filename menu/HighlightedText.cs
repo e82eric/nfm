@@ -6,21 +6,21 @@ namespace nfm.menu;
 
 public class HighlightedText(string text, IList<int> highlightIndexes, object backing) : INotifyPropertyChanged
 {
-    private string _text = text;
     private IList<int> _highlightIndexes = highlightIndexes;
 
     public object? BackingObj = backing;
-    public string Text => _text;
+    public string Text { get; set; } = text;
 
     public IList<int> HighlightIndexes => _highlightIndexes;
 
     public void Set(string text, IList<int> positions, object backingObj)
     {
-        if (text == _text && Equals(positions, _highlightIndexes)) return;
-        _text = text;
+        //if (text == Text && Equals(positions, _highlightIndexes)) return;
+        Text = text;
         _highlightIndexes = positions;
         BackingObj = backingObj;
-        OnPropertyChanged(null);
+        //OnPropertyChanged(null);
+        OnPropertyChanged(nameof(Text));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
