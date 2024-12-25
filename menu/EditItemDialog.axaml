@@ -9,70 +9,29 @@
         x:DataType="menu:MainViewModel"
         Title="Item Details"
         Width="600">
-    
-    <Window.Resources>
-        <Color x:Key="SelectedItemColor">#504945</Color>
-        <Color x:Key="SelectedItemTextColor">#ebdbb2 </Color>
-        <Color x:Key="HighlightColor">Orange </Color>
-        <Color x:Key="BackgroundColor">#282828</Color>
-        <Color x:Key="BorderColor">#458588</Color>
-        <Color x:Key="ForegroundGray">#a89984</Color>
-        <SolidColorBrush x:Key="SelectedItemBrush" Color="{StaticResource SelectedItemColor}" />
-        <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
-        <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
-        <SolidColorBrush x:Key="ForegroundBrush" Color="{StaticResource ForegroundGray}" />
-        <SolidColorBrush x:Key="SelectedItemTextBrush" Color="{StaticResource SelectedItemTextColor}" />
-        <SolidColorBrush x:Key="HighlightBrush" Color="{StaticResource HighlightColor}" />
-        <menu:HighlightedTextConverter
-            x:Key="HighlightedTextConverter"
-            NormalTextBrush="{StaticResource ForegroundBrush}"
-            HighlightBrush="{StaticResource HighlightBrush}"
-            SelectedItemTextBrush="{StaticResource ForegroundBrush}" />
-        <menu:BooleanToGridLengthConverter x:Key="BooleanToGridLengthConverter" />
-    </Window.Resources>
-    
-<Window.Styles>
-    <!-- Default style for TextBox (unfocused) -->
-    <Style Selector="TextBox">
-        <Setter Property="BorderBrush" Value="{x:Null}" />
-        <Setter Property="Background" Value="{x:Null}" />
-        <Setter Property="BorderThickness" Value="1" />
-        
-        <!-- Focused state -->
-        <Style Selector="^:focus">
-            <Setter Property="BorderBrush" Value="{x:Null}" />
-            <Style Selector="^ /template/ Border#PART_BorderElement">
-                <Setter Property="Background" Value="{x:Null}" />
-                <Setter Property="BorderBrush" Value="{x:Null}" />
-                <Setter Property="BorderThickness" Value="0" />
-            </Style>
+
+    <Window.Styles>
+        <StyleInclude Source="Resources.axaml"></StyleInclude>
+        <Style Selector="TextBlock.Header">
+            <Setter Property="Margin" Value="5" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}" />
         </Style>
-        
-        <!-- PointerOver state -->
-        <Style Selector="^:pointerover">
-            <Setter Property="BorderBrush" Value="{x:Null}" />
-            <Style Selector="^ /template/ Border#PART_BorderElement">
-                <Setter Property="Background" Value="{x:Null}" />
-                <Setter Property="BorderBrush" Value="{x:Null}" />
-                <Setter Property="BorderThickness" Value="0" />
-            </Style>
+        <Style Selector="Border.ContainerBorder">
+            <Setter Property="Margin" Value="10" />
+            <Setter Property="Background" Value="{StaticResource BackgroundBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="CornerRadius" Value="5" />
         </Style>
-    </Style>
-</Window.Styles>
-    
+    </Window.Styles>
+
     <StackPanel
         x:Name="Root"
-        VerticalAlignment="Center"
-        >
-        <Border
-            x:Name="PreviewContainer"
-            Margin="10"
-            Background="{StaticResource BackgroundBrush}"
-            BorderThickness="2"
-            Padding="4"
-            BorderBrush="{StaticResource BorderBrush}"
-            Grid.Row="0"
-            CornerRadius="5">
+        VerticalAlignment="Center">
+        <Border Classes="ContainerBorder">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -80,27 +39,13 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Text="Current:" Grid.Row="0" Margin="5" FontSize="14" FontWeight="Bold"/>
-                <Border
-                    Margin="10"
-                    Background="{StaticResource BackgroundBrush}"
-                    BorderThickness="2"
-                    Padding="4"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    Grid.Row="1"
-                    CornerRadius="5">
-                    <TextBox IsReadOnly="True" x:Name="CurrentTextBlock" />
+                <TextBlock Text="Current:" Grid.Row="0" Classes="Header"/>
+                <Border Classes="ContainerBorder" Grid.Row="1" >
+                    <TextBox IsReadOnly="True" x:Name="CurrentTextBlock" Foreground="{StaticResource ForegroundBrush}" />
                 </Border>
-                <TextBlock Text="New:" Grid.Row="2" Margin="5" FontSize="14" FontWeight="Bold"/>
-                <Border
-                    Margin="10"
-                    Background="{StaticResource BackgroundBrush}"
-                    BorderThickness="2"
-                    Padding="4"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    Grid.Row="3"
-                    CornerRadius="5">
-                    <TextBox x:Name="NewTextBox" />
+                <TextBlock Text="New:" Grid.Row="2" Classes="Header"/>
+                <Border Classes="ContainerBorder" Grid.Row="3">
+                    <TextBox x:Name="NewTextBox" Foreground="{StaticResource ForegroundBrush}" />
                 </Border>
             </Grid>
         </Border>

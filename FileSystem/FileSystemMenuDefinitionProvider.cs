@@ -99,19 +99,19 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
                                 info.MoveTo(newText);
                                 var itemNode = (FileSystemNode)itemObj;
                                 itemNode.UpdateTextSlow(new FileInfo(newText));
-                                return Task.FromResult(new Result { Success = true });
+                                return Task.FromResult(Result.Ok());
                             }
 
-                            return Task.FromResult(new Result { Success = false, ErrorMessage = $"{newText} already exists" });
+                            return Task.FromResult(Result.Error($"{newText} already exists"));
                         }
                         catch (Exception e)
                         {
-                            return Task.FromResult(new Result { Success = false, ErrorMessage = e.Message });
+                            return Task.FromResult(Result.Error(e.Message));
                         }
                     }
                 }
 
-                return Task.FromResult(new Result { Success = false, ErrorMessage = "Failed to update file path" });
+                return Task.FromResult(Result.Error("Failed to update file path"));
             }
         };
         _definition.KeyBindings.Add((KeyModifiers.Control, Key.O), _ => ParentDir(_rootDirectory));

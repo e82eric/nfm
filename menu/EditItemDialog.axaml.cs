@@ -39,9 +39,9 @@ namespace nfm.menu;
             {
                 Dispatcher.UIThread.InvokeAsync(async () =>
                 {
+                    Close();
                     await _viewModel.RunEditAction(_current.BackingObj, NewTextBox.Text);
                     _viewModel.EditDialogOpen = false;
-                    Close();
                 });
             }
         }

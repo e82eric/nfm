@@ -72,7 +72,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     public Bitmap PreviewImage
     {
         get => _previewImage;
-        set
+        private set
         {
             //if (Equals(value, _previewImage)) return;
             _previewImage = value;
@@ -84,7 +84,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     public string PreviewText
     {
         get => _previewText;
-        set
+        private set
         {
             _previewText = value;
             OnPropertyChanged();
@@ -448,7 +448,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
 
     private async Task RenderPreview(CancellationToken ct)
     {
-        if (DisplayItems.Count > SelectedIndex && HasPreview)
+        if (SelectedIndex >= 0 && DisplayItems.Count > SelectedIndex && HasPreview)
         {
             var selected = DisplayItems[SelectedIndex];
             if (selected != null)
@@ -770,6 +770,11 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         IsToastVisible = false;
     }
     
+    public async Task ShowErrorToast(string message, int duration = 3000)
+    {
+        await ShowToast("Error: " + message, duration);
+    }
+    
     public async Task Clear()
     {
         if (_currentSearchCancellationTokenSource is { Token.IsCancellationRequested: false })
@@ -840,7 +845,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             }
             else
             {
-                await ShowToast(result.ErrorMessage);
+                await ShowErrorToast(result.ErrorMessage);
             }
         }
     }

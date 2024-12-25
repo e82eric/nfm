@@ -16,19 +16,8 @@
         x:DataType="menu:MainViewModel"
         ExtendClientAreaChromeHints="NoChrome"
         Title="menu">
+    
     <Window.Resources>
-        <Color x:Key="SelectedItemColor">#504945</Color>
-        <Color x:Key="SelectedItemTextColor">#ebdbb2 </Color>
-        <Color x:Key="HighlightColor">Orange </Color>
-        <Color x:Key="BackgroundColor">#282828</Color>
-        <Color x:Key="BorderColor">#458588</Color>
-        <Color x:Key="ForegroundGray">#a89984</Color>
-        <SolidColorBrush x:Key="SelectedItemBrush" Color="{StaticResource SelectedItemColor}" />
-        <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
-        <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
-        <SolidColorBrush x:Key="ForegroundBrush" Color="{StaticResource ForegroundGray}" />
-        <SolidColorBrush x:Key="SelectedItemTextBrush" Color="{StaticResource SelectedItemTextColor}" />
-        <SolidColorBrush x:Key="HighlightBrush" Color="{StaticResource HighlightColor}" />
         <menu:HighlightedTextConverter
             x:Key="HighlightedTextConverter"
             NormalTextBrush="{StaticResource ForegroundBrush}"
@@ -38,26 +27,7 @@
     </Window.Resources>
     
     <Window.Styles>
-        
-        <Style Selector="TextBox">
-            <Style Selector="^:focus">
-                <Setter Property="BorderBrush" Value="{x:Null}" />
-                <Style Selector="^ /template/ Border#PART_BorderElement">
-                    <Setter Property="Background" Value="{x:Null}" />
-                    <Setter Property="BorderBrush" Value="{x:Null}" />
-                    <Setter Property="BorderThickness" Value="0" />
-                </Style>
-            </Style>
-            <Style Selector="^:pointerover">
-                <Setter Property="BorderBrush" Value="{x:Null}" />
-                <Style Selector="^ /template/ Border#PART_BorderElement">
-                    <Setter Property="Background" Value="{x:Null}" />
-                    <Setter Property="BorderBrush" Value="{x:Null}" />
-                    <Setter Property="BorderThickness" Value="0" />
-                </Style>
-            </Style>
-        </Style>
-
+        <StyleInclude Source="Resources.axaml"></StyleInclude>
         
         <Style Selector="Ellipse.LoadingDot1">
             <Style.Animations>
@@ -298,7 +268,7 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1"
                 HorizontalAlignment="Center"
-                VerticalAlignment="Bottom"
+                VerticalAlignment="Center"
                 Background="#333"
                 CornerRadius="10"
                 Padding="10"
