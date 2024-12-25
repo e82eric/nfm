@@ -20,6 +20,7 @@
         <Setter Property="BorderBrush" Value="{x:Null}" />
         <Setter Property="Background" Value="{x:Null}" />
         <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CaretBrush" Value="{StaticResource ForegroundBrush}"/>
 
         <Style Selector="^:focus">
             <Setter Property="BorderBrush" Value="{x:Null}" />

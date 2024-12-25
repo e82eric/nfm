@@ -3,11 +3,10 @@
         xmlns:menu="clr-namespace:nfm.menu"
         x:Class="nfm.menu.EditItemDialog"
         Background="Transparent"
-        WindowStartupLocation="CenterOwner"
-        VerticalAlignment="Bottom"
         SystemDecorations="None"
         x:DataType="menu:MainViewModel"
         Title="Item Details"
+        Height="600"
         Width="600">
 
     <Window.Styles>
@@ -30,7 +29,7 @@
 
     <StackPanel
         x:Name="Root"
-        VerticalAlignment="Center">
+        >
         <Border Classes="ContainerBorder">
             <Grid>
                 <Grid.RowDefinitions>

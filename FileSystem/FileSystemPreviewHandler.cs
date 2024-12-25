@@ -10,9 +10,10 @@ public class FileSystemPreviewHandler : IPreviewHandler
     {
         var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5));
         var path = node.ToString();
-            
-        if (path.EndsWith(".mp4", StringComparison.InvariantCultureIgnoreCase) || path.EndsWith(".wmv", StringComparison.InvariantCultureIgnoreCase))
-        {
+        
+        string[] videoExtensions = { ".mp4", ".wmv", ".avi", ".mkv", ".flv", ".mov", ".webm", ".mpeg", ".mpg", ".m4v", ".3gp", ".ogv" };
+        if (videoExtensions.Any(ext => path.EndsWith(ext, StringComparison.InvariantCultureIgnoreCase)))
+        {           
             Random random = new Random();
             //renderer.RenderText($"Loading...", ".txt");
             int randomNumber = random.Next(3, 9);

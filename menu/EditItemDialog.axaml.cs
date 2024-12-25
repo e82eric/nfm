@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -16,6 +17,7 @@ namespace nfm.menu;
             InitializeComponent();
             NewTextBox.KeyUp += OnKeyUp;
             DataContext = viewModel;
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
             _current = viewModel.DisplayItems[viewModel.SelectedIndex];
             CurrentTextBlock.Text = _current.Text;
@@ -26,6 +28,10 @@ namespace nfm.menu;
         {
             base.OnLoaded(e);
             NewTextBox.Focus();
+            
+            var left = (int)(Screens.Primary.Bounds.X + (Screens.Primary.Bounds.Width - this.Width) / 2);
+            var top = Screens.Primary.Bounds.Y + (Screens.Primary.Bounds.Height) / 2;
+            Position = new PixelPoint(left, top);
         }
 
         private void OnKeyUp(object? sender, KeyEventArgs e)

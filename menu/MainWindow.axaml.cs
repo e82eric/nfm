@@ -119,7 +119,16 @@ public partial class MainWindow : Window
         {
             if (_viewModel.EditDialogOpen)
             {
-                var dialog = new EditItemDialog(_viewModel);
+                var dialog = new EditItemDialog(_viewModel)
+                {
+                    WindowStartupLocation = WindowStartupLocation.Manual
+                };
+
+                dialog.Position = new PixelPoint(
+                    (int)(Bounds.X + (Bounds.Width / 2) - (dialog.Width / 2)),
+                    (int)(Bounds.X + (Bounds.Height / 2) - (dialog.Width / 2))
+                );
+                
                 dialog.ShowDialog(this);
             }
             else
