@@ -6,7 +6,7 @@ using nfzf;
 
 namespace nfm.menu;
 
-public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPreview) : IMenuDefinitionProvider
+public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPreview, string? editCommandStr) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -26,6 +26,18 @@ public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPrevi
                 return (s.Length, score);
             },
             Comparer = Comparers.ScoreLengthAndValue,
+            EditAction = editCommandStr == null ? null : async (item, newValue) =>
+            {
+                var oldValue = item.ToString();
+                var commandStr = string.Format(editCommandStr, oldValue, newValue);
+                var result = await ProcessRunner.RunCommandAsync(commandStr);
+                if (result.ExitCode == 0)
+                {
+                    return Result.Ok();
+                }
+
+                return Result.Error(result.StandardOutput + "\n\n" + result.StandardError);
+            }
         };
         return definition;
     }

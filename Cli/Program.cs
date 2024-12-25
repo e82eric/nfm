@@ -92,7 +92,7 @@ class Program
         {
             var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var command = new StdInMenuDefinitionProvider(viewModel, false);
+            var command = new StdInMenuDefinitionProvider(viewModel, false, null);
             var app = new App(viewModel, command);
             return app;
         }).UsePlatformDetect();
