@@ -12,6 +12,8 @@ class StdInOptions
 {
     [Option]
     public string? EditCommand { get; set; }
+    [Option]
+    public string? PreviewCommand { get; set; }
 }
 
 [Verb("filesystem")]
@@ -66,7 +68,7 @@ class Program
                     Parser.Default.ParseArguments<StdInOptions>(args)
                         .MapResult(o =>
                         {
-                            BuildStdInApp(o.EditCommand).Start((app, _) => Run(app, false), args);
+                            BuildStdInApp(o.EditCommand, o.PreviewCommand).Start((app, _) => Run(app, false), args);
                             return 0;
                         },
                         _ => 1);
@@ -101,12 +103,16 @@ class Program
                 errors => 1);
     }
     
-    private static AppBuilder BuildStdInApp(string? editCommand) 
+    private static AppBuilder BuildStdInApp(string? editCommand, string? previewCommand) 
         => AppBuilder.Configure(() =>
         {
             var viewModel = new MainViewModel();
+            viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.P), (_, vm) => {
+                vm.TogglePreview();
+                return Task.CompletedTask;
+            });
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var command = new StdInMenuDefinitionProvider(viewModel, false, editCommand);
+            var command = new StdInMenuDefinitionProvider(viewModel, false, editCommand, previewCommand);
             var app = new App(viewModel, command);
             return app;
         }).UsePlatformDetect();

@@ -13,7 +13,9 @@ class CliOptions
     [Option]
     public bool HasPreview { get; set; }
     [Option]
-    public string EditCommand { get; set; }
+    public string? EditCommand { get; set; }
+    [Option]
+    public string? PreviewCommand { get; set; }
 }
 
 class Program
@@ -31,7 +33,7 @@ class Program
                         int nextChar = Console.In.Peek();
                         if (nextChar != -1)
                         {
-                            BuildStdInApp(o.HasPreview, o.EditCommand).Start((app, _) => Run(app), args);
+                            BuildStdInApp(o.HasPreview, o.EditCommand, o.PreviewCommand).Start((app, _) => Run(app), args);
                         }
                     }
                     catch (Exception e)
@@ -45,7 +47,7 @@ class Program
             });
     }
     
-    private static AppBuilder BuildStdInApp(bool hasPreview, string? editCommand) 
+    private static AppBuilder BuildStdInApp(bool hasPreview, string? editCommand, string? previewCommand) 
         => AppBuilder.Configure(() =>
         {
             var viewModel = new MainViewModel();
@@ -54,7 +56,7 @@ class Program
                 return Task.CompletedTask;
             });
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var command = new StdInMenuDefinitionProvider(viewModel, hasPreview, editCommand);
+            var command = new StdInMenuDefinitionProvider(viewModel, hasPreview, editCommand, previewCommand);
             var app = new App(viewModel, command);
             return app;
         }).UsePlatformDetect().With(new X11PlatformOptions

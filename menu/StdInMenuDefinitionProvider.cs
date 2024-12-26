@@ -6,7 +6,7 @@ using nfzf;
 
 namespace nfm.menu;
 
-public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPreview, string? editCommandStr) : IMenuDefinitionProvider
+public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPreview, string? editCommandStr, string? previewCommand) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
@@ -15,7 +15,7 @@ public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPrevi
             AsyncFunction = Run,
             Header = null,
             HasPreview = hasPreview,
-            PreviewHandler = new FileSystemPreviewHandler(),
+            PreviewHandler = previewCommand != null ? new CommandPreviewHandler(previewCommand) : new FileSystemPreviewHandler(),
             ResultHandler = new StdOutResultHandler(viewModel),
             MinScore = 0,
             QuitOnEscape = true,
@@ -37,7 +37,7 @@ public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPrevi
                 }
 
                 return Result.Error(result.StandardOutput + "\n\n" + result.StandardError);
-            }
+            },
         };
         return definition;
     }
