@@ -101,7 +101,7 @@ public partial class MainWindow : Window
         _editor = new TextEditor();
         _textMateInstallation = _editor.InstallTextMate(_registryOptions);
         _editor.KeyUp += EditorOnKeyUp;
-        if (Resources.TryGetResource("ForegroundBrush", null, out var resource) && resource is SolidColorBrush brush)
+        if (this.TryFindResource("ForegroundBrush", null, out var resource) && resource is SolidColorBrush brush)
         {
             _editor.Foreground = brush;
         }
