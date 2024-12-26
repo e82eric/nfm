@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -6,6 +7,12 @@ using CommandLine;
 using nfm.Cli;
 
 namespace nfm.menu;
+
+class StdInOptions
+{
+    [Option]
+    public string? EditCommand { get; set; }
+}
 
 [Verb("filesystem")]
 class FileSystemOptions
@@ -42,6 +49,7 @@ class FileReaderOptions
 
 class Program
 {
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(StdInOptions))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(FileReaderOptions))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(CommandOptions))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(FileSystemOptions))]
@@ -55,7 +63,13 @@ class Program
                 int nextChar = Console.In.Peek();
                 if (nextChar != -1)
                 {
-                    BuildStdInApp().Start((app, _) => Run(app, false), args);
+                    Parser.Default.ParseArguments<StdInOptions>(args)
+                        .MapResult(o =>
+                        {
+                            BuildStdInApp(o.EditCommand).Start((app, _) => Run(app, false), args);
+                            return 0;
+                        },
+                        _ => 1);
                     return;
                 }
             }
@@ -87,12 +101,12 @@ class Program
                 errors => 1);
     }
     
-    private static AppBuilder BuildStdInApp() 
+    private static AppBuilder BuildStdInApp(string? editCommand) 
         => AppBuilder.Configure(() =>
         {
             var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var command = new StdInMenuDefinitionProvider(viewModel, false, null);
+            var command = new StdInMenuDefinitionProvider(viewModel, false, editCommand);
             var app = new App(viewModel, command);
             return app;
         }).UsePlatformDetect();
