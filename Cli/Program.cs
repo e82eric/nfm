@@ -36,15 +36,15 @@ class FileSystemOptions
 [Verb("command")]
 class CommandOptions
 {
-    [Value(0)]
-    public IEnumerable<string> Command { get; set; }
+    [Value(0, Required = true)]
+    public IEnumerable<string>? Command { get; set; }
 }
 
 [Verb("filereader")]
 class FileReaderOptions
 {
-    [Option]
-    public string Path { get; set; }
+    [Option(Required = true)]
+    public string? Path { get; set; }
     [Option]
     public string? SearchString { get; set; }
 }
@@ -75,7 +75,7 @@ class Program
                     return;
                 }
             }
-            catch (Exception e)
+            catch (Exception)
             {
             }
         }
@@ -90,13 +90,19 @@ class Program
                 },
                 (CommandOptions opts) =>
                 {
-                    BuildCommandApp(string.Join(" ", opts.Command))
-                        .Start((application, strings) => Run(application, false), args);
-                    return 0;
+                    if (opts.Command != null)
+                    {
+                        BuildCommandApp(string.Join(" ", opts.Command))
+                            .Start((application, strings) => Run(application, false), args);
+                        return 0;
+                    }
+
+                    return -1;
                 },
                 (FileReaderOptions opts) =>
                 {
-                    BuildFileReaderApp(string.Join(" ", opts.Path), opts.SearchString)
+                    var searchString = opts.SearchString == null ? opts.SearchString! : string.Empty;
+                    BuildFileReaderApp(string.Join(" ", opts.Path), searchString)
                         .Start((application, strings) => Run(application, false), args);
                     return 0;
                 },
@@ -127,7 +133,7 @@ class Program
             return app;
         }).UsePlatformDetect();
     
-    private static AppBuilder BuildFileReaderApp(string path, string? searchString) 
+    private static AppBuilder BuildFileReaderApp(string path, string searchString) 
         => AppBuilder.Configure(() =>
         {
             var viewModel = new MainViewModel();
@@ -155,7 +161,7 @@ class Program
             var command = new FileSystemMenuDefinitionProvider(
                 new StdOutResultHandler(viewModel),
                 maxDepth,
-                [rootDirectory],
+                rootDirectory == null ? [] : [rootDirectory],
                 true,
                 hasPreview,
                 directoriesOnly,

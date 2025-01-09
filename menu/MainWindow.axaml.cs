@@ -16,11 +16,16 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
     private readonly ListBox? _listBox;
-    private TextEditor _editor;
-    private RegistryOptions _registryOptions;
+    private TextEditor? _editor;
+    private RegistryOptions? _registryOptions;
     private TextMate.Installation? _textMateInstallation;
-    private Image _image;
+    private Image? _image;
 
+    public MainWindow()
+    {
+        InitializeComponent();
+        throw new InvalidOperationException("This constructor is for XAML runtime use only.");
+    }
     public MainWindow(MainViewModel viewModel)
     {
         DataContext = viewModel;
@@ -194,6 +199,10 @@ public partial class MainWindow : Window
         {
             Dispatcher.UIThread.Post(() =>
             {
+                if (_editor == null || _textMateInstallation == null || _registryOptions == null)
+                {
+                    return;
+                }
                 _editor.Text = _viewModel.PreviewText;
 
                 if (_viewModel.PreviewExtension != null && _viewModel.PreviewExtension != ".txt")
@@ -214,8 +223,11 @@ public partial class MainWindow : Window
         {
             Dispatcher.UIThread.Post(() =>
             {
-                _image.Source = _viewModel.PreviewImage;
-                PreviewContainer.Child = _image;
+                if (_image != null)
+                {
+                    _image.Source = _viewModel.PreviewImage;
+                    PreviewContainer.Child = _image;
+                }
             });
         }
     }
@@ -249,7 +261,7 @@ public partial class MainWindow : Window
             switch (e.Key)
             {
                 case Key.W:
-                    _editor.Focus();
+                    _editor?.Focus();
                     break;
             }
         }

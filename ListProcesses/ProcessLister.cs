@@ -104,7 +104,7 @@ public class ProcessLister
         public ulong WorkingSet;
         public ulong PrivateBytes;
         public long Cpu;
-        public string FileName;
+        public string? FileName;
     }
 
     static void FillProcessStats(ProcessInfo process)
@@ -227,7 +227,7 @@ public class ProcessLister
         writer.Complete();
     }
 
-    static async Task Run(bool sort, Comparison<ProcessInfo> sortFunc, ChannelWriter<object> writer)
+    static async Task Run(bool sort, Comparison<ProcessInfo>? sortFunc, ChannelWriter<object> writer)
     {
         List<string> linesToFill = new List<string>();
 

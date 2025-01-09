@@ -59,7 +59,7 @@ public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPrevi
 
                         if (completedTask == lineTask)
                         {
-                            string line = await lineTask;
+                            string? line = await lineTask;
                             if (line == null)
                             {
                                 break;

@@ -120,14 +120,24 @@ public static class NativeBridge
             {
                 return Task.CompletedTask;
             }
+
+            var outputStr = output.ToString();
+            if (outputStr == null)
+            {
+                return Task.CompletedTask;
+            }
             
-            return HandleAsync(output.ToString());
+            return HandleAsync(outputStr);
         }
     }
 
     [UnmanagedCallersOnly(EntryPoint = "Initialize")]
     public static void Initialize()
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            throw new PlatformNotSupportedException("This functionality is only supported on Windows.");
+        }
         if (_app == null)
         {
             _appThread = new Thread(() =>
@@ -285,6 +295,11 @@ public static class NativeBridge
 
         var strB = y.Item.ToString();
         var strA = x.Item.ToString();
+        if (strA == null || strB == null)
+        {
+            return scoreComparison;
+        }
+        
         int extensionPriorityComparison = GetExtensionPriority(strB).CompareTo(GetExtensionPriority(strA));
         if (extensionPriorityComparison != 0) return extensionPriorityComparison;
 

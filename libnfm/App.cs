@@ -7,7 +7,7 @@ namespace nfm.menu;
 public class App : Application
 {
     private readonly MainViewModel _viewModel;
-    private MainWindow _mainWindow;
+    private MainWindow? _mainWindow;
 
     public App(MainViewModel viewModel)
     {
@@ -28,9 +28,12 @@ public class App : Application
     {
         Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            var definition = definitionProvider.Get();
-            _mainWindow.Show();
-            await _viewModel.RunDefinitionAsync(definition);
+            if (_mainWindow != null)
+            {
+                var definition = definitionProvider.Get();
+                _mainWindow.Show();
+                await _viewModel.RunDefinitionAsync(definition);
+            }
         });
     }
     

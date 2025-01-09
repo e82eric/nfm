@@ -11,6 +11,8 @@ public class StdOutResultHandler(IMainViewModel viewModel) : IResultHandler
     public async Task HandleAsync(object output)
     {
         await viewModel.Close();
-        Handle(output.ToString());
+        var outputStr = output.ToString();
+        if (outputStr == null) return;
+        Handle(outputStr);
     }
 }

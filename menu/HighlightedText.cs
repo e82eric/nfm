@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace nfm.menu;
 
-public class HighlightedText(string text, IList<int> highlightIndexes, object backing) : INotifyPropertyChanged
+public class HighlightedText(string text, IList<int> highlightIndexes, object? backing) : INotifyPropertyChanged
 {
     private IList<int> _highlightIndexes = highlightIndexes;
 
@@ -13,7 +13,7 @@ public class HighlightedText(string text, IList<int> highlightIndexes, object ba
 
     public IList<int> HighlightIndexes => _highlightIndexes;
 
-    public void Set(string text, IList<int> positions, object backingObj)
+    public void Set(string text, IList<int> positions, object? backingObj)
     {
         //if (text == Text && Equals(positions, _highlightIndexes)) return;
         Text = text;

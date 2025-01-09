@@ -363,7 +363,7 @@ public class FileWalker
         catch (Exception ex) when (ex is UnauthorizedAccessException or DirectoryNotFoundException or IOException)
         {
         }
-        catch (Exception e)
+        catch (Exception)
         {
             //Console.WriteLine(e);
         }

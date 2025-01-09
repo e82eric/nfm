@@ -7,7 +7,6 @@ namespace nfm.menu;
 
 public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
 {
-    private int MaxItems = 15;
     public MenuDefinition Get()
     {
         return _definition;
@@ -133,6 +132,10 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
             var first = dirs.First();
             var directoryInfo = new DirectoryInfo(first);
             var parent = directoryInfo.Parent;
+            if (parent == null)
+            {
+                return;
+            }
             var definition = new FileSystemMenuDefinitionProvider(
                 _resultHandler,
                 _maxDepth, 

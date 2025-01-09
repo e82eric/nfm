@@ -44,7 +44,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     private bool _isVisible;
     private string? _header;
     private bool _isHeaderVisible;
-    private MenuDefinition _definition;
+    private MenuDefinition? _definition;
     private CancellationTokenSource? _currentSearchCancellationTokenSource;
     private CancellationTokenSource? _currentPreviewCancellationTokenSource;
     private bool _hasPreview;
@@ -53,7 +53,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     private bool _isToastVisible;
     private readonly UnboundedChannelOptions _channelOptions;
     private string _previewText;
-    private Bitmap _previewImage;
+    private Bitmap? _previewImage;
     private string _selectedText;
 
     public bool EditDialogOpen
@@ -69,7 +69,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
 
     public string PreviewExtension { get; set; }
 
-    public Bitmap PreviewImage
+    public Bitmap? PreviewImage
     {
         get => _previewImage;
         private set
@@ -267,6 +267,12 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     
     public MainViewModel()
     {
+        _searchText = string.Empty;
+        _previewText = string.Empty;
+        _toastMessage = string.Empty;
+        _selectedText = string.Empty;
+        PreviewExtension = string.Empty;
+        
         GlobalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<object, MainViewModel, Task>>();
         _channelOptions = new UnboundedChannelOptions 
         { 
@@ -372,7 +378,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             {
                 await Render(_currentSearchCancellationTokenSource.Token);
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 //Console.WriteLine(e);
             }
@@ -382,7 +388,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     private async Task PreviewLoop()
     {
         const int debounceDelay = 150;
-        CancellationTokenSource debounceCts = null;
+        CancellationTokenSource? debounceCts = null;
 
         var ctr = 0;
         while (!_cancellation.Token.IsCancellationRequested)
@@ -454,7 +460,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             if (selected != null)
             {
                 var backing = selected.BackingObj;
-                if (_definition.PreviewHandler != null && backing != null)
+                if (_definition?.PreviewHandler != null && backing != null)
                 {
                     await _definition.PreviewHandler.Handle(this, backing, ct);
                 }
@@ -464,6 +470,11 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
 
     private Task Render(CancellationToken ct)
     {
+        if (_definition == null)
+        {
+            return Task.CompletedTask;
+        }
+        
         var searchString = _searchText;
         var completeChunks = _chunks.Where(c => c.IsComplete).ToList();
 
@@ -480,7 +491,10 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
                         break;
                     }
                     var fullFilePath = item.ToString();
-                    DisplayItems[ctr].Set(fullFilePath, new List<int>(), item);
+                    if (fullFilePath != null)
+                    {
+                        DisplayItems[ctr].Set(fullFilePath, new List<int>(), item);
+                    }
                     ctr++;
                     itemsAdded++;
                 }
@@ -565,7 +579,10 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
                 var fullFilePath = item.Item.ToString();
                 var pos = FuzzySearcher.GetPositions(fullFilePath, pattern, _positionsSlab);
                 _positionsSlab.Reset();
-                DisplayItems[i].Set(fullFilePath, pos, item.Item);
+                if (fullFilePath != null)
+                {
+                    DisplayItems[i].Set(fullFilePath, pos, item.Item);
+                }
             }
             else
             {
@@ -687,15 +704,15 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         {
             if (eKey == Key.E)
             {
-                if (_definition.EditAction != null)
+                if (_definition?.EditAction != null)
                 {
                     EditDialogOpen = true;
                 }
             }
-            else if (_definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
+            else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
                 var highlightedText = DisplayItems[SelectedIndex];
-                if (highlightedText != null)
+                if (highlightedText != null && highlightedText.BackingObj != null)
                 {
                     await action(highlightedText.BackingObj);
                 }
@@ -703,7 +720,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             else if (GlobalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
             {
                 var highlightedText = DisplayItems[SelectedIndex];
-                if (highlightedText != null)
+                if (highlightedText != null && highlightedText.BackingObj != null)
                 {
                     await globalAction(highlightedText.BackingObj, this);
                 }
@@ -743,7 +760,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
                 break;
             case Key.Escape:
                 await Close();
-                if (_definition.QuitOnEscape)
+                if (_definition != null && _definition.QuitOnEscape)
                 {
                     Environment.Exit(0);
                 }
@@ -751,8 +768,8 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             case Key.Enter:
                 if (SelectedIndex >= 0 && SelectedIndex < DisplayItems.Count)
                 {
-                    var highlightedText = DisplayItems[SelectedIndex] as HighlightedText;
-                    if (highlightedText != null)
+                    var highlightedText = DisplayItems[SelectedIndex];
+                    if (_definition != null && highlightedText != null && highlightedText.BackingObj != null)
                     {
                         await _definition.ResultHandler.HandleAsync(highlightedText.BackingObj);
                     }
@@ -799,7 +816,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
 
     public void Closed()
     {
-        if (_definition.OnClosed != null)
+        if (_definition?.OnClosed != null)
         {
             _definition.OnClosed();
         }
@@ -807,7 +824,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
 
     public void TogglePreview()
     {
-        if (_definition.PreviewHandler != null)
+        if (_definition?.PreviewHandler != null)
         {
             HasPreview = !HasPreview;
             _restartPreviewSignal.Set();
@@ -833,7 +850,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
 
     public async Task RunEditAction(object item, string newValue)
     {
-        if (_definition.EditAction != null)
+        if (_definition?.EditAction != null)
         {
             var result = await _definition.EditAction(item, newValue);
             if (result.Success)
@@ -845,7 +862,10 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             }
             else
             {
-                await ShowErrorToast(result.ErrorMessage);
+                if (result.ErrorMessage != null)
+                {
+                    await ShowErrorToast(result.ErrorMessage);
+                }
             }
         }
     }

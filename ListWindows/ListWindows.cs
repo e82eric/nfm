@@ -12,25 +12,24 @@ public class ListWindows
     
     public class ListWindowsWorkspace
     {
-        public ListWindowsClient Clients { get; set; }
-        public ListWindowsClient LastClient { get; set; }
+        public ListWindowsClient? Clients { get; set; }
+        public ListWindowsClient? LastClient { get; set; }
         public int MaxProcessNameLen { get; set; }
     }
 
     public class ListWindowsClient
     {
-        public ListWindowsClientData Data { get; set; }
-        public ListWindowsClient Next { get; set; }
+        public required ListWindowsClientData Data { get; set; }
+        public ListWindowsClient? Next { get; set; }
     }
 
     public class ListWindowsClientData
     {
-        public IntPtr Hwnd { get; set; }
-        public uint ProcessId { get; set; }
-        public string ProcessName { get; set; }
-        public string ClassName { get; set; }
-        public string Title { get; set; }
-        public bool IsMinimized { get; set; }
+        public IntPtr Hwnd { get; init; }
+        public uint ProcessId { get; init; }
+        public required string ProcessName { get; init; }
+        public required string ClassName { get; init; }
+        public required string Title { get; init; }
     }
 
     const uint GA_ROOTOWNER = 3;
@@ -121,7 +120,7 @@ public class ListWindows
     {
         if ((lpszString & 0xffff0000) != 0)
         {
-            string propName = Marshal.PtrToStringUni(lpszString);
+            string? propName = Marshal.PtrToStringUni(lpszString);
             if (propName == "ApplicationViewCloakType")
             {
                 bool hasAppropriateApplicationViewCloakType = hData == IntPtr.Zero;
@@ -229,7 +228,6 @@ public class ListWindows
 
         StringBuilder className = new StringBuilder(256);
         GetClassName(hwnd, className, className.Capacity);
-        bool isMinimized = IsIconic(hwnd);
 
         string processShortFileName = System.IO.Path.GetFileName(processImageFileName.ToString());
         ListWindowsClientData clientData = new ListWindowsClientData
@@ -239,7 +237,6 @@ public class ListWindows
             ClassName = className.ToString(),
             ProcessName = processShortFileName,
             Title = title.ToString(),
-            IsMinimized = isMinimized
         };
 
         ListWindowsClient client = new ListWindowsClient
@@ -258,7 +255,11 @@ public class ListWindows
             return true;
         }
 
-        ListWindowsWorkspace workspace = (ListWindowsWorkspace)GCHandle.FromIntPtr(lParam).Target;
+        ListWindowsWorkspace? workspace = (ListWindowsWorkspace?)GCHandle.FromIntPtr(lParam).Target;
+        if (workspace == null)
+        {
+            return false;
+        }
 
         int styles = GetWindowLong(hwnd, GWL_STYLE);
         int exStyles = GetWindowLong(hwnd, GWL_EXSTYLE);
@@ -292,7 +293,7 @@ public class ListWindows
         }
         else
         {
-            workspace.LastClient.Next = client;
+            workspace.LastClient!.Next = client;
             workspace.LastClient = client;
         }
 
@@ -315,7 +316,11 @@ public class ListWindows
 
         string header = string.Format("{0,-8} {1,-8} {2,-" + workspace.MaxProcessNameLen + "} {3}", "HWND", "PID", "Name", "Title");
 
-        ListWindowsClient c = workspace.Clients;
+        if (workspace.Clients == null)
+        {
+            return;
+        }
+        ListWindowsClient? c = workspace.Clients;
 
         int numberOfResults = 1;
 

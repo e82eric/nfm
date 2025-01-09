@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -10,7 +11,13 @@ namespace nfm.menu;
     {
         private readonly MainViewModel _viewModel;
         private readonly HighlightedText _current;
-
+        
+        public EditItemDialog()
+        {
+            InitializeComponent();
+            throw new InvalidOperationException("This constructor is for XAML runtime use only.");
+        }
+        
         public EditItemDialog(MainViewModel viewModel)
         {
             _viewModel = viewModel;
@@ -28,10 +35,13 @@ namespace nfm.menu;
         {
             base.OnLoaded(e);
             NewTextBox.Focus();
-            
-            var left = (int)(Screens.Primary.Bounds.X + (Screens.Primary.Bounds.Width - this.Width) / 2);
-            var top = Screens.Primary.Bounds.Y + (Screens.Primary.Bounds.Height) / 2;
-            Position = new PixelPoint(left, top);
+
+            if (Screens.Primary != null)
+            {
+                var left = (int)(Screens.Primary.Bounds.X + (Screens.Primary.Bounds.Width - this.Width) / 2);
+                var top = Screens.Primary.Bounds.Y + (Screens.Primary.Bounds.Height) / 2;
+                Position = new PixelPoint(left, top);
+            }
         }
 
         private void OnKeyUp(object? sender, KeyEventArgs e)
@@ -46,7 +56,10 @@ namespace nfm.menu;
                 Dispatcher.UIThread.InvokeAsync(async () =>
                 {
                     Close();
-                    await _viewModel.RunEditAction(_current.BackingObj, NewTextBox.Text);
+                    if (_current.BackingObj != null && NewTextBox.Text != null)
+                    {
+                        await _viewModel.RunEditAction(_current.BackingObj, NewTextBox.Text);
+                    }
                     _viewModel.EditDialogOpen = false;
                 });
             }

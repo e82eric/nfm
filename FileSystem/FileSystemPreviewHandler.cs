@@ -10,6 +10,10 @@ public class FileSystemPreviewHandler : IPreviewHandler
     {
         var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5));
         var path = node.ToString();
+        if (path == null)
+        {
+            return;
+        }
         
         string[] videoExtensions = { ".mp4", ".wmv", ".avi", ".mkv", ".flv", ".mov", ".webm", ".mpeg", ".mpg", ".m4v", ".3gp", ".ogv" };
         if (videoExtensions.Any(ext => path.EndsWith(ext, StringComparison.InvariantCultureIgnoreCase)))
@@ -77,7 +81,7 @@ public class FileSystemPreviewHandler : IPreviewHandler
                     // Ensure both tasks have completed
                     await Task.WhenAll(copyTask, exitTask);
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
                     process.Kill();
                 }
@@ -117,6 +121,10 @@ public class FileSystemPreviewHandler : IPreviewHandler
             {
                 var info = new FileInfo(path);
                 var (isText, lines) = await TryReadTextFile(info, Int32.MaxValue, ct);
+                if (lines == null)
+                {
+                    return;
+                }
                 if (ct.IsCancellationRequested)
                 {
                     return;
@@ -220,7 +228,7 @@ public class FileSystemPreviewHandler : IPreviewHandler
         return 0;
     }
     
-    private async Task<(bool IsText, List<string> Lines)> TryReadTextFile(FileInfo path, int maxLines, CancellationToken ct)
+    private async Task<(bool IsText, List<string>? Lines)> TryReadTextFile(FileInfo path, int maxLines, CancellationToken ct)
     {
         var registryOptions = new RegistryOptions(ThemeName.Dark);
         var language = registryOptions.GetLanguageByExtension(path.Extension);
@@ -271,7 +279,10 @@ public class FileSystemPreviewHandler : IPreviewHandler
                         return (false, null);
                     }
                     var line = await reader.ReadLineAsync(ct);
-                    lines.Add(line);
+                    if (line != null)
+                    {
+                        lines.Add(line);
+                    }
                 }
             }
 

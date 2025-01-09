@@ -5,7 +5,7 @@ namespace nfm.menu;
 
 public class ReadFileMenuDefinitionProvider(
     string path,
-    IComparer<Entry>? comparer, string? searchString,
+    IComparer<Entry>? comparer, string searchString,
     MainViewModel viewModel) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()

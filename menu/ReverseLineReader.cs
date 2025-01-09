@@ -117,7 +117,7 @@ public sealed class ReverseLineReader : IEnumerable<string>
         }
     }
 
-    private Stream currStream;
+    private Stream? currStream;
 
     /// <summary>
     /// Returns the enumerator reading strings backwards. If this method discovers that
@@ -156,7 +156,7 @@ public sealed class ReverseLineReader : IEnumerable<string>
             byte[] buffer = new byte[bufferSize + 2];
             char[] charBuffer = new char[encoding.GetMaxCharCount(buffer.Length)];
             int leftOverData = 0;
-            String previousEnd = null;
+            String? previousEnd = null;
             // TextReader doesn't return an empty string if there's line break at the end
             // of the data. Therefore we don't return an empty string if it's our *first*
             // return.
@@ -270,7 +270,7 @@ public sealed class ReverseLineReader : IEnumerable<string>
 
     public void Dispose()
     {
-        if (currStream!=null)
+        if (currStream != null)
         {
             currStream.Dispose();
             currStream = null;

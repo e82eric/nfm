@@ -44,7 +44,7 @@ public class MenuDefinition
         init => _finalComparer = value;
     }
     public Action? OnClosed { get; init; } = null;
-    public string? SearchString { get; init; } = null;
+    public string SearchString { get; init; } = string.Empty;
     public IPreviewHandler? PreviewHandler { get; init; } = null;
     public Func<object, string, Task<Result>>? EditAction { get; init; } = null;
 }

@@ -17,13 +17,13 @@ internal static class FocusStealer
 #endif
     }
 #if WINDOWS
-    private static void FocusWindowWithWin32(IntPtr hwnd)
+    private static void FocusWindowWithWin32(IntPtr? hwnd)
     {
         if (hwnd != null)
         {
             keybd_event(0x12, 0, 0, UIntPtr.Zero);
             keybd_event(0x12, 0, 0x0002, UIntPtr.Zero);
-            SetForegroundWindow(hwnd);
+            SetForegroundWindow(hwnd.Value);
         }
     }
     

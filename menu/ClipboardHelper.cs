@@ -35,6 +35,10 @@ public class ClipboardHelper
     public static Task CopyStringToClipboard(object t, MainViewModel viewModel)
     {
 #if WINDOWS
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            throw new PlatformNotSupportedException("This functionality is only supported on Windows.");
+        }
         var text = t.ToString();
         // Ensure we're running on STA thread
         if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
@@ -46,6 +50,10 @@ public class ClipboardHelper
             return Task.CompletedTask;
         }
 
+        if (text == null)
+        {
+            return Task.CompletedTask;
+        }
         Copy(text);
 
         return viewModel.ShowToast($"Copied '{text}' to clipboard");
