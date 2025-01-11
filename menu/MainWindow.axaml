@@ -118,7 +118,7 @@
         x:Name="Root"
         >
         <Grid.RowDefinitions>
-            <RowDefinition Height="{Binding HasPreview, Converter={StaticResource BooleanToGridLengthConverter}}" />
+            <RowDefinition Height="{Binding HasPreview, Converter={StaticResource BooleanToGridLengthConverter}, Mode=OneWay}" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -129,7 +129,7 @@
             BorderThickness="2"
             Padding="4"
             BorderBrush="{StaticResource BorderBrush}"
-            IsVisible="{Binding HasPreview}"
+            IsVisible="{Binding HasPreview, Mode=OneWay}"
             Grid.Row="0"
             CornerRadius="5">
         </Border>
@@ -167,11 +167,11 @@
                     <Grid
                         x:DataType="menu:MainViewModel"
                         Width="15"
-                        Height="{Binding ElementName=LoadingTextBox, Path=Height}"
+                        Height="{Binding ElementName=LoadingTextBox, Path=Height, Mode=OneWay}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Margin="0,0,10,0"
-                        IsVisible="{Binding IsWorking}">
+                        IsVisible="{Binding IsWorking, Mode=OneWay}">
                         <Grid.RowDefinitions>
                             <RowDefinition />
                             <RowDefinition />
@@ -192,7 +192,7 @@
                     <TextBlock
                         x:DataType="menu:MainViewModel"
                         Foreground="{StaticResource ForegroundBrush}"
-                        Text="{Binding NumberOfScoredItems}">
+                        Text="{Binding NumberOfScoredItems, Mode=OneWay}">
                     </TextBlock>
                     <TextBlock
                         Foreground="{StaticResource ForegroundBrush}"
@@ -203,7 +203,7 @@
                         Foreground="{StaticResource ForegroundBrush}"
                         HorizontalAlignment="Right"
                         Margin="0,0,10,0"
-                        Text="{Binding NumberOfItems}" />
+                        Text="{Binding NumberOfItems, Mode=OneWay}" />
                 </StackPanel>
             </Grid>
         </Border>
