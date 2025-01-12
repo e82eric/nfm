@@ -1,2 +1,4 @@
-dotnet publish Cli\Cli.csproj -c Release -r win-x64 --self-contained
-dotnet publish LibNfm\libnfm.csproj -r win-x64 -c Release
+rd /s /q bin\cli
+
+dotnet publish Cli\Cli.csproj -c Release -r win-x64 --self-contained -o "bin\cli"
+dotnet publish LibNfm\libnfm.csproj -c Release -r win-x64 -o "bin\libnfm"
