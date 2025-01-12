@@ -6,14 +6,19 @@ using nfzf;
 
 namespace nfm.menu;
 
-public class StdInMenuDefinitionProvider(IMainViewModel viewModel, bool hasPreview, string? editCommandStr, string? previewCommand) : IMenuDefinitionProvider
+public class StdInMenuDefinitionProvider(
+    IMainViewModel viewModel,
+    bool hasPreview,
+    string? editCommandStr,
+    string? previewCommand,
+    string? header) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
     {
         var definition = new MenuDefinition
         {
             AsyncFunction = Run,
-            Header = null,
+            Header = header,
             HasPreview = hasPreview,
             PreviewHandler = previewCommand != null ? new CommandPreviewHandler(previewCommand) : new FileSystemPreviewHandler(),
             ResultHandler = new StdOutResultHandler(viewModel),

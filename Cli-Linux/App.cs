@@ -1,5 +1,5 @@
 ﻿using Avalonia;
-using Avalonia.Themes.Fluent;
+using Avalonia.Themes.Simple;
 using Avalonia.Threading;
 using nfm.menu;
 
@@ -18,7 +18,7 @@ public class App : Application
 
     public override void Initialize()
     {
-        var fluentTheme = new FluentTheme { };
+        var fluentTheme = new SimpleTheme() { };
         Styles.Add(fluentTheme);
         if (_definitionProvider != null)
         {

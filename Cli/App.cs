@@ -1,6 +1,5 @@
 ﻿using Avalonia;
-using Avalonia.Themes.Fluent;
-using Avalonia.Threading;
+using Avalonia.Themes.Simple;
 using nfm.menu;
 
 namespace nfm.Cli;
@@ -8,9 +7,9 @@ namespace nfm.Cli;
 public class App : Application
 {
     private readonly MainViewModel _viewModel;
-    private readonly IMenuDefinitionProvider? _definitionProvider;
+    private readonly Func<IMenuDefinitionProvider> _definitionProvider;
 
-    public App(MainViewModel viewModel, IMenuDefinitionProvider definitionProvider)
+    public App(MainViewModel viewModel, Func<IMenuDefinitionProvider> definitionProvider)
     {
         _viewModel = viewModel;
         _definitionProvider = definitionProvider;
@@ -18,17 +17,16 @@ public class App : Application
 
     public override void Initialize()
     {
-        var fluentTheme = new FluentTheme { };
-        Styles.Add(fluentTheme);
-        if (_definitionProvider != null)
+        var theme = new SimpleTheme() { };
+        Styles.Add(theme);
+        Styles.Resources.Add("ContentControlThemeFontFamily", new Avalonia.Media.FontFamily("Segoe UI"));
+        Styles.Resources.Add("ControlContentThemeFontSize", 14.0);
+        var window = new MainWindow(_viewModel);
+        window.Show();
+        Task.Run(async () =>
         {
-            Dispatcher.UIThread.InvokeAsync(async () =>
-            {
-                var definition = _definitionProvider.Get();
-                var window = new MainWindow(_viewModel);
-                window.Show();
-                await _viewModel.RunDefinitionAsync(definition);
-            });
-        }
+            var definition = _definitionProvider().Get();
+            await _viewModel.RunDefinitionAsync(definition);
+        });
     }
 }

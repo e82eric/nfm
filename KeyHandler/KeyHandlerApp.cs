@@ -1,6 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Input;
-using Avalonia.Themes.Fluent;
+using Avalonia.Themes.Simple;
 
 namespace nfm.menu;
 
@@ -20,8 +20,10 @@ public class KeyHandlerApp : Application
 
     public override void Initialize()
     {
-        var fluentTheme = new FluentTheme { };
+        var fluentTheme = new SimpleTheme { };
         Styles.Add(fluentTheme);
+        Styles.Resources.Add("ContentControlThemeFontFamily", new Avalonia.Media.FontFamily("Segoe UI"));
+        Styles.Resources.Add("ControlContentThemeFontSize", 14.0);
         _mainWindow = new MainWindow(_mainViewModel);
     }
 

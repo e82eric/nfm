@@ -322,11 +322,11 @@ public class ProcessLister
         await Run(true, CompareProcessPid, writer);
     }
     
-    public static async Task KillProcessById(string line, int pid)
+    public static Task KillProcessById(string line, int pid)
     {
         var process = Process.GetProcessById(pid);
         process.Kill();
-        await process.WaitForExitAsync();
+        return Task.CompletedTask;
     }
 }
 public static class MemoryDumpTaker

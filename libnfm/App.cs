@@ -1,5 +1,5 @@
 using Avalonia;
-using Avalonia.Themes.Fluent;
+using Avalonia.Themes.Simple;
 using Avalonia.Threading;
 
 namespace nfm.menu;
@@ -16,8 +16,10 @@ public class App : Application
 
     public override void Initialize()
     {
-        var fluentTheme = new FluentTheme { };
-        Styles.Add(fluentTheme);
+        var theme = new SimpleTheme() { };
+        Styles.Add(theme);
+        Styles.Resources.Add("ContentControlThemeFontFamily", new Avalonia.Media.FontFamily("Segoe UI"));
+        Styles.Resources.Add("ControlContentThemeFontSize", 14.0);
         IsInitialized = true;
         _mainWindow = new MainWindow(_viewModel);
     }

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -10,6 +9,8 @@ namespace nfm.menu;
 
 class StdInOptions
 {
+    [Option]
+    public string? Header { get; set; }
     [Option]
     public string? EditCommand { get; set; }
     [Option]
@@ -68,7 +69,7 @@ class Program
                     Parser.Default.ParseArguments<StdInOptions>(args)
                         .MapResult(o =>
                         {
-                            BuildStdInApp(o.EditCommand, o.PreviewCommand).Start((app, _) => Run(app, false), args);
+                            BuildStdInApp(o.EditCommand, o.PreviewCommand, o.Header).Start((app, _) => Run(app, false), args);
                             return 0;
                         },
                         _ => 1);
@@ -109,7 +110,7 @@ class Program
                 errors => 1);
     }
     
-    private static AppBuilder BuildStdInApp(string? editCommand, string? previewCommand) 
+    private static AppBuilder BuildStdInApp(string? editCommand, string? previewCommand, string? header) 
         => AppBuilder.Configure(() =>
         {
             var viewModel = new MainViewModel();
@@ -118,8 +119,12 @@ class Program
                 return Task.CompletedTask;
             });
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var command = new StdInMenuDefinitionProvider(viewModel, false, editCommand, previewCommand);
-            var app = new App(viewModel, command);
+            var app = new App(viewModel, () => new StdInMenuDefinitionProvider(
+                viewModel,
+                false,
+                editCommand,
+                previewCommand,
+                header));
             return app;
         }).UsePlatformDetect();
     
@@ -128,8 +133,7 @@ class Program
         {
             var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var definitionProvider = new RunCommandMenuDefinitionProvider(command, viewModel);
-            var app = new App(viewModel, definitionProvider);
+            var app = new App(viewModel, () => new RunCommandMenuDefinitionProvider(command, viewModel));
             return app;
         }).UsePlatformDetect();
     
@@ -138,8 +142,7 @@ class Program
         {
             var viewModel = new MainViewModel();
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var definitionProvider = new ReadFileMenuDefinitionProvider(path, Comparers.ScoreOnly, searchString, viewModel);
-            var app = new App(viewModel, definitionProvider);
+            var app = new App(viewModel, () => new ReadFileMenuDefinitionProvider(path, Comparers.ScoreOnly, searchString, viewModel));
             return app;
         }).UsePlatformDetect();
     
@@ -158,18 +161,21 @@ class Program
                 return Task.CompletedTask;
             });
 
-            var command = new FileSystemMenuDefinitionProvider(
-                new StdOutResultHandler(viewModel),
-                maxDepth,
-                rootDirectory == null ? [] : [rootDirectory],
-                true,
-                hasPreview,
-                directoriesOnly,
-                filesOnly,
-                viewModel,
-                null,
-                null);
-            var app = new App(viewModel, command);
+            var app = new App(viewModel, () =>
+            {
+                var command = new FileSystemMenuDefinitionProvider(
+                    new StdOutResultHandler(viewModel),
+                    maxDepth,
+                    rootDirectory == null ? [] : [rootDirectory],
+                    true,
+                    hasPreview,
+                    directoriesOnly,
+                    filesOnly,
+                    viewModel,
+                    null,
+                    null);
+                return command;
+            });
             return app;
         }).UsePlatformDetect();
 

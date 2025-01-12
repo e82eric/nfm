@@ -34,13 +34,13 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
     private int _numberOfScoredItems;
     private const int MaxItems = 250;
     private readonly List<Chunk> _chunks = new();
-    private readonly CancellationTokenSource _cancellation;
+    private CancellationTokenSource _cancellation;
     private string _searchText;
     private readonly AsyncAutoResetEvent _restartSearchSignal = new();
     private readonly AsyncAutoResetEvent _restartPreviewSignal = new();
     private bool _showResults;
     private ObservableCollection<HighlightedText> _displayItems = new();
-    private readonly Slab _positionsSlab;
+    private Slab _positionsSlab;
     private bool _isVisible;
     private string? _header;
     private bool _isHeaderVisible;
@@ -264,6 +264,25 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             OnPropertyChanged();
         }
     }
+
+    private async Task InitializeAsync()
+    {
+        _positionsSlab = Slab.MakeDefault();
+        _cancellation = new CancellationTokenSource();
+        for (var i = 0; i < _maxDegreeOfParallelism; i++)
+        {
+            _localResultsPool.Add(new ThreadLocalData(Slab.MakeDefault()));
+        }
+        var firstChunk = new Chunk();
+        _chunks.Add(firstChunk);
+
+        for (int i = 0; i < MaxItems; i++)
+        {
+            DisplayItems.Add(new HighlightedText("", new List<int>()));
+        }
+
+        await Task.WhenAll(Task.Run(ProcessLoop), Task.Run(PreviewLoop));
+    }
     
     public MainViewModel()
     {
@@ -280,27 +299,8 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             SingleWriter = false
         };
         IsVisible = false;
-        _positionsSlab = Slab.MakeDefault();
-        _cancellation = new CancellationTokenSource();
-        
-        for (var i = 0; i < _maxDegreeOfParallelism; i++)
-        {
-            _localResultsPool.Add(new ThreadLocalData(Slab.MakeDefault()));
-        }
-
-        //Start the processing loop.  need to handle the task better.
-        _ = Task.Run(ProcessLoop);
-        _ = Task.Run(PreviewLoop);
-
-        var firstChunk = new Chunk();
-        _chunks.Add(firstChunk);
-        SelectedIndex = -1;
-        SearchText = string.Empty;
-
-        for (int i = 0; i < MaxItems; i++)
-        {
-            DisplayItems.Add(new HighlightedText("", new List<int>()));
-        }
+        //I should probably be awaiting this in the RunDefinition Method
+        _ = Task.Run(() => InitializeAsync());
     }
 
     private void SetIsWorking()
@@ -745,18 +745,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             case Key.Up:
                 var previousIndex = Math.Max(0, SelectedIndex - 1);
                 SelectedIndex = previousIndex;
-                break;
-            case Key.D:
-                if (eKeyModifiers == KeyModifiers.Control)
-                {
-                    SelectedIndex = Math.Min(NumberOfScoredItems - 1, SelectedIndex + 7);
-                }
-                break;
-            case Key.U:
-                if (eKeyModifiers == KeyModifiers.Control)
-                {
-                    SelectedIndex = Math.Max(0, SelectedIndex - 7);
-                }
                 break;
             case Key.Escape:
                 await Close();

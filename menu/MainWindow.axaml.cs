@@ -16,10 +16,10 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
     private readonly ListBox? _listBox;
-    private TextEditor? _editor;
+    private Lazy<TextEditor> _editor;
     private RegistryOptions? _registryOptions;
     private TextMate.Installation? _textMateInstallation;
-    private Image? _image;
+    private Lazy<Image> _image;
 
     public MainWindow()
     {
@@ -50,15 +50,8 @@ public partial class MainWindow : Window
             textBox.KeyDown += TextBoxOnKeyDown;
             textBox.KeyUp += TextBoxOnKeyUp;
         }
-        var screen = Screens.Primary;
-        if (screen != null)
-        {
-            var workingArea = screen.WorkingArea;
-            Position = new PixelPoint(
-                (int)(workingArea.Width - Width) / 2 + workingArea.X,
-                (int)(workingArea.Height - Height) / 2 + workingArea.Y
-            );
-        }
+        _editor = new Lazy<TextEditor>(InitTextEditorControl);
+        _image = new Lazy<Image>(() => new Image());
     }
 
     private async void TextBoxOnKeyUp(object? sender, KeyEventArgs e)
@@ -96,20 +89,20 @@ public partial class MainWindow : Window
     {
         BringToForeground();
         TextBox.Focus();
-        InitTextEditorControl();
-        _image = new Image();
     }
     
-    private void InitTextEditorControl()
+    private TextEditor InitTextEditorControl()
     {
         _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
-        _editor = new TextEditor();
-        _textMateInstallation = _editor.InstallTextMate(_registryOptions);
-        _editor.KeyUp += EditorOnKeyUp;
+        var editor = new TextEditor();
+        _textMateInstallation = editor.InstallTextMate(_registryOptions);
+        editor.KeyUp += EditorOnKeyUp;
         if (this.TryFindResource("ForegroundBrush", null, out var resource) && resource is SolidColorBrush brush)
         {
-            _editor.Foreground = brush;
+            editor.Foreground = brush;
         }
+
+        return editor;
     }
 
     protected override void OnGotFocus(GotFocusEventArgs e)
@@ -199,11 +192,11 @@ public partial class MainWindow : Window
         {
             Dispatcher.UIThread.Post(() =>
             {
+                _editor.Value.Text = _viewModel.PreviewText;
                 if (_editor == null || _textMateInstallation == null || _registryOptions == null)
                 {
                     return;
                 }
-                _editor.Text = _viewModel.PreviewText;
 
                 if (_viewModel.PreviewExtension != null && _viewModel.PreviewExtension != ".txt")
                 {
@@ -215,7 +208,7 @@ public partial class MainWindow : Window
                     }
                 }
 
-                PreviewContainer.Child = _editor;
+                PreviewContainer.Child = _editor.Value;
             });
         }
 
@@ -225,8 +218,8 @@ public partial class MainWindow : Window
             {
                 if (_image != null)
                 {
-                    _image.Source = _viewModel.PreviewImage;
-                    PreviewContainer.Child = _image;
+                    _image.Value.Source = _viewModel.PreviewImage;
+                    PreviewContainer.Child = _image.Value;
                 }
             });
         }
@@ -258,11 +251,20 @@ public partial class MainWindow : Window
 
         if (e.KeyModifiers == KeyModifiers.Control)
         {
-            switch (e.Key)
+            if (_viewModel.HasPreview)
             {
-                case Key.W:
-                    _editor?.Focus();
-                    break;
+                switch (e.Key)
+                {
+                    case Key.W:
+                        _editor.Value.Focus();
+                        return;
+                    case Key.D:
+                        _editor.Value.PageDown();
+                        return;
+                    case Key.U:
+                        _editor.Value.PageUp();
+                        return;
+                }
             }
         }
     }

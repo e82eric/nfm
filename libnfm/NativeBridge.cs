@@ -46,6 +46,7 @@ public static class NativeBridge
         private readonly void* _state;
 
         public NativeItemsListMenuDefinitionProvider(
+            byte* header,
             delegate* unmanaged<void*, byte**> nativeItemsAction,
             delegate* unmanaged<byte*, void*, void> onSelect,
             delegate* unmanaged<void> onClosed,
@@ -59,6 +60,7 @@ public static class NativeBridge
                 AsyncFunction = ConvertToManagedStrings,
                 ResultHandler = new NativeResultHandler(onSelect, _state),
                 OnClosed = () => onClosed(),
+                Header = header != null ? Marshal.PtrToStringAnsi((IntPtr)header) : null,
                 ScoreFunc = (item, pattern, slab) =>
                 {
                     var text = (string)item;
@@ -218,7 +220,10 @@ public static class NativeBridge
     }
     
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowProcessesList), CallConvs = [typeof(CallConvCdecl)])]
-    public static unsafe void ShowProcessesList(delegate* unmanaged<byte*, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
+    public static unsafe void ShowProcessesList(
+        delegate* unmanaged<byte*, void*, void> onSelect,
+        delegate* unmanaged<void> onClosed,
+        void* state)
     {
         var command = new ShowProcessesMenuDefinitionProvider(ViewModel, () => onClosed());
         _app?.RunDefinition(command);
@@ -226,12 +231,13 @@ public static class NativeBridge
     
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowItemsList), CallConvs = [typeof(CallConvCdecl)])]
     public static unsafe void ShowItemsList(
+        byte* header,
         delegate* unmanaged<void*, byte**> nativeItemsAction,
         delegate* unmanaged<byte*, void*, void> onSelect,
         delegate* unmanaged<void> onClosed,
         void* state)
     {
-        var command = new NativeItemsListMenuDefinitionProvider(nativeItemsAction, onSelect, onClosed, state);
+        var command = new NativeItemsListMenuDefinitionProvider(header, nativeItemsAction, onSelect, onClosed, state);
         _app?.RunDefinition(command);
     }
     
