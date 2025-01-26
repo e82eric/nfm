@@ -1,5 +1,4 @@
 ﻿using nfm.menu;
-using nfzf.FileSystem;
 using Win32FromForms;
 
 class StdInOptions
@@ -52,9 +51,12 @@ class Program
                             null,
                             null,
                             null);
-                        Task.Run(async () => { await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get()); });
+                        //Task.Run(async () => { await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get()); });
                         var window = new Win32Window();
-                        window.Create(viewModel);
+                        window.Create(viewModel,() =>
+                        {
+                             _ =viewModel.RunDefinitionAsync(menuDefinitionProvider.Get()); 
+                        });
                         return;
                     }
                 }
@@ -84,9 +86,12 @@ class Program
                         viewModel,
                         null,
                         null);
-                    Task.Run(async () => { await viewModel.RunDefinitionAsync(definitionProvider.Get());});
+                    //Task.Run(async () => { await viewModel.RunDefinitionAsync(definitionProvider.Get());});
                     var window = new Win32Window();
-                    window.Create(viewModel);
+                    window.Create(viewModel, () =>
+                    {
+                         _ = viewModel.RunDefinitionAsync(definitionProvider.Get());
+                    });
                     return;
                 }
             }
@@ -118,16 +123,25 @@ class Program
                         await viewModel.RunDefinitionAsync(definition);
                     });
                     var window = new Win32Window();
-                    window.Create(viewModel);
+                    window.Create(viewModel, () =>
+                    {
+                        var definitionProvider = new ReadFileMenuDefinitionProvider(
+                            fileReaderOptions.Path,
+                            Comparers.ScoreOnly, 
+                            searchString,
+                            viewModel);
+                        var definition = definitionProvider.Get();
+                        _ = viewModel.RunDefinitionAsync(definition);
+                    });
                     return;
                 }
             }
         }
         
-        var win = new Win32Window();
-        var vm = new ViewModel();
-        Task.Run(async () => { await vm.Run(new FileWalker(), "C:\\"); });
-        win.Create(vm);
+        //var win = new Win32Window();
+        //var vm = new ViewModel();
+        //Task.Run(async () => { await vm.Run(new FileWalker(), "C:\\"); });
+        //win.Create(vm);
     }
     
     private static StdInOptions? ParseStdInOptions(string[] args)

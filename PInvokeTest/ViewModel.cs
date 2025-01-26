@@ -5,6 +5,18 @@ using nfzf;
 using nfzf.FileSystem;
 using Win32FromForms;
 
+class Snapshot
+{
+    public Snapshot()
+    {
+        Items = new List<StringWithPos>(16);
+    }
+    public IList<StringWithPos> Items { get; private set; }
+    public int NumberOfItems { get; set; }
+    public int NumberOfScoredItems { get; set; }
+    public bool IsWorking { get; set; }
+}
+
 class ViewModel : IMainViewModel
 {
     private static IList<int> EmptyPos = new List<int>();
@@ -32,16 +44,19 @@ class ViewModel : IMainViewModel
     private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount / 2;
     private IList<Chunk> _chunks;
     private string _searchString;
+    private string _lastSearchString;
     private AsyncAutoResetEvent _restartSearchSignal;
     private readonly UnboundedChannelOptions _channelOptions;
     private Win32Window _window;
     public List<StringWithPos> Items { get; }
+    private readonly object _snapshotLock = new();
+    public bool Searching;
+    public bool Reading;
+    public int NumberOfItems;
+    private int _searchStringVersion = 1;
+    private int _lastSearchStringVersion = 0;
+    public int NumberOfScoredItems = 0;
 
-    public void SetWindow(Win32Window window)
-    {
-        _window = window;
-    }
-    
     public ViewModel()
     {
         for (var i = 0; i < _maxDegreeOfParallelism; i++)
@@ -50,10 +65,6 @@ class ViewModel : IMainViewModel
         }
         _positionsSlab = Slab.MakeDefault();
         Items = new List<StringWithPos>(MaxItems);
-        for (int i = 0; i < MaxItems; i++)
-        {
-            Items.Add(new StringWithPos(String.Empty, EmptyPos));
-        }
         _channelOptions = new UnboundedChannelOptions 
         { 
             SingleReader = true,
@@ -63,6 +74,36 @@ class ViewModel : IMainViewModel
         _chunks.Add(new Chunk());
         _restartSearchSignal = new AsyncAutoResetEvent();
         _ = Task.Run(async () => await SearchLoop(), CancellationToken.None);
+    }
+
+    public bool FillSnapshot(Snapshot currentSnapshot, Snapshot snapshot)
+    {
+        var dirty = false;
+        snapshot.Items.Clear();
+        lock (_snapshotLock)
+        {
+            for (var i = 0; i < Math.Min(Items.Count, 16); i++)
+            {
+                if (currentSnapshot == null || i >= Items.Count - 1 || i >= currentSnapshot.Items.Count - 1)
+                {
+                    dirty = true;
+                }
+                else
+                {
+                    if (Items[i].Text != currentSnapshot.Items[i].Text)
+                    {
+                        dirty = true;
+                    }
+                }
+                var item = Items[i];
+                snapshot.Items.Add(item);
+            }
+
+            snapshot.NumberOfItems = NumberOfItems;
+            snapshot.NumberOfScoredItems = NumberOfScoredItems;
+            snapshot.IsWorking = Reading;
+        }
+        return dirty;
     }
 
     private async Task SearchLoop()
@@ -93,49 +134,53 @@ class ViewModel : IMainViewModel
 
     private Task Search()
     {
+        if (!Reading && _searchStringVersion == _lastSearchStringVersion)
+        {
+            return Task.CompletedTask;
+        }
+
+        Searching = true;
+        _lastSearchStringVersion = _searchStringVersion;
         var completeChunks = _chunks.Where(c => c.IsComplete).ToList();
-        var items = new List<String>();
 
         if (string.IsNullOrEmpty(_searchString))
         {
-            var itemsAdded = 0;
-            var ctr = 0;
-            foreach (var chunk in completeChunks)
+            lock (_snapshotLock)
             {
-                foreach (var item in chunk.Items)
+                Items.Clear();
+                var itemsAdded = 0;
+                var ctr = 0;
+                foreach (var chunk in completeChunks)
                 {
-                    if (item == null || itemsAdded >= MaxItems)
+                    foreach (var item in chunk.Items)
+                    {
+                        if (item == null || itemsAdded >= MaxItems)
+                        {
+                            break;
+                        }
+
+                        var fullFilePath = item.ToString();
+                        if (fullFilePath != null)
+                        {
+                            Items.Add(new StringWithPos(fullFilePath, EmptyPos));
+                        }
+
+                        ctr++;
+                        itemsAdded++;
+                    }
+
+                    if (itemsAdded >= MaxItems)
                     {
                         break;
                     }
-
-                    var fullFilePath = item.ToString();
-                    if (fullFilePath != null)
-                    {
-                        Items[ctr] = new StringWithPos(fullFilePath, EmptyPos);
-                        //DisplayItems[ctr].Set(fullFilePath, new List<int>(), item);
-                    }
-
-                    ctr++;
-                    itemsAdded++;
-                }
-
-                if (itemsAdded >= MaxItems)
-                {
-                    break;
                 }
             }
 
+            NumberOfScoredItems = NumberOfItems;
+            Searching = false;
             Win32Window.SetListBoxItems();
-            for (var i = ctr; i < MaxItems; i++)
-            {
-                Items[i] = new StringWithPos(string.Empty, EmptyPos);
-            }
-
-            var numberOfItemsWithScores = 0;
             return Task.CompletedTask;
         }
-        
 
         var parallelOptions = new ParallelOptions
         {
@@ -146,6 +191,7 @@ class ViewModel : IMainViewModel
         
         var globalList = new List<Entry>(MaxItems);
         var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, _searchString, true);
+        var numberOfItemsWithScores = 0;
         Parallel.ForEach(completeChunks.Select((chunk, index) => (chunk, chunkNumber: index)), parallelOptions, 
             GetLocalResultFromPool, 
             (chunkWithIndex, _, localData) =>
@@ -160,22 +206,21 @@ class ViewModel : IMainViewModel
                         
                     var score = _definition.ScoreFunc(line, pattern, localData.Slab);
                     if (score.Item2 > _definition.MinScore)
-                    //if (score.Item2 > 10)
                     {
-                        //Interlocked.Increment(ref numberOfItemsWithScores);
+                        Interlocked.Increment(ref numberOfItemsWithScores);
                         SortAction(
                             line,
                             score.Item1,
                             score.Item2,
                             chunkWithIndex.chunkNumber * Chunk.MaxSize + i,
                             localData.Entries,
-                            EntryComparer);
+                            _definition.Comparer);
                     }
                 }
                 return localData;
             }, ReturnLocalResultToPool);
 
-        //NumberOfScoredItems = numberOfItemsWithScores;
+        NumberOfScoredItems = numberOfItemsWithScores;
 
         if (ct.IsCancellationRequested)
         {
@@ -192,25 +237,25 @@ class ViewModel : IMainViewModel
         var topEntries = globalList.Take(MaxItems).ToList();
 
         //var previousIndex = SelectedIndex;
-        for (int i = 0; i < MaxItems; i++)
+        lock (_snapshotLock)
         {
-            if (i < topEntries.Count)
+            Items.Clear();
+            for (int i = 0; i < MaxItems; i++)
             {
-                var item = topEntries[i];
-                var fullFilePath = item.Item.ToString();
-                var pos = FuzzySearcher.GetPositions(fullFilePath, pattern, _positionsSlab);
-                _positionsSlab.Reset();
-                if (fullFilePath != null)
+                if (i < topEntries.Count)
                 {
-                    Items[i] = new StringWithPos(fullFilePath, pos);
+                    var item = topEntries[i];
+                    var fullFilePath = item.Item.ToString();
+                    var pos = FuzzySearcher.GetPositions(fullFilePath, pattern, _positionsSlab);
+                    _positionsSlab.Reset();
+                    if (fullFilePath != null)
+                    {
+                        Items.Add(new StringWithPos(fullFilePath, pos));
+                    }
                 }
             }
-            else
-            {
-                Items[i] = new StringWithPos(string.Empty, EmptyPos);
-            }
         }
-        
+
         Win32Window.SetListBoxItems();
 
         //if (Items.Any() && previousIndex < 0)
@@ -230,6 +275,7 @@ class ViewModel : IMainViewModel
         //    //SelectedIndex = previousIndex;
         //}
 
+        Searching = false;
         return Task.CompletedTask;
 
         // Searching = false;
@@ -239,7 +285,7 @@ class ViewModel : IMainViewModel
         //_restartSearchSignal.Set();
         //return Task.CompletedTask;
         
-        return Task.CompletedTask;
+        //return Task.CompletedTask;
     }
     
     (int, int) ScoreFunc(object nodeObj, Pattern pattern, Slab slab)
@@ -317,8 +363,8 @@ class ViewModel : IMainViewModel
     private async Task ReadFromSourceAsync(IAsyncEnumerable<object> source, CancellationToken cancellationToken)
     {
         var numberOfItems = 0;
-        //NumberOfItems = 0;
-        //Reading = true;
+        NumberOfItems = 0;
+        Reading = true;
 
         var currentChunk = _chunks.Last();
 
@@ -347,7 +393,7 @@ class ViewModel : IMainViewModel
                         throw new Exception("Could not add line to Chunk");
                     }
 
-                    //NumberOfItems = numberOfItems;
+                    NumberOfItems = numberOfItems;
                 }
             }
         }
@@ -355,8 +401,8 @@ class ViewModel : IMainViewModel
         {
         }
 
-        //NumberOfItems = numberOfItems;
-        //Reading = false;
+        NumberOfItems = numberOfItems;
+        Reading = false;
 
         currentChunk.SetComplete();
         _restartSearchSignal.Set();
@@ -365,6 +411,7 @@ class ViewModel : IMainViewModel
     public void SetSearchString(string message)
     {
         _searchString = message;
+        _searchStringVersion++;
         _restartSearchSignal.Set();
     }
 
