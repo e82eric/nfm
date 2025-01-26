@@ -126,7 +126,7 @@ class Program
                 previewCommand,
                 header));
             return app;
-        }).UsePlatformDetect();
+        }).UseWin32().SetupWithClassicDesktopLifetime([]);
     
     private static AppBuilder BuildCommandApp(string command)
         => AppBuilder.Configure(() =>

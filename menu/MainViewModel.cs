@@ -265,7 +265,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         }
     }
 
-    private async Task InitializeAsync()
+    private void Initialize()
     {
         _positionsSlab = Slab.MakeDefault();
         _cancellation = new CancellationTokenSource();
@@ -281,7 +281,8 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             DisplayItems.Add(new HighlightedText("", new List<int>()));
         }
 
-        await Task.WhenAll(Task.Run(ProcessLoop), Task.Run(PreviewLoop));
+        _ = Task.Run(ProcessLoop);
+        _ = Task.Run(PreviewLoop);
     }
     
     public MainViewModel()
@@ -291,6 +292,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         _toastMessage = string.Empty;
         _selectedText = string.Empty;
         PreviewExtension = string.Empty;
+        _isWorking = false;
         
         GlobalKeyBindings = new Dictionary<(KeyModifiers, Key), Func<object, MainViewModel, Task>>();
         _channelOptions = new UnboundedChannelOptions 
@@ -298,9 +300,6 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
             SingleReader = true,
             SingleWriter = false
         };
-        IsVisible = false;
-        //I should probably be awaiting this in the RunDefinition Method
-        _ = Task.Run(() => InitializeAsync());
     }
 
     private void SetIsWorking()
@@ -308,8 +307,14 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         IsWorking = Reading || Searching;
     }
 
+    private bool _initialized = false;
     public async Task RunDefinitionAsync(MenuDefinition definition)
     {
+        if (!_initialized)
+        {
+            Initialize();
+            _initialized = true;
+        }
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
         _definition = definition;
         HasPreview = _definition.HasPreview;

@@ -32,13 +32,12 @@ public partial class MainWindow : Window
         Topmost = true;
         _viewModel = viewModel;
         ShowInTaskbar = false;
-        InitializeComponent();
         AdjustWindowSizeAndPosition();
+        InitializeComponent();
         Loaded += OnLoaded;
         
         _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
 
-        ListBoxContainer.IsVisible = true;
         _listBox = this.FindControl<ListBox>("ListBox");
         var textBox = this.FindControl<TextBox>("TextBox");
         if (_listBox != null)

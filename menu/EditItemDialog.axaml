@@ -4,6 +4,7 @@
         x:Class="nfm.menu.EditItemDialog"
         Background="Transparent"
         SystemDecorations="None"
+        x:CompileBindings="True"
         x:DataType="menu:MainViewModel"
         Title="Item Details"
         Height="600"

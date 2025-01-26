@@ -5,13 +5,6 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <AssemblyName>NfmFileSystem</AssemblyName>
     </PropertyGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\FileWalker\FileWalker.csproj" />
-      <ProjectReference Include="..\Menu.Core\Menu.Core.csproj" />
-      <ProjectReference Include="..\nfzf\nfzf.csproj" />
-    </ItemGroup>
 
 </Project>

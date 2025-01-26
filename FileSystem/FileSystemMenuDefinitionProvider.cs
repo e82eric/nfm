@@ -1,5 +1,4 @@
 ﻿using System.Threading.Channels;
-using Avalonia.Input;
 using nfzf;
 using nfzf.FileSystem;
 
@@ -82,7 +81,8 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
             FinalComparer = _comparer ?? FinalEntryComparer,
             OnClosed = _onClosed,
             ScoreFunc = ScoreFunc,
-            PreviewHandler = new FileSystemPreviewHandler(),
+            //PreviewHandler = new FileSystemPreviewHandler(),
+            PreviewHandler = null,
             EditAction = (itemObj, newText) =>
             {
                 var itemStr = itemObj.ToString();
@@ -113,7 +113,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
                 return Task.FromResult(Result.Error("Failed to update file path"));
             }
         };
-        _definition.KeyBindings.Add((KeyModifiers.Control, Key.O), _ => ParentDir(_rootDirectory));
+        _definition.KeyBindings.Add((VirtualKeyCodes.VK_CONTROL, VirtualKeyCodes.VK_O), _ => ParentDir(_rootDirectory));
 
         (int, int) ScoreFunc(object nodeObj, Pattern pattern, Slab slab)
         {

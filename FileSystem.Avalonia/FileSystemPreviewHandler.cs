@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using Avalonia.Media.Imaging;
 using TextMateSharp.Grammars;
 
 namespace nfm.menu;

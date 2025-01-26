@@ -1,4 +1,6 @@
-﻿using Avalonia;
+﻿using System.Globalization;
+using Avalonia;
+using Avalonia.Markup.Xaml;
 using Avalonia.Themes.Simple;
 using nfm.menu;
 
@@ -17,10 +19,12 @@ public class App : Application
 
     public override void Initialize()
     {
-        var theme = new SimpleTheme() { };
-        Styles.Add(theme);
+        AvaloniaXamlLoader.Load(this);
         Styles.Resources.Add("ContentControlThemeFontFamily", new Avalonia.Media.FontFamily("Segoe UI"));
         Styles.Resources.Add("ControlContentThemeFontSize", 14.0);
+    }
+    public override void OnFrameworkInitializationCompleted()
+    {
         var window = new MainWindow(_viewModel);
         window.Show();
         Task.Run(async () =>
@@ -28,5 +32,7 @@ public class App : Application
             var definition = _definitionProvider().Get();
             await _viewModel.RunDefinitionAsync(definition);
         });
+
+        base.OnFrameworkInitializationCompleted();
     }
 }

@@ -14,7 +14,10 @@
         <PublishTrimmed>true</PublishTrimmed>
         <TrimmerDefaultAction>link</TrimmerDefaultAction>
         <EnableNativeAot>true</EnableNativeAot>
-        <InvariantGlobalization>true</InvariantGlobalization>
+        <IlcGenerateMstatFile>true</IlcGenerateMstatFile>
+        <IlcGenerateDgmlFile>true</IlcGenerateDgmlFile>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+<!--        <InvariantGlobalization>true</InvariantGlobalization>-->
     </PropertyGroup>
 
     <ItemGroup>

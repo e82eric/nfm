@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
+﻿using System.Threading.Channels;
 using nfzf;
 
 namespace nfm.menu;
@@ -20,7 +17,8 @@ public class StdInMenuDefinitionProvider(
             AsyncFunction = Run,
             Header = header,
             HasPreview = hasPreview,
-            PreviewHandler = previewCommand != null ? new CommandPreviewHandler(previewCommand) : new FileSystemPreviewHandler(),
+            //PreviewHandler = previewCommand != null ? new CommandPreviewHandler(previewCommand) : new FileSystemPreviewHandler(),
+            PreviewHandler = null,
             ResultHandler = new StdOutResultHandler(viewModel),
             MinScore = 0,
             QuitOnEscape = true,
