@@ -10,8 +10,8 @@
 
     <ItemGroup>
       <ProjectReference Include="..\FileWalker\FileWalker.csproj" />
-      <ProjectReference Include="..\Menu.Core\Menu.Core.csproj" />
       <ProjectReference Include="..\nfzf\nfzf.csproj" />
+      <ProjectReference Include="..\Ui.Core\Ui.Core.csproj" />
     </ItemGroup>
 
 </Project>

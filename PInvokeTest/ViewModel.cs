@@ -2,7 +2,6 @@
 using System.Threading.Channels;
 using nfm.menu;
 using nfzf;
-using nfzf.FileSystem;
 using Win32FromForms;
 
 class Snapshot
@@ -19,13 +18,35 @@ class Snapshot
 
 class ViewModel : IMainViewModel
 {
-    private static IList<int> EmptyPos = new List<int>();
     private class ThreadLocalData(Slab slab)
     {
         public List<Entry> Entries = new(MaxItems);
         public Slab Slab { get; } = slab;
     }
 
+    private const int MaxItems = 25;
+    private static readonly IList<int> EmptyPos = new List<int>();
+    
+    private MenuDefinition? _definition;
+    private CancellationTokenSource? _currentDefinitionCancellationTokenSource;
+    
+    private int _selectedIndex;
+    private readonly Slab _positionsSlab;
+    private readonly ConcurrentBag<ThreadLocalData> _localResultsPool = new();
+    private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount / 2;
+    private readonly IList<Chunk> _chunks;
+    private string _searchString;
+    private readonly AsyncAutoResetEvent _restartSearchSignal;
+    private readonly UnboundedChannelOptions _channelOptions;
+    private readonly Lock _snapshotLock = new();
+    public bool Searching;
+    public bool Reading;
+    public int NumberOfItems;
+    private int _searchStringVersion = 1;
+    private int _lastSearchStringVersion = 0;
+    public int NumberOfScoredItems = 0;
+    private List<StringWithPos> Items { get; }
+    
     public int SelectedIndex
     {
         get => _selectedIndex;
@@ -36,29 +57,9 @@ class ViewModel : IMainViewModel
         }
     }
 
-    private MenuDefinition _definition;
-    private CancellationTokenSource _currentDefinitionCancellationTokenSource;
-    private Slab _positionsSlab;
-    private const int MaxItems = 25;
-    private readonly ConcurrentBag<ThreadLocalData> _localResultsPool = new();
-    private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount / 2;
-    private IList<Chunk> _chunks;
-    private string _searchString;
-    private string _lastSearchString;
-    private AsyncAutoResetEvent _restartSearchSignal;
-    private readonly UnboundedChannelOptions _channelOptions;
-    private Win32Window _window;
-    public List<StringWithPos> Items { get; }
-    private readonly object _snapshotLock = new();
-    public bool Searching;
-    public bool Reading;
-    public int NumberOfItems;
-    private int _searchStringVersion = 1;
-    private int _lastSearchStringVersion = 0;
-    public int NumberOfScoredItems = 0;
-
     public ViewModel()
     {
+        _searchString = string.Empty;
         for (var i = 0; i < _maxDegreeOfParallelism; i++)
         {
             _localResultsPool.Add(new ThreadLocalData(Slab.MakeDefault()));
@@ -76,25 +77,13 @@ class ViewModel : IMainViewModel
         _ = Task.Run(async () => await SearchLoop(), CancellationToken.None);
     }
 
-    public bool FillSnapshot(Snapshot currentSnapshot, Snapshot snapshot)
+    public void FillSnapshot(Snapshot snapshot)
     {
-        var dirty = false;
         snapshot.Items.Clear();
         lock (_snapshotLock)
         {
             for (var i = 0; i < Math.Min(Items.Count, 16); i++)
             {
-                if (currentSnapshot == null || i >= Items.Count - 1 || i >= currentSnapshot.Items.Count - 1)
-                {
-                    dirty = true;
-                }
-                else
-                {
-                    if (Items[i].Text != currentSnapshot.Items[i].Text)
-                    {
-                        dirty = true;
-                    }
-                }
                 var item = Items[i];
                 snapshot.Items.Add(item);
             }
@@ -103,7 +92,6 @@ class ViewModel : IMainViewModel
             snapshot.NumberOfScoredItems = NumberOfScoredItems;
             snapshot.IsWorking = Reading;
         }
-        return dirty;
     }
 
     private async Task SearchLoop()
@@ -134,6 +122,11 @@ class ViewModel : IMainViewModel
 
     private Task Search()
     {
+        if (_definition == null)
+        {
+            return Task.CompletedTask;
+        }
+        
         if (!Reading && _searchStringVersion == _lastSearchStringVersion)
         {
             return Task.CompletedTask;
@@ -287,27 +280,6 @@ class ViewModel : IMainViewModel
         
         //return Task.CompletedTask;
     }
-    
-    (int, int) ScoreFunc(object nodeObj, Pattern pattern, Slab slab)
-    {
-        Span<char> buf = stackalloc char[2048];
-        var node = (FileSystemNode)nodeObj;
-        var toScore = node.ToString(buf);
-        var score = FuzzySearcher.GetScore(toScore, pattern, slab);
-        return (toScore.Length, score);
-    }
-    
-    private readonly IComparer<Entry> EntryComparer = Comparer<Entry>.Create((x, y) =>
-    {
-        int scoreComparison = y.Score.CompareTo(x.Score);
-        if (scoreComparison != 0) return scoreComparison;
-
-        int lengthComparison = x.Length.CompareTo(y.Length);
-        return lengthComparison;
-    });
-
-
-    private int _selectedIndex;
 
     void SortAction(object node, int length, int score, int i, List<Entry> results, IComparer<Entry>? comparer)
     {
@@ -339,20 +311,6 @@ class ViewModel : IMainViewModel
             await ReadFromSourceAsync(channel.Reader, _currentDefinitionCancellationTokenSource.Token);
             await writerTask;
         }
-    }
-
-    public async Task Run(FileWalker walker, string rootDirectory)
-    {
-        var channel = Channel.CreateUnbounded<object>(_channelOptions);
-        var writerTask = walker.StartScanForDirectoriesAsync(
-            [rootDirectory],
-            channel.Writer,
-            int.MaxValue,
-            false,
-            false,
-            CancellationToken.None);
-        await ReadFromSourceAsync(channel.Reader, CancellationToken.None);
-        await writerTask;
     }
     
     private async Task ReadFromSourceAsync(ChannelReader<object> channelReader, CancellationToken cancellationToken)

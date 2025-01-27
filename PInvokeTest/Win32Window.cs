@@ -1,7 +1,6 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
-using Avalonia;
-using nfm.menu;
 
 namespace Win32FromForms;
 
@@ -203,6 +202,7 @@ class Win32Window
     private const UInt32 COLOR_WINDOW = 5;
     private const UInt32 COLOR_BACKGROUND = 1;
     private const UInt32 IDC_CROSS = 32515;
+    private const int IDC_ARROW = 32512;
     private const UInt32 WM_CTLCOLORLISTBOX = 0x0134;
     private const UInt32 WM_CTLCOLOREDIT = 0x0133;
     private const UInt32 WM_DESTROY = 2;
@@ -416,6 +416,10 @@ class Win32Window
         switch (uMsg)
         {
             case WM_PAINT:
+                if (_viewModel == null)
+                {
+                    return 1;
+                }
                 char[] spinner = { '\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2827', '\u2807', '\u280F' };
 
                 char[] spinnerBuffer = new char[10];
@@ -478,6 +482,10 @@ class Win32Window
         switch (uMsg)
         {
             case WM_PAINT:
+                if (_snapshot == null || _viewModel == null)
+                {
+                    return 1;
+                }
                 var hdc = BeginPaint(listBoxHwnd, out var ps);
 
                 var hBufferedPaint = BeginBufferedPaint(
@@ -565,6 +573,11 @@ class Win32Window
         switch (uMsg)
         {
             case WM_KEYDOWN:
+                if (_snapshot == null || _viewModel == null)
+                {
+                    return 1;
+                }
+                    
                 switch (wParam)
                 {
                     case VK_DOWN:
@@ -675,15 +688,14 @@ class Win32Window
         
         _viewModel = viewModel;
         WNDCLASSEX wind_class = new WNDCLASSEX();
-        wind_class.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
+        wind_class.cbSize = Marshal.SizeOf<WNDCLASSEX>();
         wind_class.style = (int)(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS ) ;
         wind_class.hbrBackground = (IntPtr) COLOR_BACKGROUND  +1 ;
         wind_class.cbClsExtra = 0;
         wind_class.cbWndExtra = 0;
-        wind_class.hInstance = Marshal.GetHINSTANCE(this.GetType().Module);
+        wind_class.hInstance = Process.GetCurrentProcess().MainModule!.BaseAddress;
         wind_class.hIcon = IntPtr.Zero;
-        wind_class.hCursor = LoadCursor(IntPtr.Zero, (int)IDC_CROSS);
-        wind_class.lpszMenuName = null;
+        wind_class.hCursor = LoadCursor(IntPtr.Zero, (int)IDC_ARROW);
         wind_class.lpszClassName = "myClass";
         wind_class.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(delegWndProc);
         wind_class.hIconSm = IntPtr.Zero;
@@ -760,8 +772,8 @@ class Win32Window
             fontName);
     }
 
-    private static Action _onInit;
-    private static Snapshot _snapshot;
+    private static Action? _onInit;
+    private static Snapshot? _snapshot;
     private static readonly object _itemsLock = new();
     private static IntPtr font;
     private static IntPtr hwnd;
@@ -771,8 +783,8 @@ class Win32Window
     private static IntPtr BACKGROUND_BRUSH;
     private static IntPtr SELECTED_BACKGROUND_BRUSH;
     private static IntPtr INSTANCE;
-    private static ViewModel _viewModel;
-    private static Timer _timer;
+    private static ViewModel? _viewModel;
+    private static Timer? _timer;
     
     private static IntPtr MainWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
@@ -857,6 +869,13 @@ class Win32Window
                 {
                     InvalidateRect(staticTextHwnd, IntPtr.Zero, false);
                 }, null, 0, 70);
+
+                if (_onInit == null)
+                {
+                    Console.WriteLine("_onInit must be set");
+                    ExitProcess(1);
+                    return 1;
+                }
                 
                 Task.Run(() => _onInit());
                 break;
@@ -905,22 +924,33 @@ class Win32Window
                 break;
                 
             case WM_ITEMS_UPDATED:
-                if (_viewModel.SelectedIndex > _snapshot.Items.Count)
+                if (_snapshot != null && _viewModel != null)
                 {
-                    _viewModel.SelectedIndex = _snapshot.Items.Count - 1;
-                }
+                    if (_viewModel.SelectedIndex > _snapshot.Items.Count - 1)
+                    {
+                        _viewModel.SelectedIndex = _snapshot.Items.Count - 1;
+                    }
+                    if (_viewModel.SelectedIndex < 0 && _snapshot.Items.Count > 0)
+                    {
+                        _viewModel.SelectedIndex = 0;
+                    }
                     
-                InvalidateRect(listBoxHwnd, IntPtr.Zero, false);
+                    InvalidateRect(listBoxHwnd, IntPtr.Zero, false);
+                }
                 break;
                 
             case WM_COMMAND:
-                var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
-                if (notificationCode == EN_CHANGE)
+                if (_viewModel != null)
                 {
-                    var text = new StringBuilder(GetWindowTextLength(textBoxHwnd) + 1);
-                    GetWindowText(textBoxHwnd, text, text.Capacity);
-                    Task.Run(() => _viewModel.SetSearchString(text.ToString()));
+                    var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
+                    if (notificationCode == EN_CHANGE)
+                    {
+                        var text = new StringBuilder(GetWindowTextLength(textBoxHwnd) + 1);
+                        GetWindowText(textBoxHwnd, text, text.Capacity);
+                        Task.Run(() => _viewModel.SetSearchString(text.ToString()));
+                    }
                 }
+
                 break;
         }
         return DefWindowProc(hWnd, msg, wParam, lParam);
@@ -958,8 +988,13 @@ class Win32Window
 
     public static void SetListBoxItems()
     {
+        if (_viewModel == null)
+        {
+            return;
+        }
+        
         var snapshot = new Snapshot();
-        var dirty = _viewModel.FillSnapshot(_snapshot, snapshot);
+        _viewModel.FillSnapshot(snapshot);
 
         lock (_itemsLock)
         {

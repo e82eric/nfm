@@ -11,7 +11,7 @@ class StdInOptions
 class FileSystemOptions
 {
     public bool SearchDirectoryOnSelect { get; set; } = false;
-    public string? RootDirectory { get; set; } = null;
+    public string RootDirectory { get; set; } = string.Empty;
     public int MaxDepth { get; set; } = int.MaxValue;
     public bool HasPreview { get; set; } = false;
     public bool DirectoriesOnly { get; set; } = false;
@@ -51,7 +51,6 @@ class Program
                             null,
                             null,
                             null);
-                        //Task.Run(async () => { await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get()); });
                         var window = new Win32Window();
                         window.Create(viewModel,() =>
                         {
@@ -72,28 +71,24 @@ class Program
             if (args[0] == "filesystem")
             {
                 var fileSystemOptions = ParseFileSystemOptions(args);
-                if (fileSystemOptions != null)
+                var viewModel = new ViewModel();
+                var definitionProvider = new FileSystemMenuDefinitionProvider(
+                    new StdOutResultHandler(viewModel),
+                    fileSystemOptions.MaxDepth,
+                    [fileSystemOptions.RootDirectory],
+                    true,
+                    false,
+                    fileSystemOptions.DirectoriesOnly,
+                    fileSystemOptions.FilesOnly,
+                    viewModel,
+                    null,
+                    null);
+                var window = new Win32Window();
+                window.Create(viewModel, () =>
                 {
-                    var viewModel = new ViewModel();
-                    var definitionProvider = new FileSystemMenuDefinitionProvider(
-                        new StdOutResultHandler(viewModel),
-                        fileSystemOptions.MaxDepth,
-                        [fileSystemOptions.RootDirectory],
-                        true,
-                        false,
-                        fileSystemOptions.DirectoriesOnly,
-                        fileSystemOptions.FilesOnly,
-                        viewModel,
-                        null,
-                        null);
-                    //Task.Run(async () => { await viewModel.RunDefinitionAsync(definitionProvider.Get());});
-                    var window = new Win32Window();
-                    window.Create(viewModel, () =>
-                    {
-                         _ = viewModel.RunDefinitionAsync(definitionProvider.Get());
-                    });
-                    return;
-                }
+                    _ = viewModel.RunDefinitionAsync(definitionProvider.Get());
+                });
+                return;
             }
             else if (args[0] == "command")
             {
@@ -137,11 +132,6 @@ class Program
                 }
             }
         }
-        
-        //var win = new Win32Window();
-        //var vm = new ViewModel();
-        //Task.Run(async () => { await vm.Run(new FileWalker(), "C:\\"); });
-        //win.Create(vm);
     }
     
     private static StdInOptions? ParseStdInOptions(string[] args)
@@ -168,7 +158,7 @@ class Program
         return options;
     }
     
-    private static FileSystemOptions? ParseFileSystemOptions(string[] args)
+    private static FileSystemOptions ParseFileSystemOptions(string[] args)
     {
         var options = new FileSystemOptions();
         for (int i = 1; i < args.Length; i++)
