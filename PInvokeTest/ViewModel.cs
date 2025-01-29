@@ -1,13 +1,7 @@
 ﻿using System.Collections.Concurrent;
-using System.Globalization;
-using System.Reflection.Metadata;
-using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using nfm.menu;
 using nfzf;
-using TextMateSharp.Grammars;
-using TextMateSharp.Registry;
-using TextMateSharp.Themes;
 using Win32FromForms;
 
 class TextPreviewToken
@@ -63,9 +57,6 @@ class ViewModel : IMainViewModel
     private int _searchStringVersion = 1;
     private int _lastSearchStringVersion = 0;
     public int NumberOfScoredItems = 0;
-    private RegistryOptions _options1;
-    private Registry _registry1;
-    private Theme _theme;
     private List<StringWithPos> Items { get; }
     private string _lastPreviewPath { get; set; }
     
@@ -99,10 +90,6 @@ class ViewModel : IMainViewModel
         _restartSearchSignal = new AsyncAutoResetEvent();
         _previewSignal = new AsyncAutoResetEvent();
         
-        _options1 = new RegistryOptions(ThemeName.DarkPlus);
-        _registry1 = new Registry(_options1);
-        _theme = _registry1.GetTheme();
-        
         _ = Task.Run(async () => await SearchLoop(), CancellationToken.None);
         _ = Task.Run(async () => await PreviewLoop(), CancellationToken.None);
     }
@@ -126,12 +113,7 @@ class ViewModel : IMainViewModel
 
     private async Task RunPreview()
     {
-        static string SubstringAtIndexes(string str, int startIndex, int endIndex)
-        {
-            return str.Substring(startIndex, endIndex - startIndex);
-        }
-
-        var result = new List<TextPreviewLine>(18);
+        var result = new List<string>(18);
         var path = string.Empty;
         lock (_snapshotLock)
         {
@@ -161,17 +143,11 @@ class ViewModel : IMainViewModel
             };
             foreach (var str in infos)
             {
-                result.Add(new TextPreviewLine
-                {
-                    Tokens = { new TextPreviewToken{BGRColor = textColor, Text = str} },
-                });
+                result.Add(str);
             }
             foreach (var fileSystemInfo in dirInfo.EnumerateFileSystemInfos())
             {
-                result.Add(new TextPreviewLine
-                {
-                    Tokens = { new TextPreviewToken{BGRColor = textColor, Text = $"  {fileSystemInfo.Name}\n"} },
-                });
+                result.Add($"  {fileSystemInfo.Name}\n");
             }
             
             Win32Window.SetPreviewLines(result);
@@ -196,11 +172,7 @@ class ViewModel : IMainViewModel
                     if (buffer[i] == '\0' ||
                         (buffer[i] < 32 && buffer[i] != '\t' && buffer[i] != '\n' && buffer[i] != '\r'))
                     {
-                        result.Add(new TextPreviewLine
-                        {
-                            Tokens = { new TextPreviewToken{BGRColor = textColor, Text = $"Fila apprears to be binary: {path}"} },
-                        });
-                        
+                        result.Add($"File appears to be binary: {path}");
                         Win32Window.SetPreviewLines(result);
                         return;
                     }
@@ -231,70 +203,9 @@ class ViewModel : IMainViewModel
         
         _lastPreviewPath = path;
         
-        var grammar = _registry1.LoadGrammar(_options1.GetScopeByExtension(Path.GetExtension(path)));
-        if (grammar == null)
+        foreach (var line in lines)
         {
-            foreach (var line in lines)
-            {
-                result.Add(new TextPreviewLine
-                {
-                    Tokens = { new TextPreviewToken{BGRColor = textColor, Text = line} },
-                });
-            }
-            Win32Window.SetPreviewLines(result);
-            return;
-        }
-        IStateStack? ruleStack = null;
-        for (var i = 0; i < lines.Count; i++)
-        {
-            var line = lines[i];
-            var tokenizeLine = grammar.TokenizeLine(line, ruleStack, TimeSpan.MaxValue);
-                    
-            int currentX = 5;
-
-            var previewLine = new TextPreviewLine();
-            result.Add(previewLine);
-            foreach (IToken token in tokenizeLine.Tokens)
-            {
-                int startIndex = (token.StartIndex > line.Length) ? line.Length : token.StartIndex;
-                int endIndex = (token.EndIndex > line.Length) ? line.Length : token.EndIndex;
-
-                int foreground = -1;
-                int background = -1;
-                FontStyle fontStyle = FontStyle.NotSet;
-
-                foreach (var themeRule in _theme.Match(token.Scopes))
-                {
-                    if (foreground == -1 && themeRule.foreground > 0)
-                        foreground = themeRule.foreground;
-
-                    if (background == -1 && themeRule.background > 0)
-                        background = themeRule.background;
-
-                    if (fontStyle == FontStyle.NotSet && themeRule.fontStyle > 0)
-                        fontStyle = themeRule.fontStyle;
-                }
-
-                var rgbHexString = _theme.GetColor(foreground);
-                if (foreground == -1)
-                {
-                    rgbHexString = "#ffffff";
-                }
-
-                if (rgbHexString.IndexOf('#') != -1)
-                {
-                    rgbHexString = rgbHexString.Replace("#", "");
-                }
-                
-                var r = byte.Parse(rgbHexString.Substring(0, 2), NumberStyles.AllowHexSpecifier);
-                var g = byte.Parse(rgbHexString.Substring(2, 2), NumberStyles.AllowHexSpecifier);
-                var b = byte.Parse(rgbHexString.Substring(4, 2), NumberStyles.AllowHexSpecifier);
-
-                var bgr = (r << 16) | (g << 8) | b;
-                var tokenText = SubstringAtIndexes(line, startIndex, endIndex);
-                var previewToken = new TextPreviewToken() { BGRColor = bgr, Text = tokenText };
-                previewLine.Tokens.Add(previewToken);
-            }
+            result.Add(line);
         }
         Win32Window.SetPreviewLines(result);
     }

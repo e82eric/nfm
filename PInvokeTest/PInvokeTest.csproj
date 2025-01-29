@@ -17,8 +17,4 @@
       <ProjectReference Include="..\nfzf\nfzf.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <PackageReference Include="TextMateSharp.Grammars" Version="1.0.65" />
-    </ItemGroup>
-
 </Project>

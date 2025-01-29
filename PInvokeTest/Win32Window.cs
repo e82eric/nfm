@@ -609,6 +609,9 @@ class Win32Window
                 }
                 
                 FillRect(hNewDc, ref ps.rcPaint, BACKGROUND_BRUSH);
+                SetBkColor(hNewDc, BACKGROUND_COLOR);
+                SetTextColor(hNewDc, TEXT_COLOR);
+                SelectObject(hNewDc, font);
                 
                 TEXTMETRIC tm;
                 GetTextMetrics(hNewDc, out tm);
@@ -623,29 +626,13 @@ class Win32Window
                         left = ps.rcPaint.left,
                         right = ps.rcPaint.right
                     };
-                    SelectObject(hNewDc, font);
-                    FillRect(hNewDc, ref rcItem, BACKGROUND_BRUSH);
-                    SetBkColor(hNewDc, BACKGROUND_COLOR);
 
                     int textHeight = tm.tmHeight;
                     int centeredY = rcItem.top + (itemHeight - textHeight) / 2;
                     
                     var line = _lines[i];
                     
-                    int currentX = 5;
-                    foreach (var token in line.Tokens)
-                    {
-                        SIZE textSize;
-                        if (!GetTextExtentPoint32(hNewDc, token.Text, token.Text.Length, out textSize))
-                        {
-                            int error = Marshal.GetLastWin32Error();
-                        }
-                        var tokenWidth = textSize.cx;
-                        SetTextColor(hNewDc, token.BGRColor);
-                        TextOut(hNewDc, currentX, centeredY, token.Text, token.Text.Length);
-
-                        currentX += tokenWidth;
-                    }
+                    TextOut(hNewDc, 5, centeredY, line, line.Length);
                 }
                 EndBufferedPaint(hBufferedPaint, true);
                 return 1;
@@ -860,7 +847,7 @@ class Win32Window
 
     private static Action? _onInit;
     private static Snapshot? _snapshot;
-    private static List<TextPreviewLine>? _lines;
+    private static List<string>? _lines;
     private static int _previewVersion;
     private static int _lastPreviewVersion;
     private static readonly object _itemsLock = new();
@@ -1110,7 +1097,7 @@ class Win32Window
         PostMessage(hwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
     }
 
-    public static void SetPreviewLines(List<TextPreviewLine> lines)
+    public static void SetPreviewLines(List<string> lines)
     {
         _lines = lines;
         Interlocked.Increment(ref _previewVersion);
