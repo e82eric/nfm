@@ -1,8 +1,25 @@
 ﻿using System.Collections.Concurrent;
+using System.Globalization;
+using System.Reflection.Metadata;
+using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using nfm.menu;
 using nfzf;
+using TextMateSharp.Grammars;
+using TextMateSharp.Registry;
+using TextMateSharp.Themes;
 using Win32FromForms;
+
+class TextPreviewToken
+{
+    public string Text { get; set; }
+    public int BGRColor { get; set; }
+}
+
+class TextPreviewLine
+{
+    public IList<TextPreviewToken> Tokens { get; } = new List<TextPreviewToken>();
+}
 
 class Snapshot
 {
@@ -37,6 +54,7 @@ class ViewModel : IMainViewModel
     private readonly IList<Chunk> _chunks;
     private string _searchString;
     private readonly AsyncAutoResetEvent _restartSearchSignal;
+    private readonly AsyncAutoResetEvent _previewSignal;
     private readonly UnboundedChannelOptions _channelOptions;
     private readonly Lock _snapshotLock = new();
     public bool Searching;
@@ -45,7 +63,11 @@ class ViewModel : IMainViewModel
     private int _searchStringVersion = 1;
     private int _lastSearchStringVersion = 0;
     public int NumberOfScoredItems = 0;
+    private RegistryOptions _options1;
+    private Registry _registry1;
+    private Theme _theme;
     private List<StringWithPos> Items { get; }
+    private string _lastPreviewPath { get; set; }
     
     public int SelectedIndex
     {
@@ -54,6 +76,7 @@ class ViewModel : IMainViewModel
         {
             _selectedIndex = value;
             Win32Window.SetListBoxItems();
+            _previewSignal.Set();
         }
     }
 
@@ -74,7 +97,14 @@ class ViewModel : IMainViewModel
         _chunks = new List<Chunk>();
         _chunks.Add(new Chunk());
         _restartSearchSignal = new AsyncAutoResetEvent();
+        _previewSignal = new AsyncAutoResetEvent();
+        
+        _options1 = new RegistryOptions(ThemeName.DarkPlus);
+        _registry1 = new Registry(_options1);
+        _theme = _registry1.GetTheme();
+        
         _ = Task.Run(async () => await SearchLoop(), CancellationToken.None);
+        _ = Task.Run(async () => await PreviewLoop(), CancellationToken.None);
     }
 
     public void FillSnapshot(Snapshot snapshot)
@@ -94,6 +124,181 @@ class ViewModel : IMainViewModel
         }
     }
 
+    private async Task RunPreview()
+    {
+        static string SubstringAtIndexes(string str, int startIndex, int endIndex)
+        {
+            return str.Substring(startIndex, endIndex - startIndex);
+        }
+
+        var result = new List<TextPreviewLine>(18);
+        var path = string.Empty;
+        lock (_snapshotLock)
+        {
+            if (Items.Count < SelectedIndex || SelectedIndex < 0)
+            {
+                return;
+            }
+            path = Items[SelectedIndex].Text;
+        }
+        if (path == _lastPreviewPath)
+        {
+            return;
+        }
+        var info = new FileInfo(path);
+        
+        var textColor = 0x008499a8;
+        if (!info.Exists || (info.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+        {
+            var dirInfo = new DirectoryInfo(path);
+            var infos = new []
+            {
+                $"Directory: {dirInfo.Name}",
+                $"Path: {dirInfo.FullName}",
+                $"Created: {dirInfo.CreationTime}",
+                $"Last Modified: {dirInfo.LastWriteTime}",
+                $"Attributes: {dirInfo.Attributes}"
+            };
+            foreach (var str in infos)
+            {
+                result.Add(new TextPreviewLine
+                {
+                    Tokens = { new TextPreviewToken{BGRColor = textColor, Text = str} },
+                });
+            }
+            foreach (var fileSystemInfo in dirInfo.EnumerateFileSystemInfos())
+            {
+                result.Add(new TextPreviewLine
+                {
+                    Tokens = { new TextPreviewToken{BGRColor = textColor, Text = $"  {fileSystemInfo.Name}\n"} },
+                });
+            }
+            
+            Win32Window.SetPreviewLines(result);
+            return;
+        }
+
+        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            using (var reader = new StreamReader(stream))
+            {
+                //if (ct.IsCancellationRequested)
+                //{
+                //    return (false, null);
+                //}
+                    
+                var buffer = new char[1024];
+                int charsRead = await reader.ReadAsync(buffer, 0, buffer.Length);
+
+                // Check for binary content in the first 1024 characters
+                for (int i = 0; i < charsRead; i++)
+                {
+                    if (buffer[i] == '\0' ||
+                        (buffer[i] < 32 && buffer[i] != '\t' && buffer[i] != '\n' && buffer[i] != '\r'))
+                    {
+                        result.Add(new TextPreviewLine
+                        {
+                            Tokens = { new TextPreviewToken{BGRColor = textColor, Text = $"Fila apprears to be binary: {path}"} },
+                        });
+                        
+                        Win32Window.SetPreviewLines(result);
+                        return;
+                    }
+                }
+            }
+        }
+
+        var maxLines = 40;
+        var lines = new List<string>();
+        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (var reader = new StreamReader(stream))
+        {
+            // If the file is determined to be text, read the first `maxLines`
+            stream.Position = 0; // Reset to the beginning for reading lines
+            while (!reader.EndOfStream && lines.Count < maxLines)
+            {
+                //if (ct.IsCancellationRequested)
+                //{
+                //    return (false, null);
+                //}
+                var line = await reader.ReadLineAsync();
+                if (line != null)
+                {
+                    lines.Add(line);
+                }
+            }
+        }
+        
+        _lastPreviewPath = path;
+        
+        var grammar = _registry1.LoadGrammar(_options1.GetScopeByExtension(Path.GetExtension(path)));
+        if (grammar == null)
+        {
+            foreach (var line in lines)
+            {
+                result.Add(new TextPreviewLine
+                {
+                    Tokens = { new TextPreviewToken{BGRColor = textColor, Text = line} },
+                });
+            }
+            Win32Window.SetPreviewLines(result);
+            return;
+        }
+        IStateStack? ruleStack = null;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var tokenizeLine = grammar.TokenizeLine(line, ruleStack, TimeSpan.MaxValue);
+                    
+            int currentX = 5;
+
+            var previewLine = new TextPreviewLine();
+            result.Add(previewLine);
+            foreach (IToken token in tokenizeLine.Tokens)
+            {
+                int startIndex = (token.StartIndex > line.Length) ? line.Length : token.StartIndex;
+                int endIndex = (token.EndIndex > line.Length) ? line.Length : token.EndIndex;
+
+                int foreground = -1;
+                int background = -1;
+                FontStyle fontStyle = FontStyle.NotSet;
+
+                foreach (var themeRule in _theme.Match(token.Scopes))
+                {
+                    if (foreground == -1 && themeRule.foreground > 0)
+                        foreground = themeRule.foreground;
+
+                    if (background == -1 && themeRule.background > 0)
+                        background = themeRule.background;
+
+                    if (fontStyle == FontStyle.NotSet && themeRule.fontStyle > 0)
+                        fontStyle = themeRule.fontStyle;
+                }
+
+                var rgbHexString = _theme.GetColor(foreground);
+                if (foreground == -1)
+                {
+                    rgbHexString = "#ffffff";
+                }
+
+                if (rgbHexString.IndexOf('#') != -1)
+                {
+                    rgbHexString = rgbHexString.Replace("#", "");
+                }
+                
+                var r = byte.Parse(rgbHexString.Substring(0, 2), NumberStyles.AllowHexSpecifier);
+                var g = byte.Parse(rgbHexString.Substring(2, 2), NumberStyles.AllowHexSpecifier);
+                var b = byte.Parse(rgbHexString.Substring(4, 2), NumberStyles.AllowHexSpecifier);
+
+                var bgr = (r << 16) | (g << 8) | b;
+                var tokenText = SubstringAtIndexes(line, startIndex, endIndex);
+                var previewToken = new TextPreviewToken() { BGRColor = bgr, Text = tokenText };
+                previewLine.Tokens.Add(previewToken);
+            }
+        }
+        Win32Window.SetPreviewLines(result);
+    }
+
     private async Task SearchLoop()
     {
         while (true)
@@ -102,6 +307,15 @@ class ViewModel : IMainViewModel
             var searchSignalTask = _restartSearchSignal.WaitAsync();
             await Task.WhenAny(delay, searchSignalTask);
             await Search();
+        }
+    }
+
+    private async Task PreviewLoop()
+    {
+        while (true)
+        {
+            await _previewSignal.WaitAsync();
+            await RunPreview();
         }
     }
     
@@ -172,6 +386,7 @@ class ViewModel : IMainViewModel
             NumberOfScoredItems = NumberOfItems;
             Searching = false;
             Win32Window.SetListBoxItems();
+            _previewSignal.Set();
             return Task.CompletedTask;
         }
 
@@ -250,35 +465,10 @@ class ViewModel : IMainViewModel
         }
 
         Win32Window.SetListBoxItems();
-
-        //if (Items.Any() && previousIndex < 0)
-        //{
-        //    previousIndex = 0;
-        //}
-        //else if (previousIndex > 0 && previousIndex > Items.Count - 1)
-        //{
-        //    previousIndex = 0;
-        //}
-
-        ////Searching = false;
-        ////ShowResults = DisplayItems.Count > 0;
-
-        //if (previousIndex > -1 && Items.Count - 1 >= previousIndex)
-        //{
-        //    //SelectedIndex = previousIndex;
-        //}
+        _previewSignal.Set();
 
         Searching = false;
         return Task.CompletedTask;
-
-        // Searching = false;
-        // ShowResults = DisplayItems.Count > 0;
-        // NumberOfScoredItems = NumberOfItems;
-
-        //_restartSearchSignal.Set();
-        //return Task.CompletedTask;
-        
-        //return Task.CompletedTask;
     }
 
     void SortAction(object node, int length, int score, int i, List<Entry> results, IComparer<Entry>? comparer)

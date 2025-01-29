@@ -88,7 +88,6 @@ class Program
                 {
                     _ = viewModel.RunDefinitionAsync(definitionProvider.Get());
                 });
-                return;
             }
             else if (args[0] == "command")
             {
@@ -107,16 +106,6 @@ class Program
                 {
                     var searchString = fileReaderOptions.SearchString ?? string.Empty;
                     var viewModel = new ViewModel();
-                    Task.Run(async () =>
-                    {
-                        var definitionProvider = new ReadFileMenuDefinitionProvider(
-                            fileReaderOptions.Path,
-                            Comparers.ScoreOnly, 
-                            searchString,
-                            viewModel);
-                        var definition = definitionProvider.Get();
-                        await viewModel.RunDefinitionAsync(definition);
-                    });
                     var window = new Win32Window();
                     window.Create(viewModel, () =>
                     {
@@ -128,7 +117,6 @@ class Program
                         var definition = definitionProvider.Get();
                         _ = viewModel.RunDefinitionAsync(definition);
                     });
-                    return;
                 }
             }
         }
