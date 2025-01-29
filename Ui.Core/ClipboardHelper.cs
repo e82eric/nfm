@@ -1,9 +1,5 @@
-﻿using System;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Runtime.InteropServices;
 using nfm.menu;
-
 public class ClipboardHelper
 {
 #if WINDOWS
@@ -32,7 +28,7 @@ public class ClipboardHelper
     
     private const uint GMEM_MOVEABLE = 0x0002;
 #endif 
-    public static Task CopyStringToClipboard(object t, MainViewModel viewModel)
+    public static Task CopyStringToClipboard(object t, IMainViewModel viewModel)
     {
 #if WINDOWS
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

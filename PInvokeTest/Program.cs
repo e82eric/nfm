@@ -72,6 +72,7 @@ class Program
             {
                 var fileSystemOptions = ParseFileSystemOptions(args);
                 var viewModel = new ViewModel();
+                viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
                 var definitionProvider = new FileSystemMenuDefinitionProvider(
                     new StdOutResultHandler(viewModel),
                     fileSystemOptions.MaxDepth,
@@ -106,6 +107,7 @@ class Program
                 {
                     var searchString = fileReaderOptions.SearchString ?? string.Empty;
                     var viewModel = new ViewModel();
+                    viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
                     var window = new Win32Window();
                     window.Create(viewModel, () =>
                     {

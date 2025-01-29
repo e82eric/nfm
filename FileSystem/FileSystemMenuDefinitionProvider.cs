@@ -113,7 +113,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
                 return Task.FromResult(Result.Error("Failed to update file path"));
             }
         };
-        _definition.KeyBindings.Add((VirtualKeyCodes.VK_CONTROL, VirtualKeyCodes.VK_O), _ => ParentDir(_rootDirectory));
+        _definition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_O), _ => ParentDir(_rootDirectory));
 
         (int, int) ScoreFunc(object nodeObj, Pattern pattern, Slab slab)
         {

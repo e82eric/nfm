@@ -40,7 +40,7 @@ class ViewModel : IMainViewModel
     
     private MenuDefinition? _definition;
     private CancellationTokenSource? _currentDefinitionCancellationTokenSource;
-    
+
     private int _selectedIndex;
     private readonly Slab _positionsSlab;
     private readonly ConcurrentBag<ThreadLocalData> _localResultsPool = new();
@@ -60,6 +60,7 @@ class ViewModel : IMainViewModel
     private List<StringWithPos> Items { get; }
     private string _lastPreviewPath { get; set; }
     
+    public Dictionary<(ModifierKeys, int), Func<object, IMainViewModel, Task>> GlobalKeyBindings { get; } = new();
     public int SelectedIndex
     {
         get => _selectedIndex;
@@ -472,6 +473,40 @@ class ViewModel : IMainViewModel
         _searchString = message;
         _searchStringVersion++;
         _restartSearchSignal.Set();
+    }
+    
+    public async Task HandleKeyUp(int eKey, ModifierKeys eKeyModifiers)
+    {
+        if (eKeyModifiers == ModifierKeys.LCtl)
+        {
+            if (eKey == VirtualKeyCodes.VK_E)
+            {
+                if (_definition?.EditAction != null)
+                {
+                    //EditDialogOpen = true;
+                }
+            }
+            else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
+            {
+                var highlightedText = Items[SelectedIndex];
+                if (highlightedText != null && highlightedText.Text != null)
+                {
+                    await action(highlightedText.Text);
+                }
+            }
+            else if (GlobalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
+            {
+                StringWithPos highlightedText;
+                lock (_snapshotLock)
+                {
+                    highlightedText = Items[SelectedIndex];
+                }
+                if (highlightedText != null && highlightedText.Text != null)
+                {
+                    await globalAction(highlightedText.Text, this);
+                }
+            }
+        }
     }
 
     public Task ShowToast(string message, int duration = 3000)

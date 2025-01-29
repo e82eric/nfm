@@ -10,6 +10,10 @@
         <AssemblyName>nfm</AssemblyName>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <DefineConstants>WINDOWS</DefineConstants>
+    </PropertyGroup>
+
     <ItemGroup>
       <ProjectReference Include="..\FileSystem\FileSystem.csproj" />
       <ProjectReference Include="..\Ui.Core\Ui.Core.csproj" />

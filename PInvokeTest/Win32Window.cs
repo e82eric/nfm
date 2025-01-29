@@ -1,12 +1,61 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using nfm.menu;
 
 namespace Win32FromForms;
 
 delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
 class Win32Window
 {
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    private const int VK_LSHIFT = 0xA0;
+    private const int VK_RSHIFT = 0xA1;
+    private const int VK_LMENU = 0xA4; // Left Alt
+    private const int VK_RMENU = 0xA5; // Right Alt
+    private const int VK_LCONTROL = 0xA2;
+    private const int VK_LWIN = 0x5B;
+    private const int VK_RWIN = 0x5C;
+
+    static ModifierKeys GetModifiersPressed()
+    {
+        ModifierKeys modifiersPressed = ModifierKeys.None;
+
+        if ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0)
+        {
+            modifiersPressed |= ModifierKeys.LShift;
+        }
+        if ((GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0)
+        {
+            modifiersPressed |= ModifierKeys.RShift;
+        }
+        if ((GetAsyncKeyState(VK_LMENU) & 0x8000) != 0)
+        {
+            modifiersPressed |= ModifierKeys.LAlt;
+        }
+        if ((GetAsyncKeyState(VK_RMENU) & 0x8000) != 0)
+        {
+            modifiersPressed |= ModifierKeys.RAlt;
+        }
+        if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) != 0)
+        {
+            modifiersPressed |= ModifierKeys.LCtl;
+        }
+        if ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0)
+        {
+            modifiersPressed |= ModifierKeys.LWin;
+        }
+        if ((GetAsyncKeyState(VK_RWIN) & 0x8000) != 0)
+        {
+            modifiersPressed |= ModifierKeys.RWin;
+        }
+
+        return modifiersPressed;
+    }
+    
     private struct MONITORINFO
     {
         public int cbSize;
@@ -650,31 +699,39 @@ class Win32Window
                 {
                     return 1;
                 }
-                    
-                switch (wParam)
+                
+                var modifiers = GetModifiersPressed();
+                if (modifiers != ModifierKeys.None)
                 {
-                    case VK_DOWN:
-                        if (_viewModel.SelectedIndex < _snapshot.Items.Count - 1)
-                        {
-                            _viewModel.SelectedIndex++;
-                        }
-                        break;
-                    case VK_UP:
-                        if (_viewModel.SelectedIndex > 0)
-                        {
-                            _viewModel.SelectedIndex--;
-                        }
-                        break;
-                    case VK_RETURN:
-                        lock (_itemsLock)
-                        {
-                            Console.WriteLine(_snapshot.Items[_viewModel.SelectedIndex].Text);
-                        }
-                        ExitProcess(0);
-                        break;
-                    case VK_ESCAPE:
-                        ExitProcess(0);
-                        break;
+                    Task.Run(() => _viewModel.HandleKeyUp((int)wParam, modifiers));
+                }
+                else
+                {
+                    switch (wParam)
+                    {
+                        case VK_DOWN:
+                            if (_viewModel.SelectedIndex < _snapshot.Items.Count - 1)
+                            {
+                                _viewModel.SelectedIndex++;
+                            }
+                            break;
+                        case VK_UP:
+                            if (_viewModel.SelectedIndex > 0)
+                            {
+                                _viewModel.SelectedIndex--;
+                            }
+                            break;
+                        case VK_RETURN:
+                            lock (_itemsLock)
+                            {
+                                Console.WriteLine(_snapshot.Items[_viewModel.SelectedIndex].Text);
+                            }
+                            ExitProcess(0);
+                            break;
+                        case VK_ESCAPE:
+                            ExitProcess(0);
+                            break;
+                    }
                 }
                 return 1;
             default:

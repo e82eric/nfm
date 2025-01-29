@@ -10,7 +10,7 @@ public class MenuDefinition
     public int MinScore { get; init; } = 0;
     public required Func<ChannelWriter<object>, CancellationToken, Task>? AsyncFunction { get; init; }
     public required IResultHandler ResultHandler { get; init; }
-    public Dictionary<(int, int), Func<object, Task>> KeyBindings { get; } = new();
+    public Dictionary<(ModifierKeys, int), Func<object, Task>> KeyBindings { get; } = new();
     public required Func<object, Pattern, Slab, (int, int)> ScoreFunc { get; init; }
     public string? Header { get; init; } = null;
     public bool QuitOnEscape { get; init; } = false;
