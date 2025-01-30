@@ -511,6 +511,7 @@ class ViewModel : IMainViewModel
 
     public Task ShowToast(string message, int duration = 3000)
     {
+        Win32Window.ShowToast(message, duration);
         return Task.CompletedTask;
     }
 

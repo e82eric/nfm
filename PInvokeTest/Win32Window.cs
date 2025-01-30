@@ -471,6 +471,7 @@ class Win32Window
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     static int spinnerCtr = 0;
+
     private static IntPtr StaticTextControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         PAINTSTRUCT ps;
@@ -565,12 +566,14 @@ class Win32Window
                 }
                 
                 FillRect(hNewDc, ref ps.rcPaint, BACKGROUND_BRUSH);
+                SelectObject(hNewDc, font);
+                TEXTMETRIC tm;
+                GetTextMetrics(hNewDc, out tm);
+                int textHeight = tm.tmHeight;
                 lock (_itemsLock)
                 {
                     for (var i = 0; i < _snapshot.Items.Count; i++)
                     {
-                        TEXTMETRIC tm;
-                        GetTextMetrics(hNewDc, out tm);
                         var itemHeight = tm.tmHeight + 15;
                         var itemTop = ps.rcPaint.top + (i * itemHeight);
                         var rcItem = new RECT
@@ -580,7 +583,6 @@ class Win32Window
                             left = ps.rcPaint.left,
                             right = ps.rcPaint.right
                         };
-                        SelectObject(hNewDc, font);
                         if (i == _viewModel.SelectedIndex)
                         {
                             FillRect(hNewDc, ref rcItem, SELECTED_BACKGROUND_BRUSH);
@@ -594,7 +596,6 @@ class Win32Window
 
                         SetTextColor(hNewDc, TEXT_COLOR);
 
-                        int textHeight = tm.tmHeight;
                         int centeredY = rcItem.top + (itemHeight - textHeight) / 2;
 
                         if (i < _snapshot.Items.Count)
@@ -623,6 +624,53 @@ class Win32Window
                         SetTextColor(hNewDc, TEXT_COLOR);
                     }
                 }
+
+                if (_toastVisible && _toastString != null)
+                {
+                    SetBkColor(hNewDc, BACKGROUND_COLOR);
+                    var padding = 10;
+                
+                    var height = ps.rcPaint.bottom - ps.rcPaint.top;
+                    var middle = ps.rcPaint.top + height / 2;
+                
+                    SIZE toastTextSize;
+                    GetTextExtentPoint32(hNewDc, _toastString, _toastString.Length, out toastTextSize);
+
+                    var width = ps.rcPaint.right - ps.rcPaint.left;
+                    var hMiddle = ps.rcPaint.left + (width / 2);
+                    var toastTextWidth = toastTextSize.cx;
+                
+                    var toastRect = new RECT
+                    {
+                        top = middle,
+                        left = hMiddle - (toastTextWidth / 2) - padding,
+                        right = hMiddle + (toastTextWidth / 2) + padding,
+                        bottom = middle + padding + tm.tmHeight + padding
+                    };
+                
+                    IntPtr hPen = CreatePen(PS_SOLID, BORDER_THICKNESS, BORDER_COLOR);
+                    IntPtr hOldPen = SelectObject(hNewDc, hPen);
+                    SelectObject(hNewDc, BACKGROUND_BRUSH);
+                    FillRect(hNewDc, ref toastRect, BACKGROUND_BRUSH);
+                
+                    Rectangle(
+                        hNewDc,
+                        toastRect.left - BORDER_THICKNESS,
+                        toastRect.top - BORDER_THICKNESS,
+                        toastRect.right + BORDER_THICKNESS,
+                        toastRect.bottom + BORDER_THICKNESS);
+
+                    int textY = middle + (tm.tmHeight / 2);
+                    TextOut(
+                        hNewDc,
+                        toastRect.left + padding,
+                        toastRect.top + padding,
+                        _toastString,
+                        _toastString.Length);
+                    SelectObject(hNewDc, hOldPen);
+                    DeleteObject(hPen);
+                }
+                
                 EndBufferedPaint(hBufferedPaint, true);
                 EndPaint(hWnd, ref ps);
                 
@@ -819,8 +867,8 @@ class Win32Window
         _viewModel = viewModel;
         WNDCLASSEX wind_class = new WNDCLASSEX();
         wind_class.cbSize = Marshal.SizeOf<WNDCLASSEX>();
-        wind_class.style = (int)(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS ) ;
-        wind_class.hbrBackground = (IntPtr) COLOR_BACKGROUND  +1 ;
+        wind_class.style = (int)(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS );
+        wind_class.hbrBackground = (IntPtr) COLOR_BACKGROUND  + 1;
         wind_class.cbClsExtra = 0;
         wind_class.cbWndExtra = 0;
         wind_class.hInstance = Process.GetCurrentProcess().MainModule!.BaseAddress;
@@ -862,7 +910,7 @@ class Win32Window
         SetLayeredWindowAttributes(hwnd, 0x000000, 0, 0x00000001);
         ShowWindow(hwnd, 1);
         UpdateWindow(hwnd);
-
+        
         uint msg;
         while (GetMessage(out msg, IntPtr.Zero, 0, 0) != 0)
         {
@@ -910,6 +958,7 @@ class Win32Window
     private static readonly object _itemsLock = new();
     private static IntPtr font;
     private static IntPtr hwnd;
+    private static IntPtr toastHwnd;
     private static IntPtr textBoxHwnd;
     private static IntPtr staticTextHwnd;
     private static IntPtr previewHwnd;
@@ -919,7 +968,10 @@ class Win32Window
     private static IntPtr INSTANCE;
     private static ViewModel? _viewModel;
     private static Timer? _timer;
-    
+    private static bool _toastVisible;
+    private static string _toastString;
+    private static long _toastExpirationTicks;
+
     private static IntPtr MainWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
         IntPtr hdc;
@@ -1011,6 +1063,11 @@ class Win32Window
                 _timer = new Timer(s =>
                 {
                     SendMessage(hwnd, WM_SUMMARY_TIMER, IntPtr.Zero, IntPtr.Zero);
+                    if (_toastVisible && DateTime.UtcNow.Ticks > _toastExpirationTicks)
+                    {
+                        Interlocked.Exchange(ref _toastVisible, false);
+                        PostMessage(hwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
+                    }
                 }, null, 0, 70);
 
                 if (_onInit == null)
@@ -1105,7 +1162,7 @@ class Win32Window
         }
         return DefWindowProc(hWnd, msg, wParam, lParam);
     }
-
+    
     private static void PaintBorder(IntPtr windowHwnd, IntPtr hdc, IntPtr targetHwnd, int borderThickness, int padding)
     {
         if (!GetWindowRect(targetHwnd, out RECT rect))
@@ -1151,6 +1208,14 @@ class Win32Window
             _snapshot = snapshot;
         }
 
+        PostMessage(hwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    public static void ShowToast(string text, int duration)
+    {
+        _toastExpirationTicks = DateTime.UtcNow.Add(TimeSpan.FromMilliseconds(duration)).Ticks;
+        _toastString = text;
+        Interlocked.Exchange(ref _toastVisible, true);
         PostMessage(hwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
     }
 
