@@ -56,6 +56,14 @@ class Win32Window
         return modifiersPressed;
     }
     
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NCCALCSIZE_PARAMS
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
+        public RECT[] rgrc;
+        public IntPtr lppos;
+    }
+    
     private struct MONITORINFO
     {
         public int cbSize;
@@ -242,6 +250,7 @@ class Win32Window
     private const UInt32 WM_USER = 0x0400;
     private const UInt32 WM_ITEMS_UPDATED = WM_USER + 1;
     private const UInt32 WM_SUMMARY_TIMER = WM_USER + 2;
+    private const UInt32 WM_TOGGLE_PREVIEW = WM_USER + 3;
     private const UInt32 WS_OVERLAPPEDWINDOW = 0xcf0000;
     private const UInt32 WS_VISIBLE = 0x10000000;
     private const UInt32 CS_USEDEFAULT = 0x80000000;
@@ -290,6 +299,12 @@ class Win32Window
     private const int DT_VCENTER = 0x0004;
     private const int DT_SINGLELINE = 0x0020;
     public const int ODT_LISTBOX = 2;
+    private const int WM_CHAR = 0x0102;
+    private const int VK_CONTROL = 0x11;
+    private const int VK_LEFT = 0x25;
+    private const int VK_RIGHT = 0x27;
+    private const int WM_NCPAINT = 0x0085;
+    private const int WM_NCCALCSIZE = 0x0083;
         
     private const int LOGPIXELSX = 88;
     private const int FW_NORMAL = 400;
@@ -356,6 +371,9 @@ class Win32Window
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetDC(IntPtr hWnd);
+    
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindowDC(IntPtr hWnd);
 
     [DllImport("gdi32.dll")]
     private static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
@@ -570,11 +588,13 @@ class Win32Window
                 TEXTMETRIC tm;
                 GetTextMetrics(hNewDc, out tm);
                 int textHeight = tm.tmHeight;
+                //Offset the x of item so that selected item background has some padding
+                var itemXOffset = 5;
                 lock (_itemsLock)
                 {
                     for (var i = 0; i < _snapshot.Items.Count; i++)
                     {
-                        var itemHeight = tm.tmHeight + 15;
+                        var itemHeight = tm.tmHeight + (_listboxItemPadding * 2);
                         var itemTop = ps.rcPaint.top + (i * itemHeight);
                         var rcItem = new RECT
                         {
@@ -602,7 +622,7 @@ class Win32Window
                         {
                             TextOut(
                                 hNewDc,
-                                5,
+                                itemXOffset,
                                 centeredY,
                                 _snapshot.Items[i].Text,
                                 _snapshot.Items[i].Text.Length);
@@ -614,7 +634,7 @@ class Win32Window
                                 GetTextExtentPoint32(hNewDc, _snapshot.Items[i].Text, textIndex, out sz);
                                 TextOut(
                                     hNewDc,
-                                    sz.cx + 5,
+                                    sz.cx + itemXOffset,
                                     centeredY,
                                     _snapshot.Items[i].Text[textIndex].ToString(),
                                     1);
@@ -682,11 +702,135 @@ class Win32Window
         }
     }
     
+    private static IntPtr PreviewPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    {
+        switch (uMsg)
+        {
+            case WM_PAINT:
+            {
+                return PaintPanelBorder(hWnd);
+            }
+                return 1;
+            case WM_ERASEBKGND:
+                return 0;
+            default:
+                return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        }
+    }
+    
+    private static IntPtr ListBoxPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    {
+        switch (uMsg)
+        {
+            case WM_PAINT:
+            {
+                return PaintPanelBorder(hWnd);
+            }
+            case WM_COMMAND:
+                if (_viewModel != null)
+                {
+                    var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
+                    if (notificationCode == EN_CHANGE)
+                    {
+                        var text = new StringBuilder(GetWindowTextLength(textBoxHwnd) + 1);
+                        GetWindowText(textBoxHwnd, text, text.Capacity);
+                        Task.Run(() => _viewModel.SetSearchString(text.ToString()));
+                    }
+                }
+                return 0;
+            case WM_CTLCOLOREDIT:
+            {
+                var hdc = wParam;
+                SetBkColor(hdc, BACKGROUND_COLOR);
+                SetTextColor(hdc, TEXT_COLOR);
+                return BACKGROUND_BRUSH;
+            }
+            case WM_ERASEBKGND:
+                return 0;
+            default:
+                return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        }
+    }
+
+    private static IntPtr PaintPanelBorder(IntPtr hWnd)
+    {
+        var hdc = BeginPaint(hWnd, out var ps);
+        var hBufferedPaint = BeginBufferedPaint(
+            hdc,
+            ref ps.rcPaint,
+            BPBF_COMPATIBLEBITMAP,
+            IntPtr.Zero,
+            out var hNewDc);
+
+        if (hBufferedPaint == IntPtr.Zero || hNewDc == IntPtr.Zero)
+        {
+            return IntPtr.Zero;
+        }
+
+        SetBkColor(hNewDc, BACKGROUND_COLOR);
+        SetTextColor(hNewDc, TEXT_COLOR);
+        SelectObject(hNewDc, font);
+        SelectObject(hNewDc, BACKGROUND_BRUSH);
+
+        IntPtr hPen = CreatePen(PS_SOLID, BORDER_THICKNESS, BORDER_COLOR);
+        IntPtr hOldPen = SelectObject(hNewDc, hPen);
+        SelectObject(hNewDc, BACKGROUND_BRUSH);
+
+        bool success = Rectangle(
+            hNewDc,
+            ps.rcPaint.left + BORDER_THICKNESS,
+            ps.rcPaint.top + BORDER_THICKNESS,
+            ps.rcPaint.right,
+            ps.rcPaint.bottom
+        );
+
+        SelectObject(hNewDc, hOldPen);
+        DeleteObject(hPen);
+
+        EndBufferedPaint(hBufferedPaint, true);
+        return 0;
+    }
+
+    private static IntPtr TextBoxPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    {
+        switch (uMsg)
+        {
+            case WM_PAINT:
+            {
+                return PaintPanelBorder(hWnd);
+            }
+            case WM_COMMAND:
+                if (_viewModel != null)
+                {
+                    var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
+                    if (notificationCode == EN_CHANGE)
+                    {
+                        var text = new StringBuilder(GetWindowTextLength(textBoxHwnd) + 1);
+                        GetWindowText(textBoxHwnd, text, text.Capacity);
+                        Task.Run(() => _viewModel.SetSearchString(text.ToString()));
+                    }
+                }
+                return 0;
+            case WM_CTLCOLOREDIT:
+            {
+                var hdc = wParam;
+                SetBkColor(hdc, BACKGROUND_COLOR);
+                SetTextColor(hdc, TEXT_COLOR);
+                return BACKGROUND_BRUSH;
+            }
+            case WM_ERASEBKGND:
+                return 0;
+            default:
+                return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        }
+    }
+    
     private static IntPtr PreviewControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         switch (uMsg)
         {
             case WM_PAINT:
+            {
                 if (_lines == null || _lastPreviewVersion == _previewVersion)
                 {
                     return 1;
@@ -700,39 +844,46 @@ class Win32Window
                     BPBF_COMPATIBLEBITMAP,
                     IntPtr.Zero,
                     out var hNewDc);
+
                 if (hBufferedPaint == IntPtr.Zero || hNewDc == IntPtr.Zero)
                 {
                     return IntPtr.Zero;
                 }
-                
-                FillRect(hNewDc, ref ps.rcPaint, BACKGROUND_BRUSH);
+
+                var rect = ps.rcPaint;
+
                 SetBkColor(hNewDc, BACKGROUND_COLOR);
                 SetTextColor(hNewDc, TEXT_COLOR);
                 SelectObject(hNewDc, font);
-                
+                FillRect(hNewDc, ref ps.rcPaint, BACKGROUND_BRUSH);
+
                 TEXTMETRIC tm;
                 GetTextMetrics(hNewDc, out tm);
                 for (var i = 0; i < _lines.Count; i++)
                 {
                     var itemHeight = tm.tmHeight + 3;
-                    var itemTop = ps.rcPaint.top + (i * itemHeight);
+                    var itemTop = rect.top + (i * itemHeight);
                     var rcItem = new RECT
                     {
                         top = itemTop,
                         bottom = itemTop + itemHeight,
-                        left = ps.rcPaint.left,
-                        right = ps.rcPaint.right
+                        left = rect.left,
+                        right = rect.right
                     };
 
                     int textHeight = tm.tmHeight;
                     int centeredY = rcItem.top + (itemHeight - textHeight) / 2;
-                    
+
                     var line = _lines[i];
-                    
-                    TextOut(hNewDc, 5, centeredY, line, line.Length);
+
+                    TextOut(hNewDc, rect.left, centeredY, line, line.Length);
                 }
+
                 EndBufferedPaint(hBufferedPaint, true);
+            }
                 return 1;
+            case WM_ERASEBKGND:
+                return 0;
             default:
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
@@ -742,6 +893,12 @@ class Win32Window
     {
         switch (uMsg)
         {
+            case WM_CHAR:
+                if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 && wParam != VK_LEFT && wParam != VK_RIGHT)
+                {
+                    return 0;
+                }
+                return DefSubclassProc(hWnd, uMsg, wParam, lParam);
             case WM_KEYDOWN:
                 if (_snapshot == null || _viewModel == null)
                 {
@@ -752,6 +909,7 @@ class Win32Window
                 if (modifiers != ModifierKeys.None)
                 {
                     Task.Run(() => _viewModel.HandleKeyUp((int)wParam, modifiers));
+                    return 0;
                 }
                 else
                 {
@@ -762,13 +920,14 @@ class Win32Window
                             {
                                 _viewModel.SelectedIndex++;
                             }
-                            break;
+
+                            return 0;
                         case VK_UP:
                             if (_viewModel.SelectedIndex > 0)
                             {
                                 _viewModel.SelectedIndex--;
                             }
-                            break;
+                            return 0;
                         case VK_RETURN:
                             lock (_itemsLock)
                             {
@@ -781,7 +940,7 @@ class Win32Window
                             break;
                     }
                 }
-                return 1;
+                return DefSubclassProc(hWnd, uMsg, wParam, lParam);
             default:
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
@@ -886,10 +1045,10 @@ class Win32Window
         }
         string wndClass = wind_class.lpszClassName;
 
-        hwnd = CreateWindowEx2(
+        rootHwnd = CreateWindowEx2(
             WS_EX_LAYERED | WS_EX_TOPMOST,
             regResult,
-            "Hello Win32",
+            "nfm",
             WS_VISIBLE | WS_POPUP,
             windowX,
             windowY,
@@ -900,16 +1059,16 @@ class Win32Window
             wind_class.hInstance,
             IntPtr.Zero);
 
-        if (hwnd == 0)
+        if (rootHwnd == 0)
         {
             uint error = GetLastError();
             return false;
         }
 
         INSTANCE = wind_class.hInstance;
-        SetLayeredWindowAttributes(hwnd, 0x000000, 0, 0x00000001);
-        ShowWindow(hwnd, 1);
-        UpdateWindow(hwnd);
+        SetLayeredWindowAttributes(rootHwnd, 0x000000, 0, 0x00000001);
+        ShowWindow(rootHwnd, 1);
+        UpdateWindow(rootHwnd);
         
         uint msg;
         while (GetMessage(out msg, IntPtr.Zero, 0, 0) != 0)
@@ -957,12 +1116,15 @@ class Win32Window
     private static int _lastPreviewVersion;
     private static readonly object _itemsLock = new();
     private static IntPtr font;
-    private static IntPtr hwnd;
+    private static IntPtr rootHwnd;
     private static IntPtr toastHwnd;
     private static IntPtr textBoxHwnd;
+    private static IntPtr textBoxPanelHwnd;
     private static IntPtr staticTextHwnd;
     private static IntPtr previewHwnd;
+    private static IntPtr previewPanelHwnd;
     private static IntPtr listBoxHwnd;
+    private static IntPtr listBoxPanelHwnd;
     private static IntPtr BACKGROUND_BRUSH;
     private static IntPtr SELECTED_BACKGROUND_BRUSH;
     private static IntPtr INSTANCE;
@@ -971,6 +1133,9 @@ class Win32Window
     private static bool _toastVisible;
     private static string _toastString;
     private static long _toastExpirationTicks;
+    private static bool _showPreview;
+    private static int _listboxItemPadding = 7;
+    private static int _maxListboxItems;
 
     private static IntPtr MainWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
@@ -986,33 +1151,78 @@ class Win32Window
                     
                 BACKGROUND_BRUSH = CreateSolidBrush(BACKGROUND_COLOR);
                 SELECTED_BACKGROUND_BRUSH = CreateSolidBrush(SELECTED_BACKGROUND_COLOR);
+
+                _maxListboxItems = 15;
+                var listBoxItemHeight = (tm.tmHeight + (_listboxItemPadding * 2));
+                var controlHeight = _maxListboxItems * listBoxItemHeight;
+                var padding = 15;
+                var panelX = 11;
+                var panelWidth = 1226;
+                var controlWidth = panelWidth - (padding * 2);
+                var panelHeight = controlHeight + (padding * 2);
+                var searchInputHeight = tm.tmHeight + padding + padding;
+                var panelGap = 7;
+                _maxListboxItems = controlHeight / (tm.tmHeight + (_listboxItemPadding * 2));
+                
+                previewPanelHwnd = CreateWindowEx(
+                    0,
+                    "static",
+                    "",
+                    WS_VISIBLE | WS_CHILD | SS_RIGHT | SS_OWNERDRAW | WS_CLIPSIBLINGS,
+                    panelX,
+                    0,
+                    panelWidth,
+                    panelHeight,
+                    hWnd,
+                    1,
+                    INSTANCE,
+                    IntPtr.Zero);
+                SetWindowSubclass(previewPanelHwnd, PreviewPanelControlProc, 0, IntPtr.Zero);
+                ShowWindow(previewPanelHwnd, _showPreview ? 1 : 0);
                 
                 previewHwnd = CreateWindowEx(
                     0,
                     "static",
                     "",
                     WS_VISIBLE | WS_CHILD | SS_RIGHT | SS_OWNERDRAW | WS_CLIPSIBLINGS,
-                    25,
-                    25,
-                    1200,
-                    550,
-                    hWnd,
-                    1,
+                    padding,
+                    padding,
+                    controlWidth,
+                    controlHeight,
+                    previewPanelHwnd,
+                    2,
                     INSTANCE,
                     IntPtr.Zero);
                 SetWindowSubclass(previewHwnd, PreviewControlProc, 0, IntPtr.Zero);
                 
+                textBoxPanelHwnd = CreateWindowEx(
+                    0,
+                    "static",
+                    "",
+                    WS_VISIBLE | WS_CHILD | SS_RIGHT | SS_OWNERDRAW | WS_CLIPSIBLINGS,
+                    panelX,
+                    panelHeight + panelGap,
+                    panelWidth,
+                    searchInputHeight,
+                    hWnd,
+                    3,
+                    INSTANCE,
+                    IntPtr.Zero);
+                SetWindowSubclass(textBoxPanelHwnd, TextBoxPanelControlProc, 0, IntPtr.Zero);
+
+                var summaryTextWidth = 400;
+                var searchInputWidth = controlWidth - summaryTextWidth;
                 textBoxHwnd = CreateWindowEx(
                     0,
                     "edit",
                     "",
                     WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                    25,
-                    25 + 550 + 35,
-                    800,
+                    padding,
+                    padding,
+                    searchInputWidth,
                     tm.tmHeight,
-                    hWnd,
-                    1,
+                    textBoxPanelHwnd,
+                    4,
                     INSTANCE,
                     IntPtr.Zero);
                 SetWindowSubclass(textBoxHwnd, EditControlProc, 0, IntPtr.Zero);
@@ -1022,30 +1232,44 @@ class Win32Window
                     "static",
                     "",
                     WS_VISIBLE | WS_CHILD | SS_RIGHT | SS_OWNERDRAW | WS_CLIPSIBLINGS,
-                    25 + 800,
-                    25 + 550 + 35,
-                    400,
+                    padding + searchInputWidth,
+                    padding,
+                    summaryTextWidth,
                     tm.tmHeight,
-                    hWnd,
-                    1,
+                    textBoxPanelHwnd,
+                    5,
                     INSTANCE,
                     IntPtr.Zero);
                 SetWindowSubclass(staticTextHwnd, StaticTextControlProc, 0, IntPtr.Zero);
+                
+                listBoxPanelHwnd = CreateWindowEx(
+                    0,
+                    "static",
+                    "",
+                    WS_VISIBLE | WS_CHILD | SS_RIGHT | SS_OWNERDRAW | WS_CLIPSIBLINGS,
+                    panelX,
+                    panelHeight + panelGap + searchInputHeight + panelGap,
+                    panelWidth,
+                    panelHeight,
+                    hWnd,
+                    6,
+                    INSTANCE,
+                    IntPtr.Zero);
+                SetWindowSubclass(listBoxPanelHwnd, ListBoxPanelControlProc, 0, IntPtr.Zero);
                     
                 listBoxHwnd = CreateWindowEx(
                     0,
                     "static",
                     "",
                     WS_VISIBLE | WS_CHILD | SS_RIGHT | SS_OWNERDRAW | WS_CLIPSIBLINGS,
-                    25,
-                    tm.tmHeight + 25 + (12 * 3) + 550 + 35,
-                    1200,
-                    550,
-                    hWnd,
-                    2,
+                    padding,
+                    padding,
+                    controlWidth,
+                    controlHeight,
+                    listBoxPanelHwnd,
+                    7,
                     INSTANCE,
                     IntPtr.Zero);
-                
                 SetWindowSubclass(listBoxHwnd, ListBoxControlProc, 0, IntPtr.Zero);
                     
                 long style = GetWindowLong(listBoxHwnd, GWL_STYLE);
@@ -1062,11 +1286,11 @@ class Win32Window
 
                 _timer = new Timer(s =>
                 {
-                    SendMessage(hwnd, WM_SUMMARY_TIMER, IntPtr.Zero, IntPtr.Zero);
+                    SendMessage(rootHwnd, WM_SUMMARY_TIMER, IntPtr.Zero, IntPtr.Zero);
                     if (_toastVisible && DateTime.UtcNow.Ticks > _toastExpirationTicks)
                     {
                         Interlocked.Exchange(ref _toastVisible, false);
-                        PostMessage(hwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
+                        PostMessage(rootHwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
                     }
                 }, null, 0, 70);
 
@@ -1082,40 +1306,7 @@ class Win32Window
                 
             case WM_ERASEBKGND:
                 break;
-                
-            case WM_PAINT:
-                PAINTSTRUCT ps;
-                hdc = BeginPaint(hWnd, out ps);
-
-                if (hdc != IntPtr.Zero)
-                {
-                    IntPtr hPen = CreatePen(PS_SOLID, BORDER_THICKNESS, BORDER_COLOR);
-                    IntPtr hOldPen = SelectObject(hdc, hPen);
-                    SelectObject(hdc, BACKGROUND_BRUSH);
-
-                    PaintBorder(hWnd, hdc, previewHwnd, BORDER_THICKNESS, 10);
-                    PaintBorder(hWnd, hdc, textBoxHwnd, BORDER_THICKNESS, 10);
-                    PaintBorder(hWnd, hdc, listBoxHwnd, BORDER_THICKNESS, 10);
-
-                    SelectObject(hdc, hOldPen);
-                    DeleteObject(hPen);
-                }
-
-                EndPaint(hWnd, ref ps);
-                break;
-                
-            case WM_CTLCOLORLISTBOX:
-                hdc = wParam;
-                SetBkColor(hdc, BACKGROUND_COLOR);
-                SetTextColor(hdc, TEXT_COLOR);
-                return BACKGROUND_BRUSH;
-                
-            case WM_CTLCOLOREDIT:
-                hdc = wParam;
-                SetBkColor(hdc, BACKGROUND_COLOR);
-                SetTextColor(hdc, TEXT_COLOR);
-                return BACKGROUND_BRUSH;
-
+            
             case WM_LBUTTONDBLCLK :
                 break;
 
@@ -1145,54 +1336,14 @@ class Win32Window
                     UpdateWindow(listBoxHwnd);
                 }
                 break;
-                
-            case WM_COMMAND:
-                if (_viewModel != null)
-                {
-                    var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
-                    if (notificationCode == EN_CHANGE)
-                    {
-                        var text = new StringBuilder(GetWindowTextLength(textBoxHwnd) + 1);
-                        GetWindowText(textBoxHwnd, text, text.Capacity);
-                        Task.Run(() => _viewModel.SetSearchString(text.ToString()));
-                    }
-                }
-
+            
+            case WM_TOGGLE_PREVIEW:
+                ShowWindow(previewPanelHwnd, _showPreview ? 1 : 0);
                 break;
         }
         return DefWindowProc(hWnd, msg, wParam, lParam);
     }
     
-    private static void PaintBorder(IntPtr windowHwnd, IntPtr hdc, IntPtr targetHwnd, int borderThickness, int padding)
-    {
-        if (!GetWindowRect(targetHwnd, out RECT rect))
-        {
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-        }
-
-        POINT[] points = new POINT[]
-        {
-            new POINT { x = rect.left, y = rect.top },
-            new POINT { x = rect.right, y = rect.bottom }
-        };
-
-        MapWindowPoints(IntPtr.Zero, windowHwnd, ref points[0], 2);
-
-        bool success = Rectangle(
-            hdc,
-            points[0].x - (borderThickness + padding),
-            points[0].y - (borderThickness + padding),
-            //points[1].x + (borderThickness + padding),
-            1225 + (borderThickness + padding),
-            points[1].y + (borderThickness + padding)
-        );
-
-        if (!success)
-        {
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-        }
-    }
-
     public static void SetListBoxItems()
     {
         if (_viewModel == null)
@@ -1201,14 +1352,14 @@ class Win32Window
         }
         
         var snapshot = new Snapshot();
-        _viewModel.FillSnapshot(snapshot);
+        _viewModel.FillSnapshot(snapshot, _maxListboxItems);
 
         lock (_itemsLock)
         {
             _snapshot = snapshot;
         }
 
-        PostMessage(hwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
+        PostMessage(rootHwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
     }
 
     public static void ShowToast(string text, int duration)
@@ -1216,13 +1367,20 @@ class Win32Window
         _toastExpirationTicks = DateTime.UtcNow.Add(TimeSpan.FromMilliseconds(duration)).Ticks;
         _toastString = text;
         Interlocked.Exchange(ref _toastVisible, true);
-        PostMessage(hwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
+        PostMessage(rootHwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
     }
 
     public static void SetPreviewLines(List<string> lines)
     {
-        _lines = lines;
+        _lines = lines.ToList();
         Interlocked.Increment(ref _previewVersion);
         InvalidateRect(previewHwnd, IntPtr.Zero, true);
+    }
+
+    public static void TogglePreview(bool visible)
+    {
+        Interlocked.Exchange(ref _showPreview, visible);
+        Interlocked.Exchange(ref _lastPreviewVersion, 0);
+        PostMessage(rootHwnd, WM_TOGGLE_PREVIEW, IntPtr.Zero, IntPtr.Zero);
     }
 }

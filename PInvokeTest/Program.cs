@@ -73,6 +73,11 @@ class Program
                 var fileSystemOptions = ParseFileSystemOptions(args);
                 var viewModel = new ViewModel();
                 viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
+                viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (o, model) =>
+                {
+                    viewModel.TogglePreview();
+                    return Task.CompletedTask;
+                });
                 var definitionProvider = new FileSystemMenuDefinitionProvider(
                     new StdOutResultHandler(viewModel),
                     fileSystemOptions.MaxDepth,

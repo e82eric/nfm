@@ -59,6 +59,7 @@ class ViewModel : IMainViewModel
     public int NumberOfScoredItems = 0;
     private List<StringWithPos> Items { get; }
     private string _lastPreviewPath { get; set; }
+    private bool _showPreview { get; set; }
     
     public Dictionary<(ModifierKeys, int), Func<object, IMainViewModel, Task>> GlobalKeyBindings { get; } = new();
     public int SelectedIndex
@@ -95,12 +96,12 @@ class ViewModel : IMainViewModel
         _ = Task.Run(async () => await PreviewLoop(), CancellationToken.None);
     }
 
-    public void FillSnapshot(Snapshot snapshot)
+    public void FillSnapshot(Snapshot snapshot, int maxItems)
     {
         snapshot.Items.Clear();
         lock (_snapshotLock)
         {
-            for (var i = 0; i < Math.Min(Items.Count, 16); i++)
+            for (var i = 0; i < Math.Min(Items.Count, maxItems); i++)
             {
                 var item = Items[i];
                 snapshot.Items.Add(item);
@@ -523,5 +524,11 @@ class ViewModel : IMainViewModel
     public Task Close()
     {
         return Task.CompletedTask;
+    }
+
+    public void TogglePreview()
+    {
+        _showPreview = !_showPreview;
+        Win32Window.TogglePreview(_showPreview); 
     }
 }
