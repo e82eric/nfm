@@ -421,35 +421,7 @@ public class FileWalker
 
         return searchPath.Slice(0, length - 1);
     }
-    
-    private static bool TryCombinePath(ReadOnlySpan<char> path, ReadOnlySpan<char> fileName, Span<char> buffer, out ReadOnlySpan<char> result)
-    {
-        if (path.Length + 1 + fileName.Length + 1 > buffer.Length)
-        {
-            result = default;
-            return false;
-        }
 
-        path.CopyTo(buffer);
-        if (path[^1] == '\\')
-        {
-            fileName.CopyTo(buffer[(path.Length)..]);
-            buffer[path.Length + fileName.Length] = '\\';
-            buffer[path.Length + 1 + fileName.Length] = '\0';
-    
-            result = buffer[..(path.Length + fileName.Length + 2)];
-            return true;
-        }
-    
-        buffer[path.Length] = '\\';
-        fileName.CopyTo(buffer[(path.Length + 1)..]);
-        buffer[path.Length + 1 + fileName.Length] = '\\';
-        buffer[path.Length + 2 + fileName.Length] = '\0';
-    
-        result = buffer[..(path.Length + 1 + fileName.Length + 2)];
-        return true;
-    }
-    
     private void CompleteScan(ScanState scanState)
     {
         if (Interlocked.Exchange(ref scanState.ChannelsCompleted, 1) == 0)

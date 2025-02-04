@@ -1,11 +1,8 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-
-namespace nfm.menu;
+﻿namespace nfm.menu;
 
 public class CommandPreviewHandler(string commandTemplate) : IPreviewHandler
 {
-    public async Task Handle(IPreviewRenderer renderer, object t, CancellationToken ct)
+    public async Task Handle(IPreviewRenderer renderer, object t, int height, CancellationToken ct)
     {
         var command = string.Format(commandTemplate, t);
         var result = await ProcessRunner.RunCommandAsync(command);

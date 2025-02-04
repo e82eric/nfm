@@ -1,18 +1,128 @@
 ﻿using System.Collections.Concurrent;
+using System.Drawing;
 using System.Threading.Channels;
 using nfm.menu;
 using nfzf;
 using Win32FromForms;
 
-class TextPreviewToken
+enum PreviewType
 {
-    public string Text { get; set; }
-    public int BGRColor { get; set; }
+    Text,
+    Image
 }
 
-class TextPreviewLine
+class Viewport
 {
-    public IList<TextPreviewToken> Tokens { get; } = new List<TextPreviewToken>();
+    public int ViewportSelectedIndex;
+
+    public Viewport(int viewportRows)
+    {
+        _viewportRows = viewportRows;
+        StartRow = 0;
+        ViewportSelectedIndex = 0;
+        _totalRows = 0;
+    }
+    
+    public int SelectedIndex;
+    public int StartRow;
+    private int _viewportRows;
+    private int _totalRows;
+
+    public int EndRow
+    {
+        get { return StartRow + Math.Min(_viewportRows, _totalRows) ; }
+    }
+
+    public void SelectNext()
+    {
+        if (SelectedIndex + 1 < _totalRows)
+        {
+            SelectedIndex++;
+
+            if (ViewportSelectedIndex + 1 < _viewportRows)
+            {
+                ViewportSelectedIndex++;
+            }
+            else
+            {
+                StartRow++;
+            }
+        }
+    }
+
+    public void SelectPrevious()
+    {
+        if (SelectedIndex > 0)
+        {
+            SelectedIndex--;
+
+            if (ViewportSelectedIndex > 0)
+            {
+                ViewportSelectedIndex--;
+            }
+            else
+            {
+                StartRow--;
+            }
+        }
+    }
+
+    public void SelectHalfPageDown()
+    {
+        var half = _viewportRows / 2;
+        if (SelectedIndex + half < _totalRows)
+        {
+            SelectedIndex += half;
+
+            if (ViewportSelectedIndex + half < _viewportRows)
+            {
+                ViewportSelectedIndex += half;
+            }
+            else
+            {
+                StartRow += half;
+            }
+        }
+        else
+        {
+            SelectedIndex = _totalRows - 1;
+            ViewportSelectedIndex = _totalRows - 1;
+        }
+    }
+
+    public void SelectHalfPageUp()
+    {
+        var half = _viewportRows / 2;
+        if (SelectedIndex - half > 0)
+        {
+            SelectedIndex -= half;
+
+            if (ViewportSelectedIndex - half > 0)
+            {
+                ViewportSelectedIndex -= half;
+            }
+            else
+            {
+                StartRow -= half;
+            }
+        }
+        else
+        {
+            SelectedIndex = 0;
+            ViewportSelectedIndex = 0;
+        }
+    }
+
+    public void SetTotalRows(int itemsCount)
+    {
+        _totalRows = itemsCount;
+        if (ViewportSelectedIndex > _totalRows)
+        {
+            ViewportSelectedIndex = Math.Max(0, _totalRows - 1);
+            SelectedIndex = Math.Max(0, _totalRows - 1);
+            StartRow = 0;
+        }
+    }
 }
 
 class Snapshot
@@ -25,9 +135,10 @@ class Snapshot
     public int NumberOfItems { get; set; }
     public int NumberOfScoredItems { get; set; }
     public bool IsWorking { get; set; }
+    public int SelectedIndex { get; set; }
 }
 
-class ViewModel : IMainViewModel
+class ViewModel : IMainViewModel, IPreviewRenderer
 {
     private class ThreadLocalData(Slab slab)
     {
@@ -35,13 +146,12 @@ class ViewModel : IMainViewModel
         public Slab Slab { get; } = slab;
     }
 
-    private const int MaxItems = 25;
+    private const int MaxItems = 1000;
     private static readonly IList<int> EmptyPos = new List<int>();
     
     private MenuDefinition? _definition;
     private CancellationTokenSource? _currentDefinitionCancellationTokenSource;
 
-    private int _selectedIndex;
     private readonly Slab _positionsSlab;
     private readonly ConcurrentBag<ThreadLocalData> _localResultsPool = new();
     private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount / 2;
@@ -57,21 +167,14 @@ class ViewModel : IMainViewModel
     private int _searchStringVersion = 1;
     private int _lastSearchStringVersion = 0;
     public int NumberOfScoredItems = 0;
+    private int _previewHeight;
+    private const int ScrollOffset = 3;
     private List<StringWithPos> Items { get; }
     private string _lastPreviewPath { get; set; }
     private bool _showPreview { get; set; }
+    private Viewport _viewport;
     
     public Dictionary<(ModifierKeys, int), Func<object, IMainViewModel, Task>> GlobalKeyBindings { get; } = new();
-    public int SelectedIndex
-    {
-        get => _selectedIndex;
-        set
-        {
-            _selectedIndex = value;
-            Win32Window.SetListBoxItems();
-            _previewSignal.Set();
-        }
-    }
 
     public ViewModel()
     {
@@ -101,115 +204,43 @@ class ViewModel : IMainViewModel
         snapshot.Items.Clear();
         lock (_snapshotLock)
         {
-            for (var i = 0; i < Math.Min(Items.Count, maxItems); i++)
+            var numberOfRows = _viewport.EndRow - _viewport.StartRow;
+            for (var i = 0; i < numberOfRows; i++)
             {
-                var item = Items[i];
+                var item = Items[i + _viewport.StartRow];
                 snapshot.Items.Add(item);
             }
 
             snapshot.NumberOfItems = NumberOfItems;
             snapshot.NumberOfScoredItems = NumberOfScoredItems;
             snapshot.IsWorking = Reading;
+            snapshot.SelectedIndex = _viewport.ViewportSelectedIndex;
         }
     }
 
-    private async Task RunPreview()
+    private Task RunPreview()
     {
-        var result = new List<string>(18);
-        var path = string.Empty;
-        lock (_snapshotLock)
+        if (_showPreview)
         {
-            if (Items.Count < SelectedIndex || SelectedIndex < 0)
+            var path = string.Empty;
+            lock (_snapshotLock)
             {
-                return;
-            }
-            path = Items[SelectedIndex].Text;
-        }
-        if (path == _lastPreviewPath)
-        {
-            return;
-        }
-        var info = new FileInfo(path);
-        
-        var textColor = 0x008499a8;
-        if (!info.Exists || (info.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
-        {
-            var dirInfo = new DirectoryInfo(path);
-            var infos = new []
-            {
-                $"Directory: {dirInfo.Name}",
-                $"Path: {dirInfo.FullName}",
-                $"Created: {dirInfo.CreationTime}",
-                $"Last Modified: {dirInfo.LastWriteTime}",
-                $"Attributes: {dirInfo.Attributes}"
-            };
-            foreach (var str in infos)
-            {
-                result.Add(str);
-            }
-            foreach (var fileSystemInfo in dirInfo.EnumerateFileSystemInfos())
-            {
-                result.Add($"  {fileSystemInfo.Name}\n");
-            }
-            
-            Win32Window.SetPreviewLines(result);
-            return;
-        }
-
-        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-        {
-            using (var reader = new StreamReader(stream))
-            {
-                //if (ct.IsCancellationRequested)
-                //{
-                //    return (false, null);
-                //}
-                    
-                var buffer = new char[1024];
-                int charsRead = await reader.ReadAsync(buffer, 0, buffer.Length);
-
-                // Check for binary content in the first 1024 characters
-                for (int i = 0; i < charsRead; i++)
+                if (Items.Count <= _viewport.SelectedIndex || _viewport.SelectedIndex < 0)
                 {
-                    if (buffer[i] == '\0' ||
-                        (buffer[i] < 32 && buffer[i] != '\t' && buffer[i] != '\n' && buffer[i] != '\r'))
-                    {
-                        result.Add($"File appears to be binary: {path}");
-                        Win32Window.SetPreviewLines(result);
-                        return;
-                    }
+                    return Task.CompletedTask;
                 }
+                path = Items[_viewport.SelectedIndex].Text;
             }
+            if (path == _lastPreviewPath)
+            {
+                return Task.CompletedTask;
+            }
+        
+            _definition.PreviewHandler?.Handle(this, path, _previewHeight, CancellationToken.None);
+            _lastPreviewPath = path;
         }
 
-        var maxLines = 40;
-        var lines = new List<string>();
-        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-        using (var reader = new StreamReader(stream))
-        {
-            // If the file is determined to be text, read the first `maxLines`
-            stream.Position = 0; // Reset to the beginning for reading lines
-            while (!reader.EndOfStream && lines.Count < maxLines)
-            {
-                //if (ct.IsCancellationRequested)
-                //{
-                //    return (false, null);
-                //}
-                var line = await reader.ReadLineAsync();
-                if (line != null)
-                {
-                    lines.Add(line);
-                }
-            }
-        }
-        
-        _lastPreviewPath = path;
-        
-        foreach (var line in lines)
-        {
-            result.Add(line);
-        }
-        Win32Window.SetPreviewLines(result);
+        return Task.CompletedTask;
     }
 
     private async Task SearchLoop()
@@ -229,6 +260,7 @@ class ViewModel : IMainViewModel
         {
             await _previewSignal.WaitAsync();
             await RunPreview();
+            await Task.Delay(250);
         }
     }
     
@@ -294,6 +326,7 @@ class ViewModel : IMainViewModel
                         break;
                     }
                 }
+                _viewport.SetTotalRows(Items.Count);
             }
 
             NumberOfScoredItems = NumberOfItems;
@@ -357,7 +390,6 @@ class ViewModel : IMainViewModel
         globalList.Sort(_definition.FinalComparer);
         var topEntries = globalList.Take(MaxItems).ToList();
 
-        //var previousIndex = SelectedIndex;
         lock (_snapshotLock)
         {
             Items.Clear();
@@ -375,6 +407,8 @@ class ViewModel : IMainViewModel
                     }
                 }
             }
+
+            _viewport.SetTotalRows(Items.Count);
         }
 
         Win32Window.SetListBoxItems();
@@ -407,6 +441,10 @@ class ViewModel : IMainViewModel
     {
         _definition = definition;
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
+        if (_definition.Header != null)
+        {
+            Win32Window.SetHeader(_definition.Header);
+        }
         if (definition.AsyncFunction != null)
         {
             var channel = Channel.CreateUnbounded<object>(_channelOptions);
@@ -489,7 +527,7 @@ class ViewModel : IMainViewModel
             }
             else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
-                var highlightedText = Items[SelectedIndex];
+                var highlightedText = Items[_viewport.SelectedIndex];
                 if (highlightedText != null && highlightedText.Text != null)
                 {
                     await action(highlightedText.Text);
@@ -500,7 +538,7 @@ class ViewModel : IMainViewModel
                 StringWithPos highlightedText;
                 lock (_snapshotLock)
                 {
-                    highlightedText = Items[SelectedIndex];
+                    highlightedText = Items[_viewport.SelectedIndex];
                 }
                 if (highlightedText != null && highlightedText.Text != null)
                 {
@@ -529,6 +567,74 @@ class ViewModel : IMainViewModel
     public void TogglePreview()
     {
         _showPreview = !_showPreview;
+        _previewSignal.Set();
         Win32Window.TogglePreview(_showPreview); 
+    }
+
+    public void RenderImage(MemoryStream memoryStream)
+    {
+        var bitmap = new Bitmap(memoryStream);
+        Win32Window.ShowImagePreview(bitmap);
+    }
+
+    public void RenderText(List<string> lines, string fileExtension)
+    {
+        Win32Window.SetPreviewLines(lines);
+    }
+
+    public void RenderError(string errorInfo)
+    {
+        Win32Window.SetPreviewLines([errorInfo]);
+    }
+
+    public void SetPreviewHeight(int height)
+    {
+        _previewHeight = height;
+    }
+
+    public void SetNumberOfRows(int rows)
+    {
+        _viewport = new Viewport(rows);
+    }
+
+    public void SelectNext()
+    {
+        _viewport.SelectNext();
+        Win32Window.SetListBoxItems();
+        _previewSignal.Set();
+    }
+    
+    public void SelectPageDown()
+    {
+        _viewport.SelectHalfPageDown();
+        Win32Window.SetListBoxItems();
+        _previewSignal.Set();
+    }
+    
+    public void SelectPageUp()
+    {
+        _viewport.SelectHalfPageUp();
+        Win32Window.SetListBoxItems();
+        _previewSignal.Set();
+    }
+
+    public void SelectPrevious()
+    {
+        _viewport.SelectPrevious();
+        Win32Window.SetListBoxItems();
+        _previewSignal.Set();
+    }
+
+    public async Task OnReturn()
+    {
+        await _definition.ResultHandler.HandleAsync(Items[_viewport.SelectedIndex].Text);
+    }
+    
+    public void OnEscape()
+    {
+        if (_definition.QuitOnEscape)
+        {
+            Environment.Exit(0);
+        }
     }
 }

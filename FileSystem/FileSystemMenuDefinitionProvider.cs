@@ -81,8 +81,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
             FinalComparer = _comparer ?? FinalEntryComparer,
             OnClosed = _onClosed,
             ScoreFunc = ScoreFunc,
-            //PreviewHandler = new FileSystemPreviewHandler(),
-            PreviewHandler = null,
+            PreviewHandler = new PreviewHandler(),
             EditAction = (itemObj, newText) =>
             {
                 var itemStr = itemObj.ToString();

@@ -3,6 +3,6 @@
 public interface IPreviewRenderer
 {
     public void RenderImage(MemoryStream bitmap);
-    public void RenderText(string info, string fileExtension);
+    public void RenderText(List<string> lines, string fileExtension);
     public void RenderError(string errorInfo);
 }

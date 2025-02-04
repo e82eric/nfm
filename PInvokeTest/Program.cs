@@ -45,12 +45,18 @@ class Program
                     if (stdInOptions != null)
                     {
                         var viewModel = new ViewModel();
+                        viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
+                        viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (o, model) =>
+                        {
+                            viewModel.TogglePreview();
+                            return Task.CompletedTask;
+                        });
                         var menuDefinitionProvider = new StdInMenuDefinitionProvider(
                             viewModel,
-                            false,
+                            stdInOptions.PreviewCommand != null,
                             null,
-                            null,
-                            null);
+                            stdInOptions.PreviewCommand,
+                            stdInOptions.Header);
                         var window = new Win32Window();
                         window.Create(viewModel,() =>
                         {
@@ -83,7 +89,7 @@ class Program
                     fileSystemOptions.MaxDepth,
                     [fileSystemOptions.RootDirectory],
                     true,
-                    false,
+                    true,
                     fileSystemOptions.DirectoriesOnly,
                     fileSystemOptions.FilesOnly,
                     viewModel,
@@ -144,7 +150,7 @@ class Program
                 options.EditCommand = args[i + 1];
                 i++;
             }
-            else if (args[i] == "--preview-command" && i + 1 < args.Length)
+            else if (args[i] == "--previewcommand" && i + 1 < args.Length)
             {
                 options.PreviewCommand = args[i + 1];
                 i++;
@@ -158,16 +164,16 @@ class Program
         var options = new FileSystemOptions();
         for (int i = 1; i < args.Length; i++)
         {
-            if (args[i] == "--search-directory-on-select")
+            if (args[i] == "--searchdirectoryonselect")
             {
                 options.SearchDirectoryOnSelect = true;
             }
-            else if (args[i] == "--root-directory" && i + 1 < args.Length)
+            else if (args[i] == "--rootdirectory" && i + 1 < args.Length)
             {
                 options.RootDirectory = args[i + 1];
                 i++;
             }
-            else if (args[i] == "--max-depth" && i + 1 < args.Length)
+            else if (args[i] == "--maxdepth" && i + 1 < args.Length)
             {
                 if (int.TryParse(args[i + 1], out int maxDepth))
                 {
@@ -175,15 +181,15 @@ class Program
                     i++;
                 }
             }
-            else if (args[i] == "--has-preview")
+            else if (args[i] == "--haspreview")
             {
                 options.HasPreview = true;
             }
-            else if (args[i] == "--directories-only")
+            else if (args[i] == "--directoriesonly")
             {
                 options.DirectoriesOnly = true;
             }
-            else if (args[i] == "--files-only")
+            else if (args[i] == "--filesonly")
             {
                 options.FilesOnly = true;
             }

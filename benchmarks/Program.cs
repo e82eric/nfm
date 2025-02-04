@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Threading.Channels;
 using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Diagnostics.Windows.Configs;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Validators;
 using nfzf;
@@ -58,6 +59,9 @@ public class AsciiFuzzyIndexBenchmarks
     private Pattern _pat;
     private byte[] _testData;
     private ArrayPool<string> _arrayPool;
+    private FileWalker _walker;
+    private nfzf.FileSystem2.FileWalker _walker2;
+    private nfzf.FileSystem3.FileWalker _walker3;
 
 
     [GlobalSetup]
@@ -82,11 +86,12 @@ public class AsciiFuzzyIndexBenchmarks
         _slab = Slab.MakeDefault();
          //_testData = File.ReadAllBytes("random_file_paths.txt");
         _walker = new FileWalker();
-        _walker2 = new FileWalker2();
-        _walker5 = new FileWalker5();
-        _walker6 = new FileWalker6();
-        _walker7 = new FileWalker8();
-        _walker9 = new FileWalker9();
+        _walker2 = new nfzf.FileSystem2.FileWalker();
+        _walker3 = new nfzf.FileSystem3.FileWalker();
+        //_walker5 = new FileWalker5();
+        //_walker6 = new FileWalker6();
+        //_walker7 = new FileWalker8();
+        //_walker9 = new FileWalker9();
         _arrayPool = ArrayPool<string>.Create(maxArrayLength: 12, maxArraysPerBucket: 50);
     }
 
@@ -106,79 +111,87 @@ public class AsciiFuzzyIndexBenchmarks
     //    await writeTask;
     //}
     
-    //[Benchmark]
+    [Benchmark]
     public async Task FileWalker5()
     {
-        var c = Channel.CreateUnbounded<(string[], string)>();
-        var writeTask = _walker5.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+        var c = Channel.CreateUnbounded<object>();
+        var writeTask = _walker.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
         await writeTask;
     }
     
-    //[Benchmark]
+    [Benchmark]
     public async Task FileWalker6()
     {
-        var c = Channel.CreateUnbounded<string[]>();
-        var writeTask = _walker6.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
-        await writeTask;
-    }
-    
-    [Benchmark]
-    public async Task FileWalker8()
-    {
-        var c = Channel.CreateUnbounded<FileSystemNode>();
-        var writeTask = _walker7.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
-        await writeTask;
-    }
-    
-    [Benchmark]
-    public async Task FileWalker9()
-    {
-        var c = Channel.CreateUnbounded<FileSystemNode>();
-        var writeTask = _walker9.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
-        await writeTask;
-    }
-    
-    //[Benchmark]
-    public async Task FileWalker1_WithScore()
-    {
-        var c = Channel.CreateUnbounded<string>();
-        var writeTask = _walker.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
-
-        await foreach (var item in c.Reader.ReadAllAsync())
-        {
-            var score = FuzzySearcher.GetScore(item, _pat, _slab);
-        }
-        
-        await writeTask;
-    }
-    
-    //[Benchmark]
-    public async Task FileWalker2_WithScore()
-    {
-        var c = Channel.CreateUnbounded<(string, string)>();
+        var c = Channel.CreateUnbounded<object>();
         var writeTask = _walker2.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
-
-        await foreach (var item in c.Reader.ReadAllAsync())
-        {
-            var score = FuzzySearcher.GetScore(item.Item1, item.Item2, _pat, _slab);
-        }
-        
         await writeTask;
     }
+    
+    [Benchmark]
+    public async Task FileWalker7()
+    {
+        var c = Channel.CreateUnbounded<object>();
+        var writeTask = _walker3.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+        await writeTask;
+    }
+    
+    //[Benchmark]
+    //public async Task FileWalker8()
+    //{
+    //    var c = Channel.CreateUnbounded<FileSystemNode>();
+    //    var writeTask = _walker7.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+    //    await writeTask;
+    //}
+    //
+    //[Benchmark]
+    //public async Task FileWalker9()
+    //{
+    //    var c = Channel.CreateUnbounded<FileSystemNode>();
+    //    var writeTask = _walker9.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+    //    await writeTask;
+    //}
+    
+    //[Benchmark]
+    //public async Task FileWalker1_WithScore()
+    //{
+    //    var c = Channel.CreateUnbounded<string>();
+    //    var writeTask = _walker.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+
+    //    await foreach (var item in c.Reader.ReadAllAsync())
+    //    {
+    //        var score = FuzzySearcher.GetScore(item, _pat, _slab);
+    //    }
+    //    
+    //    await writeTask;
+    //}
+    
+    //[Benchmark]
+    //public async Task FileWalker2_WithScore()
+    //{
+    //    var c = Channel.CreateUnbounded<(string, string)>();
+    //    var writeTask = _walker2.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+
+    //    await foreach (var item in c.Reader.ReadAllAsync())
+    //    {
+    //        var score = FuzzySearcher.GetScore(item.Item1, item.Item2, _pat, _slab);
+    //    }
+    //    
+    //    await writeTask;
+    //}
     
    // [Benchmark]
-    public async Task FileWalker5_WithScore()
-    {
-        var c = Channel.CreateUnbounded<(string[], string)>();
-        var writeTask = _walker5.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
+    //public async Task FileWalker5_WithScore()
+    //{
+    //    var c = Channel.CreateUnbounded<(string[], string)>();
+    //    var writeTask = _walker5.StartScanForDirectoriesAsync([@"c:"], c.Writer, int.MaxValue, false, false, CancellationToken.None);
 
-        await foreach (var item in c.Reader.ReadAllAsync())
-        {
-            var score = FuzzySearcher.GetScore(item.Item1, item.Item2, _pat, _slab);
-        }
-        
-        await writeTask;
-    }
+    //    await foreach (var item in c.Reader.ReadAllAsync())
+    //    {
+    //        var score = FuzzySearcher.GetScore(item.Item1, item.Item2, _pat, _slab);
+    //    }
+    //    
+    //    await writeTask;
+    //}
     
     //[Benchmark]
     //public async Task FileWalker6_WithScore()

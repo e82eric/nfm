@@ -2,6 +2,8 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using nfm.menu;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 
 namespace Win32FromForms;
 
@@ -9,6 +11,32 @@ delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
 class Win32Window
 {
+    private static GraphicsPath GetRoundedRect(Rectangle rect, int radius)
+    {
+        GraphicsPath path = new GraphicsPath();
+        int diameter = radius * 2;
+
+        // Top left arc
+        path.AddArc(rect.X, rect.Y, diameter, diameter, 180, 90);
+        // Top edge
+        path.AddLine(rect.X + radius, rect.Y, rect.Right - radius, rect.Y);
+        // Top right arc
+        path.AddArc(rect.Right - diameter, rect.Y, diameter, diameter, 270, 90);
+        // Right edge
+        path.AddLine(rect.Right, rect.Y + radius, rect.Right, rect.Bottom - radius);
+        // Bottom right arc
+        path.AddArc(rect.Right - diameter, rect.Bottom - diameter, diameter, diameter, 0, 90);
+        // Bottom edge
+        path.AddLine(rect.Right - radius, rect.Bottom, rect.X + radius, rect.Bottom);
+        // Bottom left arc
+        path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
+        // Left edge
+        path.AddLine(rect.X, rect.Bottom - radius, rect.X, rect.Y + radius);
+        path.CloseFigure();
+        return path;
+    }
+    
+    private const int CORNER_RADIUS = 7;
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
 
@@ -55,6 +83,21 @@ class Win32Window
 
         return modifiersPressed;
     }
+    
+    [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)]
+    public static extern int SHAutoComplete(IntPtr hwndEdit, uint dwFlags);
+
+    public const uint SHACF_DEFAULT = 0;
+    
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern bool RoundRect(
+        IntPtr hdc,
+        int left,
+        int top,
+        int right,
+        int bottom,
+        int ellipseWidth,
+        int ellipseHeight);
     
     [StructLayout(LayoutKind.Sequential)]
     private struct NCCALCSIZE_PARAMS
@@ -129,6 +172,25 @@ class Win32Window
         public byte tmPitchAndFamily;
         public byte tmCharSet;
     }
+    
+    [DllImport("gdi32.dll")]
+    private static extern bool MoveToEx(IntPtr hdc, int X, int Y, IntPtr lpPoint);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool LineTo(IntPtr hdc, int nXEnd, int nYEnd);
+    
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern bool SetWindowText(IntPtr hWnd, string lpString);
+    
+    [DllImport("gdi32.dll")]
+    static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+    [DllImport("gdi32.dll")]
+    static extern bool DeleteDC(IntPtr hdc);
+
+    [DllImport("gdiplus.dll", CharSet = CharSet.Unicode)]
+    static extern int GdipDrawImageI(IntPtr graphics, IntPtr image, int x, int y);
+    
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -187,6 +249,11 @@ class Win32Window
         
     [DllImport("Comctl32.dll", SetLastError = true)]
     private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+    
+    [DllImport("gdi32.dll")]
+    public static extern bool BitBlt(
+        IntPtr hdcDest, int nXDest, int nYDest, int nWidth, int nHeight,
+        IntPtr hdcSrc, int nXSrc, int nYSrc, int dwRop);
         
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     struct SIZE
@@ -229,7 +296,8 @@ class Win32Window
     private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
     private const int TEXT_COLOR = 0x008499a8; //0x00bbggrr
     private const int SPINNER_COLOR = BORDER_COLOR;
-    private const int HIGHLIGHTED_TEXT_COLOR = 0x000e5dd6; //0x00bbggrr
+    //private const int HIGHLIGHTED_TEXT_COLOR = 0x000e5dd6; //0x00bbggrr
+    private const int HIGHLIGHTED_TEXT_COLOR = 0x0000a5ff; //ffa500
 
     [DllImport("user32.dll")]
     private static extern IntPtr BeginPaint(IntPtr hWnd, out PAINTSTRUCT lpPaint);
@@ -305,6 +373,7 @@ class Win32Window
     private const int VK_RIGHT = 0x27;
     private const int WM_NCPAINT = 0x0085;
     private const int WM_NCCALCSIZE = 0x0083;
+    private const int SRCCOPY = 0x00CC0020;
         
     private const int LOGPIXELSX = 88;
     private const int FW_NORMAL = 400;
@@ -326,10 +395,23 @@ class Win32Window
     private const int SS_RIGHT = 0x00000002;
     private const int SS_OWNERDRAW = 0x0000000D;
         
+    private const int VK_PAGEDOWN = 0x22;
+    private const int VK_PAGEUP = 0x21;
     private const int VK_DOWN = 0x28;
     private const int VK_UP = 0x26;
     private const ushort VK_RETURN = 0x0D;
     private const ushort VK_ESCAPE = 0x1B;
+    private const int EM_GETSEL = 0x00B0;
+    private const int EM_SETSEL = 0x00B1;
+    private const int EM_REPLACESEL = 0x00C2;
+    private const int MAX_TEXT_LENGTH = 1024;
+    const int VK_BACK = 0x08;
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int SendMessage(IntPtr hWnd, int msg, ref int wParam, ref int lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int SendMessage(IntPtr hWnd, int msg, bool wParam, string lParam);
 
     [DllImport("gdi32.dll")]
     private static extern int SetBkColor(IntPtr hdc, int color);
@@ -490,7 +572,7 @@ class Win32Window
 
     static int spinnerCtr = 0;
 
-    private static IntPtr StaticTextControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private static IntPtr SummaryTextControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         PAINTSTRUCT ps;
         switch (uMsg)
@@ -583,27 +665,50 @@ class Win32Window
                     return IntPtr.Zero;
                 }
                 
-                FillRect(hNewDc, ref ps.rcPaint, BACKGROUND_BRUSH);
-                SelectObject(hNewDc, font);
                 TEXTMETRIC tm;
                 GetTextMetrics(hNewDc, out tm);
                 int textHeight = tm.tmHeight;
+                
+                FillRect(hNewDc, ref ps.rcPaint, BACKGROUND_BRUSH);
+
+                var listBoxStartY = ps.rcPaint.top;
+                SelectObject(hNewDc, font);
+                
+                if (_hasHeader)
+                {
+                    IntPtr hPen = CreatePen(PS_SOLID, 1, BORDER_COLOR);
+                    IntPtr hOldPen = SelectObject(hNewDc, hPen);
+                    SelectObject(hNewDc, font);
+
+                    SetBkColor(hNewDc, BACKGROUND_COLOR);
+                    SetTextColor(hNewDc, HIGHLIGHTED_TEXT_COLOR);
+                    TextOut(
+                        hNewDc,
+                        5,
+                        0,
+                        _headerText,
+                        _headerText.Length);
+                
+                    MoveToEx(hNewDc, 0, textHeight + _listboxItemPadding, IntPtr.Zero);
+                    LineTo(hNewDc, ps.rcPaint.right, textHeight + _listboxItemPadding);
+                    listBoxStartY = _listBoxItemHeight;
+                }
+                
                 //Offset the x of item so that selected item background has some padding
                 var itemXOffset = 5;
                 lock (_itemsLock)
                 {
                     for (var i = 0; i < _snapshot.Items.Count; i++)
                     {
-                        var itemHeight = tm.tmHeight + (_listboxItemPadding * 2);
-                        var itemTop = ps.rcPaint.top + (i * itemHeight);
+                        var itemTop = listBoxStartY + (i * _listBoxItemHeight);
                         var rcItem = new RECT
                         {
                             top = itemTop,
-                            bottom = itemTop + itemHeight,
+                            bottom = itemTop + _listBoxItemHeight,
                             left = ps.rcPaint.left,
                             right = ps.rcPaint.right
                         };
-                        if (i == _viewModel.SelectedIndex)
+                        if (i == _snapshot.SelectedIndex)
                         {
                             FillRect(hNewDc, ref rcItem, SELECTED_BACKGROUND_BRUSH);
                             SetBkColor(hNewDc, SELECTED_BACKGROUND_COLOR);
@@ -616,7 +721,7 @@ class Win32Window
 
                         SetTextColor(hNewDc, TEXT_COLOR);
 
-                        int centeredY = rcItem.top + (itemHeight - textHeight) / 2;
+                        int centeredY = rcItem.top + (_listBoxItemHeight / 2) - (textHeight / 2);
 
                         if (i < _snapshot.Items.Count)
                         {
@@ -660,35 +765,37 @@ class Win32Window
                     var hMiddle = ps.rcPaint.left + (width / 2);
                     var toastTextWidth = toastTextSize.cx;
                 
-                    var toastRect = new RECT
+                    var toastRect = new Rectangle(
+                        hMiddle - (toastTextWidth / 2) - padding,
+                        middle,
+                        toastTextWidth + (padding * 2),
+                       padding + tm.tmHeight + padding
+                    );
+                    
+                    using (Graphics g = Graphics.FromHdc(hNewDc))
                     {
-                        top = middle,
-                        left = hMiddle - (toastTextWidth / 2) - padding,
-                        right = hMiddle + (toastTextWidth / 2) + padding,
-                        bottom = middle + padding + tm.tmHeight + padding
-                    };
-                
-                    IntPtr hPen = CreatePen(PS_SOLID, BORDER_THICKNESS, BORDER_COLOR);
-                    IntPtr hOldPen = SelectObject(hNewDc, hPen);
-                    SelectObject(hNewDc, BACKGROUND_BRUSH);
-                    FillRect(hNewDc, ref toastRect, BACKGROUND_BRUSH);
-                
-                    Rectangle(
-                        hNewDc,
-                        toastRect.left - BORDER_THICKNESS,
-                        toastRect.top - BORDER_THICKNESS,
-                        toastRect.right + BORDER_THICKNESS,
-                        toastRect.bottom + BORDER_THICKNESS);
+                        g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                    int textY = middle + (tm.tmHeight / 2);
+                        using (GraphicsPath path = GetRoundedRect(toastRect, CORNER_RADIUS))
+                        {
+                            using (SolidBrush brush = new SolidBrush(ColorTranslator.FromWin32(BACKGROUND_COLOR)))
+                            {
+                                g.FillPath(brush, path);
+                            }
+
+                            using (Pen pen = new Pen(ColorTranslator.FromWin32(BORDER_COLOR), BORDER_THICKNESS))
+                            {
+                                g.DrawPath(pen, path);
+                            }
+                        }
+                    }
+
                     TextOut(
                         hNewDc,
-                        toastRect.left + padding,
-                        toastRect.top + padding,
+                        toastRect.Left + padding,
+                        toastRect.Top + padding,
                         _toastString,
                         _toastString.Length);
-                    SelectObject(hNewDc, hOldPen);
-                    DeleteObject(hPen);
                 }
                 
                 EndBufferedPaint(hBufferedPaint, true);
@@ -767,28 +874,34 @@ class Win32Window
             return IntPtr.Zero;
         }
 
-        SetBkColor(hNewDc, BACKGROUND_COLOR);
-        SetTextColor(hNewDc, TEXT_COLOR);
-        SelectObject(hNewDc, font);
-        SelectObject(hNewDc, BACKGROUND_BRUSH);
+        using (Graphics g = Graphics.FromHdc(hNewDc))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
 
-        IntPtr hPen = CreatePen(PS_SOLID, BORDER_THICKNESS, BORDER_COLOR);
-        IntPtr hOldPen = SelectObject(hNewDc, hPen);
-        SelectObject(hNewDc, BACKGROUND_BRUSH);
+            Rectangle rect = new Rectangle(
+                ps.rcPaint.left + BORDER_THICKNESS,
+                ps.rcPaint.top + BORDER_THICKNESS,
+                ps.rcPaint.right - ps.rcPaint.left - (BORDER_THICKNESS * 2),
+                ps.rcPaint.bottom - ps.rcPaint.top - (BORDER_THICKNESS * 2)
+            );
 
-        bool success = Rectangle(
-            hNewDc,
-            ps.rcPaint.left + BORDER_THICKNESS,
-            ps.rcPaint.top + BORDER_THICKNESS,
-            ps.rcPaint.right,
-            ps.rcPaint.bottom
-        );
+            using (GraphicsPath path = GetRoundedRect(rect, CORNER_RADIUS))
+            {
+                using (SolidBrush brush = new SolidBrush(ColorTranslator.FromWin32(BACKGROUND_COLOR)))
+                {
+                    g.FillPath(brush, path);
+                }
 
-        SelectObject(hNewDc, hOldPen);
-        DeleteObject(hPen);
+                using (Pen pen = new Pen(ColorTranslator.FromWin32(BORDER_COLOR), BORDER_THICKNESS))
+                {
+                    g.DrawPath(pen, path);
+                }
+            }
+        }
 
         EndBufferedPaint(hBufferedPaint, true);
-        return 0;
+        EndPaint(hWnd, ref ps);
+        return IntPtr.Zero;
     }
 
     private static IntPtr TextBoxPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
@@ -831,6 +944,28 @@ class Win32Window
         {
             case WM_PAINT:
             {
+                if (_previewType == PreviewType.Image && _bitmap != null)
+                {
+                    PAINTSTRUCT imagePs;
+                    IntPtr imageHdc = BeginPaint(hWnd, out imagePs);
+
+                    IntPtr memDC = CreateCompatibleDC(imageHdc);
+                    IntPtr hBitmap = _bitmap.GetHbitmap();
+                    IntPtr oldBitmap = SelectObject(memDC, hBitmap);
+                    FillRect(imageHdc, ref imagePs.rcPaint, BACKGROUND_BRUSH);
+
+                    var x = ((imagePs.rcPaint.right - imagePs.rcPaint.left) / 2) - (_bitmap.Width / 2);
+                    
+                    BitBlt(imageHdc, x, 0, _bitmap.Width, _bitmap.Height, memDC, 0, 0, SRCCOPY);
+
+                    SelectObject(memDC, oldBitmap);
+                    DeleteDC(memDC);
+                    DeleteObject(hBitmap);
+
+                    EndPaint(hWnd, ref imagePs);
+                    return 0;
+                }
+                
                 if (_lines == null || _lastPreviewVersion == _previewVersion)
                 {
                     return 1;
@@ -898,6 +1033,11 @@ class Win32Window
                 {
                     return 0;
                 }
+
+                if (wParam == VK_RETURN)
+                {
+                    return 0;
+                }
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
             case WM_KEYDOWN:
                 if (_snapshot == null || _viewModel == null)
@@ -908,35 +1048,42 @@ class Win32Window
                 var modifiers = GetModifiersPressed();
                 if (modifiers != ModifierKeys.None)
                 {
-                    Task.Run(() => _viewModel.HandleKeyUp((int)wParam, modifiers));
-                    return 0;
+                    if (modifiers == ModifierKeys.LCtl && wParam == VK_BACK)
+                    {
+                        DeletePreviousWord(hWnd);
+                        return 0;
+                    }
+
+                    if ((modifiers & ModifierKeys.LShift) == 0)
+                    {
+                        Task.Run(() => _viewModel.HandleKeyUp((int)wParam, modifiers));
+                        return 0;
+                    }
                 }
                 else
                 {
                     switch (wParam)
                     {
                         case VK_DOWN:
-                            if (_viewModel.SelectedIndex < _snapshot.Items.Count - 1)
-                            {
-                                _viewModel.SelectedIndex++;
-                            }
-
+                            _viewModel.SelectNext();
                             return 0;
                         case VK_UP:
-                            if (_viewModel.SelectedIndex > 0)
-                            {
-                                _viewModel.SelectedIndex--;
-                            }
+                            _viewModel.SelectPrevious();
+                            return 0;
+                        case VK_PAGEDOWN:
+                            _viewModel.SelectPageDown();
+                            return 0;
+                        case VK_PAGEUP:
+                            _viewModel.SelectPageUp();
                             return 0;
                         case VK_RETURN:
                             lock (_itemsLock)
                             {
-                                Console.WriteLine(_snapshot.Items[_viewModel.SelectedIndex].Text);
+                                Task.Run(async () => { await _viewModel.OnReturn(); });
                             }
-                            ExitProcess(0);
-                            break;
+                            return 0;
                         case VK_ESCAPE:
-                            ExitProcess(0);
+                            _viewModel.OnEscape();
                             break;
                     }
                 }
@@ -945,11 +1092,48 @@ class Win32Window
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
     }
+    
+    private static void DeletePreviousWord(IntPtr hWnd)
+    {
+        var length = GetWindowTextLength(hWnd);
+        var sb = new StringBuilder(length + 1);
+        GetWindowText(hWnd, sb, sb.Capacity);
+        var text = sb.ToString();
+
+        var startPosSel = 0;
+        var endPosSel = 0;
+        SendMessage(hWnd, EM_GETSEL, ref startPosSel, ref endPosSel);
+        var caretPos = endPosSel;
+
+        if (caretPos <= 0) return;
+
+        var startPos = caretPos - 1;
+
+        while (startPos > 0 && char.IsWhiteSpace(text[startPos]))
+        {
+            startPos--;
+        }
+        while (startPos > 0 && !char.IsWhiteSpace(text[startPos]))
+        {
+            startPos--;
+        }
+        
+        if (char.IsWhiteSpace(text[startPos]))
+        {
+            startPos++;
+        }
+
+        if (startPos < caretPos)
+        {
+            text = text.Remove(startPos, caretPos - startPos);
+            SetWindowText(hWnd, text);
+            SendMessage(hWnd, EM_SETSEL, (IntPtr)startPos, (IntPtr)startPos);
+        }
+    }
         
     internal bool Create(ViewModel viewModel, Action onInit)
     {
         _onInit = onInit;
-        // Get the focused window
         IntPtr foregroundWindow = GetForegroundWindow();
         if (foregroundWindow == IntPtr.Zero)
         {
@@ -957,14 +1141,12 @@ class Win32Window
             return false;
         }
 
-        // Get the window's rectangle (position and size)
         if (!GetWindowRect(foregroundWindow, out RECT windowRect))
         {
             Console.WriteLine("Failed to get window rect.");
             return false;
         }
 
-        // Find which monitor the window is in
         IntPtr bestMonitor = IntPtr.Zero;
         int bestOverlap = 0;
 
@@ -975,10 +1157,8 @@ class Win32Window
 
             if (GetMonitorInfo(hMonitor, ref mi))
             {
-                // Get monitor bounds
                 RECT monitorRect = mi.rcMonitor;
 
-                // Calculate overlap between window and monitor
                 int overlapWidth = Math.Min(windowRect.right, monitorRect.right) - Math.Max(windowRect.left, monitorRect.left);
                 int overlapHeight = Math.Min(windowRect.bottom, monitorRect.bottom) - Math.Max(windowRect.top, monitorRect.top);
 
@@ -993,7 +1173,7 @@ class Win32Window
                 }
             }
 
-            return true; // Continue enumeration
+            return true;
         }, IntPtr.Zero);
 
         if (bestMonitor == IntPtr.Zero)
@@ -1002,7 +1182,6 @@ class Win32Window
             return false;
         }
 
-        // Get the monitor's information
         MONITORINFO bestMonitorInfo = new MONITORINFO();
         bestMonitorInfo.cbSize = Marshal.SizeOf(bestMonitorInfo);
         if (!GetMonitorInfo(bestMonitor, ref bestMonitorInfo))
@@ -1011,15 +1190,12 @@ class Win32Window
             return false;
         }
 
-        // Calculate the center of the monitor
         int monitorCenterX = (bestMonitorInfo.rcMonitor.left + bestMonitorInfo.rcMonitor.right) / 2;
         int monitorCenterY = (bestMonitorInfo.rcMonitor.top + bestMonitorInfo.rcMonitor.bottom) / 2;
         
-        // Define window size
         int windowWidth = 1250;
         int windowHeight = 630 * 2;
 
-        // Compute top-left position for centering
         int windowX = monitorCenterX - (windowWidth / 2);
         int windowY = monitorCenterY - (windowHeight / 2);
         
@@ -1083,8 +1259,8 @@ class Win32Window
     {
         return (int)((long)number * numerator / denominator);
     }
-        
-    public static IntPtr InitializeFont(string fontName, int size)
+
+    private static IntPtr InitializeFont(string fontName, int size)
     {
         IntPtr screen = GetDC(IntPtr.Zero);
         int dpi = GetDeviceCaps(screen, LOGPIXELSX);
@@ -1136,6 +1312,11 @@ class Win32Window
     private static bool _showPreview;
     private static int _listboxItemPadding = 7;
     private static int _maxListboxItems;
+    private static PreviewType _previewType;
+    private static Bitmap _bitmap;
+    private static bool _hasHeader;
+    public static string _headerText;
+    private static int _listBoxItemHeight;
 
     private static IntPtr MainWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
@@ -1153,8 +1334,8 @@ class Win32Window
                 SELECTED_BACKGROUND_BRUSH = CreateSolidBrush(SELECTED_BACKGROUND_COLOR);
 
                 _maxListboxItems = 15;
-                var listBoxItemHeight = (tm.tmHeight + (_listboxItemPadding * 2));
-                var controlHeight = _maxListboxItems * listBoxItemHeight;
+                _listBoxItemHeight = (tm.tmHeight + (_listboxItemPadding * 2));
+                var controlHeight = _maxListboxItems * _listBoxItemHeight;
                 var padding = 15;
                 var panelX = 11;
                 var panelWidth = 1226;
@@ -1162,7 +1343,8 @@ class Win32Window
                 var panelHeight = controlHeight + (padding * 2);
                 var searchInputHeight = tm.tmHeight + padding + padding;
                 var panelGap = 7;
-                _maxListboxItems = controlHeight / (tm.tmHeight + (_listboxItemPadding * 2));
+                _viewModel.SetPreviewHeight(controlHeight);
+                _viewModel.SetNumberOfRows(_maxListboxItems);
                 
                 previewPanelHwnd = CreateWindowEx(
                     0,
@@ -1240,7 +1422,7 @@ class Win32Window
                     5,
                     INSTANCE,
                     IntPtr.Zero);
-                SetWindowSubclass(staticTextHwnd, StaticTextControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(staticTextHwnd, SummaryTextControlProc, 0, IntPtr.Zero);
                 
                 listBoxPanelHwnd = CreateWindowEx(
                     0,
@@ -1323,15 +1505,6 @@ class Win32Window
             case WM_ITEMS_UPDATED:
                 if (_snapshot != null && _viewModel != null)
                 {
-                    if (_viewModel.SelectedIndex > _snapshot.Items.Count - 1)
-                    {
-                        _viewModel.SelectedIndex = _snapshot.Items.Count - 1;
-                    }
-                    if (_viewModel.SelectedIndex < 0 && _snapshot.Items.Count > 0)
-                    {
-                        _viewModel.SelectedIndex = 0;
-                    }
-                    
                     InvalidateRect(listBoxHwnd, IntPtr.Zero, true);
                     UpdateWindow(listBoxHwnd);
                 }
@@ -1374,6 +1547,7 @@ class Win32Window
     {
         _lines = lines.ToList();
         Interlocked.Increment(ref _previewVersion);
+        Interlocked.Exchange(ref _previewType, PreviewType.Text);
         InvalidateRect(previewHwnd, IntPtr.Zero, true);
     }
 
@@ -1382,5 +1556,27 @@ class Win32Window
         Interlocked.Exchange(ref _showPreview, visible);
         Interlocked.Exchange(ref _lastPreviewVersion, 0);
         PostMessage(rootHwnd, WM_TOGGLE_PREVIEW, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    public static void ShowImagePreview(Bitmap image)
+    {
+        _bitmap = image;
+        Interlocked.Increment(ref _previewVersion);
+        Interlocked.Exchange(ref _previewType, PreviewType.Image);
+        InvalidateRect(previewHwnd, IntPtr.Zero, true);
+    }
+
+    public static void SetHeader(string text)
+    {
+        _hasHeader = true;
+        _headerText = text;
+        //This should really trigger a re-calc...
+        _maxListboxItems -= 1;
+        _viewModel.SetNumberOfRows(_maxListboxItems);
+    }
+
+    public static void HideHeader()
+    {
+        _hasHeader = false;
     }
 }

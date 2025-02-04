@@ -47,8 +47,8 @@ public static class ProcessRunner
     
     public class CommandResult
     {
-        public string StandardOutput { get; set; } = string.Empty;
-        public string StandardError { get; set; } = string.Empty;
+        public List<string> StandardOutput { get; set; }
+        public List<string> StandardError { get; set; }
         public int ExitCode { get; set; }
     }
 
@@ -69,14 +69,14 @@ public static class ProcessRunner
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.CreateNoWindow = true;
 
-            var standardOutput = new StringBuilder();
-            var standardError = new StringBuilder();
+            var standardOutput = new List<string>();
+            var standardError = new List<string>();
 
             process.OutputDataReceived += (sender, args) =>
             {
                 if (!string.IsNullOrWhiteSpace(args.Data))
                 {
-                    standardOutput.AppendLine(args.Data);
+                    standardOutput.Add(args.Data);
                 }
             };
 
@@ -84,7 +84,7 @@ public static class ProcessRunner
             {
                 if (!string.IsNullOrWhiteSpace(args.Data))
                 {
-                    standardError.AppendLine(args.Data);
+                    standardError.Add(args.Data);
                 }
             };
 
@@ -97,8 +97,8 @@ public static class ProcessRunner
 
             return new CommandResult
             {
-                StandardOutput = standardOutput.ToString(),
-                StandardError = standardError.ToString(),
+                StandardOutput = standardOutput,
+                StandardError = standardError,
                 ExitCode = process.ExitCode
             };
         }

@@ -2,5 +2,5 @@
 
 public interface IPreviewHandler
 {
-    Task Handle(IPreviewRenderer renderer, object t, CancellationToken ct);
+    Task Handle(IPreviewRenderer renderer, object t, int height, CancellationToken ct);
 }
