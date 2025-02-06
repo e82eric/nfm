@@ -3,9 +3,11 @@ using System.Text;
 using nfm.menu;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.Versioning;
 
 namespace Win32FromForms;
 
+[SupportedOSPlatform("windows")]
 class Win32Window
 {
     [DllImport("user32.dll")]
@@ -547,7 +549,7 @@ class Win32Window
                 var listBoxStartY = ps.rcPaint.top;
                 SelectObject(hNewDc, _font);
                 
-                if (_hasHeader)
+                if (_hasHeader && _headerText != null)
                 {
                     IntPtr hPen = CreatePen(PS_SOLID, 1, BORDER_COLOR);
                     IntPtr hOldPen = SelectObject(hNewDc, hPen);
@@ -569,7 +571,7 @@ class Win32Window
                 
                 //Offset the x of item so that selected item background has some padding
                 var itemXOffset = 5;
-                lock (_itemsLock)
+                lock (ItemsLock)
                 {
                     for (var i = 0; i < _snapshot.Items.Count; i++)
                     {
@@ -949,7 +951,7 @@ class Win32Window
                             _viewModel.SelectPageUp();
                             return 0;
                         case VK_RETURN:
-                            lock (_itemsLock)
+                            lock (ItemsLock)
                             {
                                 Task.Run(async () => { await _viewModel.OnReturn(); });
                             }
@@ -1165,10 +1167,9 @@ class Win32Window
     private static List<string>? _lines;
     private static int _previewVersion;
     private static int _lastPreviewVersion;
-    private static readonly object _itemsLock = new();
+    private static readonly Lock ItemsLock = new();
     private static IntPtr _font;
     private static IntPtr _rootHwnd;
-    private static IntPtr toastHwnd;
     private static IntPtr _textBoxHwnd;
     private static IntPtr _textBoxPanelHwnd;
     private static IntPtr _staticTextHwnd;
@@ -1182,15 +1183,15 @@ class Win32Window
     private static ViewModel? _viewModel;
     private static Timer? _timer;
     private static bool _toastVisible;
-    private static string _toastString;
+    private static string? _toastString;
     private static long _toastExpirationTicks;
     private static bool _showPreview;
     private const int ListboxItemPadding = 7;
     private static int _maxListboxItems;
     private static PreviewType _previewType;
-    private static Bitmap _bitmap;
+    private static Bitmap? _bitmap;
     private static bool _hasHeader;
-    private static string _headerText;
+    private static string? _headerText;
     private static int _listBoxItemHeight;
 
     private static IntPtr MainWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
@@ -1402,7 +1403,7 @@ class Win32Window
         var snapshot = new Snapshot();
         _viewModel.FillSnapshot(snapshot, _maxListboxItems);
 
-        lock (_itemsLock)
+        lock (ItemsLock)
         {
             _snapshot = snapshot;
         }

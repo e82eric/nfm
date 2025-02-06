@@ -1,4 +1,5 @@
-﻿using nfm.menu;
+﻿using System.Runtime.Versioning;
+using nfm.menu;
 using Win32FromForms;
 
 class StdInOptions
@@ -29,6 +30,7 @@ class FileReaderOptions
     public string? SearchString { get; set; }
 }
 
+[SupportedOSPlatform("windows")]
 class Program
 {
     [STAThread]

@@ -47,8 +47,8 @@ public static class ProcessRunner
     
     public class CommandResult
     {
-        public List<string> StandardOutput { get; set; }
-        public List<string> StandardError { get; set; }
+        public required List<string> StandardOutput { get; init; }
+        public required List<string> StandardError { get; init; }
         public int ExitCode { get; set; }
     }
 

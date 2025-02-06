@@ -12,6 +12,7 @@
 
     <PropertyGroup>
         <DefineConstants>WINDOWS</DefineConstants>
+        <SupportedOSPlatform>windows</SupportedOSPlatform>
     </PropertyGroup>
 
     <ItemGroup>
