@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Text;
 using nfm.menu;
 using System.Drawing;
@@ -11,31 +10,6 @@ delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
 class Win32Window
 {
-    private static GraphicsPath GetRoundedRect(Rectangle rect, int radius)
-    {
-        GraphicsPath path = new GraphicsPath();
-        int diameter = radius * 2;
-
-        // Top left arc
-        path.AddArc(rect.X, rect.Y, diameter, diameter, 180, 90);
-        // Top edge
-        path.AddLine(rect.X + radius, rect.Y, rect.Right - radius, rect.Y);
-        // Top right arc
-        path.AddArc(rect.Right - diameter, rect.Y, diameter, diameter, 270, 90);
-        // Right edge
-        path.AddLine(rect.Right, rect.Y + radius, rect.Right, rect.Bottom - radius);
-        // Bottom right arc
-        path.AddArc(rect.Right - diameter, rect.Bottom - diameter, diameter, diameter, 0, 90);
-        // Bottom edge
-        path.AddLine(rect.Right - radius, rect.Bottom, rect.X + radius, rect.Bottom);
-        // Bottom left arc
-        path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
-        // Left edge
-        path.AddLine(rect.X, rect.Bottom - radius, rect.X, rect.Y + radius);
-        path.CloseFigure();
-        return path;
-    }
-    
     private const int CORNER_RADIUS = 7;
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
@@ -84,56 +58,12 @@ class Win32Window
         return modifiersPressed;
     }
     
-    [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)]
-    public static extern int SHAutoComplete(IntPtr hwndEdit, uint dwFlags);
-
-    public const uint SHACF_DEFAULT = 0;
-    
-    [DllImport("gdi32.dll", SetLastError = true)]
-    private static extern bool RoundRect(
-        IntPtr hdc,
-        int left,
-        int top,
-        int right,
-        int bottom,
-        int ellipseWidth,
-        int ellipseHeight);
-    
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NCCALCSIZE_PARAMS
-    {
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-        public RECT[] rgrc;
-        public IntPtr lppos;
-    }
-    
     private struct MONITORINFO
     {
         public int cbSize;
         public RECT rcMonitor;
         public RECT rcWork;
         public uint dwFlags;
-    }
-    
-    [StructLayout(LayoutKind.Sequential)]
-    private struct DRAWITEMSTRUCT
-    {
-        public int CtlType;
-        public int CtlID;
-        public int itemID;
-        public int itemAction;
-        public int itemState;
-        public IntPtr hwndItem;
-        public IntPtr hDC;
-        public RECT rcItem;
-        public IntPtr itemData;
-    }
-        
-    [StructLayout(LayoutKind.Sequential)]
-    struct COLORREF {
-        public byte R;
-        public byte G;
-        public byte B;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -191,9 +121,6 @@ class Win32Window
     [DllImport("gdi32.dll")]
     static extern bool DeleteDC(IntPtr hdc);
 
-    [DllImport("gdiplus.dll", CharSet = CharSet.Unicode)]
-    static extern int GdipDrawImageI(IntPtr graphics, IntPtr image, int x, int y);
-    
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -238,23 +165,14 @@ class Win32Window
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern int MapWindowPoints(IntPtr hWndFrom, IntPtr hWndTo, ref POINT lpPoints, uint cPoints);
-
-    [DllImport("gdi32.dll")]
-    private static extern bool Rectangle(IntPtr hdc, int left, int top, int right, int bottom);
-        
     [DllImport("gdi32.dll", CharSet = CharSet.Auto)]
     static extern bool GetTextMetrics(IntPtr hdc, out TEXTMETRIC lptm);
-        
-    [DllImport("user32.dll")]
-    static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
-        
+
     [DllImport("Comctl32.dll", SetLastError = true)]
     private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
     
     [DllImport("gdi32.dll")]
-    public static extern bool BitBlt(
+    private static extern bool BitBlt(
         IntPtr hdcDest, int nXDest, int nYDest, int nWidth, int nHeight,
         IntPtr hdcSrc, int nXSrc, int nYSrc, int dwRop);
         
@@ -280,27 +198,6 @@ class Win32Window
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
         public byte[] rgbReserved;
     }
-        
-    [StructLayout(LayoutKind.Sequential)]
-    public struct MEASUREITEMSTRUCT
-    {
-        public uint ctlType;
-        public uint CtlID;
-        public uint itemID;
-        public uint itemWidth;
-        public uint itemHeight;
-        public IntPtr itemData;
-    }
-        
-    private const int PS_SOLID = 0;
-    private const int BORDER_THICKNESS = 2;
-    private const int BORDER_COLOR = 0x00888545; //0x00bbggrr
-    private const int BACKGROUND_COLOR = 0x00282828; //0x00bbggrr
-    private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
-    private const int TEXT_COLOR = 0x008499a8; //0x00bbggrr
-    private const int SPINNER_COLOR = BORDER_COLOR;
-    //private const int HIGHLIGHTED_TEXT_COLOR = 0x000e5dd6; //0x00bbggrr
-    private const int HIGHLIGHTED_TEXT_COLOR = 0x0000a5ff; //ffa500
 
     [DllImport("user32.dll")]
     private static extern IntPtr BeginPaint(IntPtr hWnd, out PAINTSTRUCT lpPaint);
@@ -317,22 +214,16 @@ class Win32Window
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
 
-    public const uint ETO_OPAQUE = 0x0002;
     private const UInt32 WM_USER = 0x0400;
     private const UInt32 WM_ITEMS_UPDATED = WM_USER + 1;
     private const UInt32 WM_SUMMARY_TIMER = WM_USER + 2;
     private const UInt32 WM_TOGGLE_PREVIEW = WM_USER + 3;
-    private const UInt32 WS_OVERLAPPEDWINDOW = 0xcf0000;
     private const UInt32 WS_VISIBLE = 0x10000000;
-    private const UInt32 CS_USEDEFAULT = 0x80000000;
     private const UInt32 CS_DBLCLKS = 8;
     private const UInt32 CS_VREDRAW = 1;
     private const UInt32 CS_HREDRAW = 2;
-    private const UInt32 COLOR_WINDOW = 5;
     private const UInt32 COLOR_BACKGROUND = 1;
-    private const UInt32 IDC_CROSS = 32515;
     private const int IDC_ARROW = 32512;
-    private const UInt32 WM_CTLCOLORLISTBOX = 0x0134;
     private const UInt32 WM_CTLCOLOREDIT = 0x0133;
     private const UInt32 WM_DESTROY = 2;
     private const UInt32 WM_PAINT = 0x0f;
@@ -340,42 +231,19 @@ class Win32Window
     private const int EN_CHANGE = 0x0300;
     private const UInt32 WM_CREATE = 0x0001;
     private const int WM_ERASEBKGND = 0x14;
-    private const int WM_DRAWITEM = 0x002B;
-    private const int WM_MEASUREITEM = 0x002C;
-    private const UInt32 WM_LBUTTONUP = 0x0202;
     private const UInt32 WM_LBUTTONDBLCLK = 0x0203;
     private const UInt32 WS_POPUP = 0x80000000;
     private const UInt32 WS_CHILD = 0x40000000;
     private const UInt32 WS_BORDER = 0x00800000;
     private const int WS_VSCROLL = 0x00200000;
     private const UInt32 WS_TABSTOP = 0x00010000;
-    private const int ES_CENTER = 0x0001;
     private const int WS_EX_LAYERED = 0x00080000;
     private const int WS_EX_TOPMOST = 0x00000008;
-    private const uint LWA_COLORKEY = 0x00000001;
-    private const int LB_ADDSTRING = 0x0180;
-    private const int LB_SETCURSEL = 0x0186;
-    private const int LB_INSERTSTRING = 0x0181;
-    private const int LB_DELETESTRING = 0x0182;
-    private const int LBS_OWNERDRAWFIXED = 0x0010;
-    private const int ODS_SELECTED     = 0x0001;
-    const int LB_ERR = -1;
-    const int LB_ERRSPACE = -2;
-    private const int LB_RESETCONTENT = 0x0184;
     private const int WM_SETFONT = 0x30;
-    private const int LB_SETITEMDATA = 0x019A;
-    private const int LB_GETITEMDATA = 0x0199;
-    private const int WM_GETFONT = 0x31;
-    private const int DT_CENTER = 0x0001;
-    private const int DT_VCENTER = 0x0004;
-    private const int DT_SINGLELINE = 0x0020;
-    public const int ODT_LISTBOX = 2;
     private const int WM_CHAR = 0x0102;
     private const int VK_CONTROL = 0x11;
     private const int VK_LEFT = 0x25;
     private const int VK_RIGHT = 0x27;
-    private const int WM_NCPAINT = 0x0085;
-    private const int WM_NCCALCSIZE = 0x0083;
     private const int SRCCOPY = 0x00CC0020;
         
     private const int LOGPIXELSX = 88;
@@ -392,8 +260,6 @@ class Win32Window
     private const int WS_EX_CLIENTEDGE = 0x00000200;
     private const int BPBF_COMPATIBLEBITMAP = 0;
     private const int WS_CLIPSIBLINGS = 0x04000000;
-    private const int LBS_STANDARD = 0x000000A00003; // Includes LBS_NOTIFY, LBS_SORT, WS_BORDER
-    private const int LBS_HASSTRINGS = 0x00000040;
     private const int WM_KEYDOWN = 0x0100;
     private const int SS_RIGHT = 0x00000002;
     private const int SS_OWNERDRAW = 0x0000000D;
@@ -406,15 +272,10 @@ class Win32Window
     private const ushort VK_ESCAPE = 0x1B;
     private const int EM_GETSEL = 0x00B0;
     private const int EM_SETSEL = 0x00B1;
-    private const int EM_REPLACESEL = 0x00C2;
-    private const int MAX_TEXT_LENGTH = 1024;
     const int VK_BACK = 0x08;
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern int SendMessage(IntPtr hWnd, int msg, ref int wParam, ref int lParam);
-
-    [DllImport("user32.dll", CharSet = CharSet.Auto)]
-    private static extern int SendMessage(IntPtr hWnd, int msg, bool wParam, string lParam);
 
     [DllImport("gdi32.dll")]
     private static extern int SetBkColor(IntPtr hdc, int color);
@@ -458,9 +319,6 @@ class Win32Window
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetDC(IntPtr hWnd);
-    
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetWindowDC(IntPtr hWnd);
 
     [DllImport("gdi32.dll")]
     private static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
@@ -483,17 +341,6 @@ class Win32Window
     [DllImport("gdi32.dll", CharSet = CharSet.Auto)]
     static extern bool TextOut(IntPtr hdc, int nXStart, int nYStart,
         string lpString, int cbString);
-    
-    [DllImport("gdi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern bool ExtTextOut(
-        IntPtr hdc, 
-        int x, 
-        int y, 
-        uint options, 
-        IntPtr lprect, 
-        string lpString, 
-        int c, 
-        IntPtr lpDx);
 
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
     static extern bool DestroyWindow(IntPtr hWnd);
@@ -547,9 +394,6 @@ class Win32Window
     static extern IntPtr DefWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
-    static extern void PostQuitMessage(int nExitCode);
-
-    [DllImport("user32.dll")]
     static extern sbyte GetMessage(out uint lpMsg, IntPtr hWnd, uint wMsgFilterMin,
         uint wMsgFilterMax);
 
@@ -561,13 +405,7 @@ class Win32Window
 
     [DllImport("user32.dll")]
     static extern IntPtr DispatchMessage([In] ref uint lpmsg);
-        
-    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
-        
-    [DllImport("user32.dll", CharSet = CharSet.Auto)]
-    private static extern int DrawText(IntPtr hdc, string lpString, int nCount, ref RECT lpRect, int uFormat);
-        
+
     private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, IntPtr lprcMonitor, IntPtr dwData);
     private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData);
     
@@ -581,6 +419,40 @@ class Win32Window
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     static int spinnerCtr = 0;
+    private const int PS_SOLID = 0;
+    private const int BORDER_THICKNESS = 2;
+    private const int BORDER_COLOR = 0x00888545; //0x00bbggrr
+    private const int BACKGROUND_COLOR = 0x00282828; //0x00bbggrr
+    private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
+    private const int TEXT_COLOR = 0x008499a8; //0x00bbggrr
+    private const int SPINNER_COLOR = BORDER_COLOR;
+    //private const int HIGHLIGHTED_TEXT_COLOR = 0x000e5dd6; //0x00bbggrr
+    private const int HIGHLIGHTED_TEXT_COLOR = 0x0000a5ff; //ffa500
+    
+    private static GraphicsPath GetRoundedRect(Rectangle rect, int radius)
+    {
+        GraphicsPath path = new GraphicsPath();
+        int diameter = radius * 2;
+
+        // Top left arc
+        path.AddArc(rect.X, rect.Y, diameter, diameter, 180, 90);
+        // Top edge
+        path.AddLine(rect.X + radius, rect.Y, rect.Right - radius, rect.Y);
+        // Top right arc
+        path.AddArc(rect.Right - diameter, rect.Y, diameter, diameter, 270, 90);
+        // Right edge
+        path.AddLine(rect.Right, rect.Y + radius, rect.Right, rect.Bottom - radius);
+        // Bottom right arc
+        path.AddArc(rect.Right - diameter, rect.Bottom - diameter, diameter, diameter, 0, 90);
+        // Bottom edge
+        path.AddLine(rect.Right - radius, rect.Bottom, rect.X + radius, rect.Bottom);
+        // Bottom left arc
+        path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
+        // Left edge
+        path.AddLine(rect.X, rect.Bottom - radius, rect.X, rect.Y + radius);
+        path.CloseFigure();
+        return path;
+    }
 
     private static IntPtr SummaryTextControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
