@@ -34,6 +34,13 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        var viewModel = new ViewModel();
+        viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
+        viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (o, model) =>
+        {
+            viewModel.TogglePreview();
+            return Task.CompletedTask;
+        });
         if (Console.IsInputRedirected)
         {
             try
@@ -44,13 +51,6 @@ class Program
                     var stdInOptions = ParseStdInOptions(args);
                     if (stdInOptions != null)
                     {
-                        var viewModel = new ViewModel();
-                        viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
-                        viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (o, model) =>
-                        {
-                            viewModel.TogglePreview();
-                            return Task.CompletedTask;
-                        });
                         var menuDefinitionProvider = new StdInMenuDefinitionProvider(
                             viewModel,
                             stdInOptions.PreviewCommand != null,
@@ -77,13 +77,6 @@ class Program
             if (args[0] == "filesystem")
             {
                 var fileSystemOptions = ParseFileSystemOptions(args);
-                var viewModel = new ViewModel();
-                viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
-                viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (o, model) =>
-                {
-                    viewModel.TogglePreview();
-                    return Task.CompletedTask;
-                });
                 var definitionProvider = new FileSystemMenuDefinitionProvider(
                     new StdOutResultHandler(viewModel),
                     fileSystemOptions.MaxDepth,
@@ -117,8 +110,6 @@ class Program
                 if (fileReaderOptions != null && fileReaderOptions.Path != null)
                 {
                     var searchString = fileReaderOptions.SearchString ?? string.Empty;
-                    var viewModel = new ViewModel();
-                    viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
                     var window = new Win32Window();
                     window.Create(viewModel, () =>
                     {
@@ -145,7 +136,7 @@ class Program
                 options.Header = args[i + 1];
                 i++;
             }
-            else if (args[i] == "--edit-command" && i + 1 < args.Length)
+            else if (args[i] == "--editcommand" && i + 1 < args.Length)
             {
                 options.EditCommand = args[i + 1];
                 i++;
@@ -214,7 +205,7 @@ class Program
                 options.Path = args[i + 1];
                 i++;
             }
-            else if (args[i] == "--search-string" && i + 1 < args.Length)
+            else if (args[i] == "--searchstring" && i + 1 < args.Length)
             {
                 options.SearchString = args[i + 1];
                 i++;

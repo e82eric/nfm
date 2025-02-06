@@ -172,6 +172,9 @@ class Win32Window
         public byte tmPitchAndFamily;
         public byte tmCharSet;
     }
+        
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern IntPtr GetModuleHandle(string? lpModuleName);
     
     [DllImport("gdi32.dll")]
     private static extern bool MoveToEx(IntPtr hdc, int X, int Y, IntPtr lpPoint);
@@ -432,14 +435,16 @@ class Win32Window
         public int cbSize;
         [MarshalAs(UnmanagedType.U4)]
         public int style;
-        public IntPtr lpfnWndProc; 
+        public IntPtr lpfnWndProc;
         public int cbClsExtra;
         public int cbWndExtra;
         public IntPtr hInstance;
         public IntPtr hIcon;
         public IntPtr hCursor;
         public IntPtr hbrBackground;
+        [MarshalAs(UnmanagedType.LPStr)]
         public string lpszMenuName;
+        [MarshalAs(UnmanagedType.LPStr)]
         public string lpszClassName;
         public IntPtr hIconSm;
     }
@@ -463,7 +468,7 @@ class Win32Window
     [DllImport("user32.dll")]
     private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
 
-    private WndProc delegWndProc = MainWndProc;
+    private static readonly WndProc delegWndProc = MainWndProc;
 
     [DllImport("user32.dll")]
     static extern bool UpdateWindow(IntPtr hWnd);
@@ -471,6 +476,9 @@ class Win32Window
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool EnableWindow(IntPtr hWnd, bool bEnable);
         
     [DllImport("gdi32.dll", CharSet = CharSet.Auto)]
     static extern bool TextOut(IntPtr hdc, int nXStart, int nYStart,
@@ -490,20 +498,22 @@ class Win32Window
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
     static extern bool DestroyWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll", SetLastError = true, EntryPoint="CreateWindowEx")]  
-    public static extern IntPtr CreateWindowEx2(  
-        int dwExStyle,  
-        UInt16 lpClassName,  
-        string lpWindowName,  
-        UInt32 dwStyle,  
-        int x,  
-        int y,  
-        int nWidth,  
-        int nHeight,  
-        IntPtr hWndParent,  
-        IntPtr hMenu,  
-        IntPtr hInstance,  
-        IntPtr lpParam);  
+    [DllImport("user32.dll", SetLastError = true, EntryPoint = "CreateWindowEx")]
+    public static extern IntPtr CreateWindowEx2(
+       int dwExStyle,
+       [MarshalAs(UnmanagedType.LPStr)]
+       string lpClassName,
+       [MarshalAs(UnmanagedType.LPStr)]
+       string lpWindowName,
+       UInt32 dwStyle,
+       int x,
+       int y,
+       int nWidth,
+       int nHeight,
+       IntPtr hWndParent,
+       IntPtr hMenu,
+       IntPtr hInstance,
+       IntPtr lpParam);
         
     [DllImport("user32.dll", SetLastError = true, EntryPoint = "CreateWindowEx")]
     static extern IntPtr CreateWindowEx(
@@ -1201,15 +1211,15 @@ class Win32Window
         
         _viewModel = viewModel;
         WNDCLASSEX wind_class = new WNDCLASSEX();
-        wind_class.cbSize = Marshal.SizeOf<WNDCLASSEX>();
+        wind_class.cbSize = (int)Marshal.SizeOf<WNDCLASSEX>();
         wind_class.style = (int)(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS );
         wind_class.hbrBackground = (IntPtr) COLOR_BACKGROUND  + 1;
         wind_class.cbClsExtra = 0;
         wind_class.cbWndExtra = 0;
-        wind_class.hInstance = Process.GetCurrentProcess().MainModule!.BaseAddress;
+        wind_class.hInstance = GetModuleHandle(null);;
         wind_class.hIcon = IntPtr.Zero;
         wind_class.hCursor = LoadCursor(IntPtr.Zero, (int)IDC_ARROW);
-        wind_class.lpszClassName = "myClass";
+        wind_class.lpszClassName = "nfmRoot";
         wind_class.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(delegWndProc);
         wind_class.hIconSm = IntPtr.Zero;
         ushort regResult = RegisterClassEx(ref wind_class);
@@ -1223,7 +1233,7 @@ class Win32Window
 
         rootHwnd = CreateWindowEx2(
             WS_EX_LAYERED | WS_EX_TOPMOST,
-            regResult,
+            "nfmRoot",
             "nfm",
             WS_VISIBLE | WS_POPUP,
             windowX,
@@ -1245,6 +1255,12 @@ class Win32Window
         SetLayeredWindowAttributes(rootHwnd, 0x000000, 0, 0x00000001);
         ShowWindow(rootHwnd, 1);
         UpdateWindow(rootHwnd);
+        
+        if (rootHwnd == 0)
+        {
+            uint error = GetLastError();
+            return false;
+        }
         
         uint msg;
         while (GetMessage(out msg, IntPtr.Zero, 0, 0) != 0)
