@@ -60,7 +60,7 @@ class Program
                         var window = new Win32Window();
                         window.Create(viewModel,() =>
                         {
-                             _ =viewModel.RunDefinitionAsync(menuDefinitionProvider.Get()); 
+                            _ =viewModel.RunDefinitionAsync(menuDefinitionProvider.Get()); 
                         });
                         return;
                     }
