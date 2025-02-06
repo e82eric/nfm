@@ -59,11 +59,11 @@ class Program
                             null,
                             stdInOptions.PreviewCommand,
                             stdInOptions.Header);
-                        var window = new Win32Window();
-                        window.Create(viewModel,() =>
+                        var window = new Win32Window(viewModel,() =>
                         {
                             _ =viewModel.RunDefinitionAsync(menuDefinitionProvider.Get()); 
                         });
+                        window.Run();
                         return;
                     }
                 }
@@ -90,11 +90,11 @@ class Program
                     viewModel,
                     null,
                     null);
-                var window = new Win32Window();
-                window.Create(viewModel, () =>
+                var window = new Win32Window(viewModel,() =>
                 {
-                    _ = viewModel.RunDefinitionAsync(definitionProvider.Get());
+                    _ =viewModel.RunDefinitionAsync(definitionProvider.Get()); 
                 });
+                window.Run();
             }
             else if (args[0] == "command")
             {
@@ -112,8 +112,7 @@ class Program
                 if (fileReaderOptions != null && fileReaderOptions.Path != null)
                 {
                     var searchString = fileReaderOptions.SearchString ?? string.Empty;
-                    var window = new Win32Window();
-                    window.Create(viewModel, () =>
+                    var window = new Win32Window(viewModel, () =>
                     {
                         var definitionProvider = new ReadFileMenuDefinitionProvider(
                             fileReaderOptions.Path,
@@ -123,6 +122,7 @@ class Program
                         var definition = definitionProvider.Get();
                         _ = viewModel.RunDefinitionAsync(definition);
                     });
+                    window.Run();
                 }
             }
         }

@@ -57,11 +57,19 @@ class ViewModel : IMainViewModel, IPreviewRenderer
     public int NumberOfScoredItems = 0;
     private int _previewHeight;
     private List<StringWithPos> Items { get; }
-    private string _lastPreviewPath { get; set; }
+    private string _lastPreviewPath { get; set; } = string.Empty;
     private bool _showPreview { get; set; }
-    private Viewport _viewport;
+    private Viewport? _viewport;
+    private Win32Window? _view;
     
     public Dictionary<(ModifierKeys, int), Func<object, IMainViewModel, Task>> GlobalKeyBindings { get; } = new();
+    
+    private Win32Window View => _view ! ?? throw new InvalidOperationException("View has not been set.");
+    private Viewport ViewPort => _viewport ! ?? throw new InvalidOperationException("Viewport has not been set.");
+    public void SetView(Win32Window view)
+    {
+        _view = view;
+    }
 
     public ViewModel()
     {
@@ -91,17 +99,17 @@ class ViewModel : IMainViewModel, IPreviewRenderer
         snapshot.Items.Clear();
         lock (_snapshotLock)
         {
-            var numberOfRows = _viewport.EndRow - _viewport.StartRow;
+            var numberOfRows = ViewPort.EndRow - ViewPort.StartRow;
             for (var i = 0; i < numberOfRows; i++)
             {
-                var item = Items[i + _viewport.StartRow];
+                var item = Items[i + ViewPort.StartRow];
                 snapshot.Items.Add(item);
             }
 
             snapshot.NumberOfItems = NumberOfItems;
             snapshot.NumberOfScoredItems = NumberOfScoredItems;
             snapshot.IsWorking = Reading;
-            snapshot.SelectedIndex = _viewport.ViewportSelectedIndex;
+            snapshot.SelectedIndex = ViewPort.ViewportSelectedIndex;
         }
     }
 
@@ -112,11 +120,11 @@ class ViewModel : IMainViewModel, IPreviewRenderer
             string path;
             lock (_snapshotLock)
             {
-                if (Items.Count <= _viewport.SelectedIndex || _viewport.SelectedIndex < 0)
+                if (Items.Count <= ViewPort.SelectedIndex || ViewPort.SelectedIndex < 0)
                 {
                     return Task.CompletedTask;
                 }
-                path = Items[_viewport.SelectedIndex].Text;
+                path = Items[ViewPort.SelectedIndex].Text;
             }
             if (path == _lastPreviewPath)
             {
@@ -211,12 +219,12 @@ class ViewModel : IMainViewModel, IPreviewRenderer
                         break;
                     }
                 }
-                _viewport.SetTotalRows(Items.Count);
+                ViewPort.SetTotalRows(Items.Count);
             }
 
             NumberOfScoredItems = NumberOfItems;
             Searching = false;
-            Win32Window.SetListBoxItems();
+            View.SetListBoxItems();
             _previewSignal.Set();
             return Task.CompletedTask;
         }
@@ -293,10 +301,10 @@ class ViewModel : IMainViewModel, IPreviewRenderer
                 }
             }
 
-            _viewport.SetTotalRows(Items.Count);
+            ViewPort.SetTotalRows(Items.Count);
         }
 
-        Win32Window.SetListBoxItems();
+        View.SetListBoxItems();
         _previewSignal.Set();
 
         Searching = false;
@@ -328,7 +336,7 @@ class ViewModel : IMainViewModel, IPreviewRenderer
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
         if (_definition.Header != null)
         {
-            Win32Window.SetHeader(_definition.Header);
+            View.SetHeader(_definition.Header);
         }
         if (definition.AsyncFunction != null)
         {
@@ -412,7 +420,7 @@ class ViewModel : IMainViewModel, IPreviewRenderer
             }
             else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
-                var highlightedText = Items[_viewport.SelectedIndex];
+                var highlightedText = Items[ViewPort.SelectedIndex];
                 if (highlightedText != null && highlightedText.Text != null)
                 {
                     await action(highlightedText.Text);
@@ -423,7 +431,7 @@ class ViewModel : IMainViewModel, IPreviewRenderer
                 StringWithPos highlightedText;
                 lock (_snapshotLock)
                 {
-                    highlightedText = Items[_viewport.SelectedIndex];
+                    highlightedText = Items[ViewPort.SelectedIndex];
                 }
                 if (highlightedText != null && highlightedText.Text != null)
                 {
@@ -435,7 +443,7 @@ class ViewModel : IMainViewModel, IPreviewRenderer
 
     public Task ShowToast(string message, int duration = 3000)
     {
-        Win32Window.ShowToast(message, duration);
+        View.ShowToast(message, duration);
         return Task.CompletedTask;
     }
 
@@ -453,23 +461,23 @@ class ViewModel : IMainViewModel, IPreviewRenderer
     {
         _showPreview = !_showPreview;
         _previewSignal.Set();
-        Win32Window.TogglePreview(_showPreview); 
+        View.TogglePreview(_showPreview); 
     }
 
     public void RenderImage(MemoryStream memoryStream)
     {
         var bitmap = new Bitmap(memoryStream);
-        Win32Window.ShowImagePreview(bitmap);
+        View.ShowImagePreview(bitmap);
     }
 
     public void RenderText(List<string> lines, string fileExtension)
     {
-        Win32Window.SetPreviewLines(lines);
+        View.SetPreviewLines(lines);
     }
 
     public void RenderError(string errorInfo)
     {
-        Win32Window.SetPreviewLines([errorInfo]);
+        View.SetPreviewLines([errorInfo]);
     }
 
     public void SetPreviewHeight(int height)
@@ -484,35 +492,35 @@ class ViewModel : IMainViewModel, IPreviewRenderer
 
     public void SelectNext()
     {
-        _viewport.SelectNext();
-        Win32Window.SetListBoxItems();
+        ViewPort.SelectNext();
+        View.SetListBoxItems();
         _previewSignal.Set();
     }
     
     public void SelectPageDown()
     {
-        _viewport.SelectHalfPageDown();
-        Win32Window.SetListBoxItems();
+        ViewPort.SelectHalfPageDown();
+        View.SetListBoxItems();
         _previewSignal.Set();
     }
     
     public void SelectPageUp()
     {
-        _viewport.SelectHalfPageUp();
-        Win32Window.SetListBoxItems();
+        ViewPort.SelectHalfPageUp();
+        View.SetListBoxItems();
         _previewSignal.Set();
     }
 
     public void SelectPrevious()
     {
-        _viewport.SelectPrevious();
-        Win32Window.SetListBoxItems();
+        ViewPort.SelectPrevious();
+        View.SetListBoxItems();
         _previewSignal.Set();
     }
 
     public async Task OnReturn()
     {
-        await _definition.ResultHandler.HandleAsync(Items[_viewport.SelectedIndex].Text);
+        await _definition.ResultHandler.HandleAsync(Items[ViewPort.SelectedIndex].Text);
     }
     
     public void OnEscape()

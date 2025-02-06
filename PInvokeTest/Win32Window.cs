@@ -370,11 +370,18 @@ class Win32Window
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
     
     delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-    private static readonly WndProc delegWndProc = MainWndProc;
+    private readonly WndProc _delegWndProc;
+    private readonly SubclassProc _summaryTextControlProc;
+    private readonly SubclassProc _listBoxControlProc;
+    private readonly SubclassProc _listBoxPanelControlProc;
+    private readonly SubclassProc _previewPanelControlProc;
+    private readonly SubclassProc _previewControlProc;
+    private readonly SubclassProc _textBoxPanelControlProc;
+    private readonly SubclassProc _editControlProc;
     private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, IntPtr lprcMonitor, IntPtr dwData);
     private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData);
 
-    static int spinnerCtr = 0;
+    private int _spinnerCtr = 0;
     private const int PS_SOLID = 0;
     private const int BORDER_THICKNESS = 2;
     private const int BORDER_COLOR = 0x00888545; //0x00bbggrr
@@ -447,7 +454,7 @@ class Win32Window
         return path;
     }
 
-    private static IntPtr SummaryTextControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private IntPtr SummaryTextControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         PAINTSTRUCT ps;
         switch (uMsg)
@@ -464,7 +471,7 @@ class Win32Window
                 char[] spinnerBuffer = new char[10];
                 char[] countBuffer = new char[256];
 
-                spinnerBuffer[0] = spinner[spinnerCtr];
+                spinnerBuffer[0] = spinner[_spinnerCtr];
                 spinnerBuffer[1] = ' ';
                 spinnerBuffer[2] = '\0';
 
@@ -474,13 +481,13 @@ class Win32Window
                 countText.CopyTo(0, countBuffer, 0, countText.Length);
                 countBuffer[countText.Length] = '\0';
 
-                if (spinnerCtr < spinner.Length - 1)
+                if (_spinnerCtr < spinner.Length - 1)
                 {
-                    spinnerCtr++;
+                    _spinnerCtr++;
                 }
                 else
                 {
-                    spinnerCtr = 0;
+                    _spinnerCtr = 0;
                 }
 
                 IntPtr hdc = BeginPaint(hWnd, out ps);
@@ -515,7 +522,7 @@ class Win32Window
         }
     }
     
-    private static IntPtr ListBoxControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private IntPtr ListBoxControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         PAINTSTRUCT ps;
         switch (uMsg)
@@ -699,7 +706,7 @@ class Win32Window
         }
     }
     
-    private static IntPtr ListBoxPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private IntPtr ListBoxPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         switch (uMsg)
         {
@@ -778,7 +785,7 @@ class Win32Window
         return IntPtr.Zero;
     }
 
-    private static IntPtr TextBoxPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private IntPtr TextBoxPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         switch (uMsg)
         {
@@ -812,7 +819,7 @@ class Win32Window
         }
     }
     
-    private static IntPtr PreviewControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private IntPtr PreviewControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         switch (uMsg)
         {
@@ -898,7 +905,7 @@ class Win32Window
         }
     }
         
-    private static IntPtr EditControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private IntPtr EditControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         switch (uMsg)
         {
@@ -1005,9 +1012,8 @@ class Win32Window
         }
     }
         
-    internal void Create(ViewModel viewModel, Action onInit)
+    public void Run()
     {
-        _onInit = onInit;
         IntPtr foregroundWindow = GetForegroundWindow();
         if (foregroundWindow == IntPtr.Zero)
         {
@@ -1073,7 +1079,6 @@ class Win32Window
         int windowX = monitorCenterX - (windowWidth / 2);
         int windowY = monitorCenterY - (windowHeight / 2);
         
-        _viewModel = viewModel;
         WNDCLASSEX wind_class = new WNDCLASSEX();
         wind_class.cbSize = (int)Marshal.SizeOf<WNDCLASSEX>();
         wind_class.style = (int)(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS );
@@ -1084,7 +1089,7 @@ class Win32Window
         wind_class.hIcon = IntPtr.Zero;
         wind_class.hCursor = LoadCursor(IntPtr.Zero, (int)IDC_ARROW);
         wind_class.lpszClassName = "nfmRoot";
-        wind_class.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(delegWndProc);
+        wind_class.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_delegWndProc);
         wind_class.hIconSm = IntPtr.Zero;
         ushort regResult = RegisterClassEx(ref wind_class);
 
@@ -1162,39 +1167,56 @@ class Win32Window
             fontName);
     }
 
-    private static Action? _onInit;
-    private static Snapshot? _snapshot;
-    private static List<string>? _lines;
-    private static int _previewVersion;
-    private static int _lastPreviewVersion;
-    private static readonly Lock ItemsLock = new();
-    private static IntPtr _font;
-    private static IntPtr _rootHwnd;
-    private static IntPtr _textBoxHwnd;
-    private static IntPtr _textBoxPanelHwnd;
-    private static IntPtr _staticTextHwnd;
-    private static IntPtr _previewHwnd;
-    private static IntPtr _previewPanelHwnd;
-    private static IntPtr _listBoxHwnd;
-    private static IntPtr _listBoxPanelHwnd;
-    private static IntPtr _backgroundBrush;
-    private static IntPtr _selectedBackgroundBrush;
-    private static IntPtr _instance;
-    private static ViewModel? _viewModel;
-    private static Timer? _timer;
-    private static bool _toastVisible;
-    private static string? _toastString;
-    private static long _toastExpirationTicks;
-    private static bool _showPreview;
-    private const int ListboxItemPadding = 7;
-    private static int _maxListboxItems;
-    private static PreviewType _previewType;
-    private static Bitmap? _bitmap;
-    private static bool _hasHeader;
-    private static string? _headerText;
-    private static int _listBoxItemHeight;
+    private Action? _onInit;
+    private Snapshot? _snapshot;
+    private List<string>? _lines;
+    private int _previewVersion;
+    private int _lastPreviewVersion;
+    private readonly Lock ItemsLock = new();
+    private IntPtr _font;
+    private IntPtr _rootHwnd;
+    private IntPtr _textBoxHwnd;
+    private IntPtr _textBoxPanelHwnd;
+    private IntPtr _staticTextHwnd;
+    private IntPtr _previewHwnd;
+    private IntPtr _previewPanelHwnd;
+    private IntPtr _listBoxHwnd;
+    private IntPtr _listBoxPanelHwnd;
+    private IntPtr _backgroundBrush;
+    private IntPtr _selectedBackgroundBrush;
+    private IntPtr _instance;
+    private readonly ViewModel _viewModel;
+    private Timer? _timer;
+    private bool _toastVisible;
+    private string? _toastString;
+    private long _toastExpirationTicks;
+    private bool _showPreview;
+    private int ListboxItemPadding = 7;
+    private int _maxListboxItems;
+    private PreviewType _previewType;
+    private Bitmap? _bitmap;
+    private bool _hasHeader;
+    private string? _headerText;
+    private int _listBoxItemHeight;
+    private static List<Win32Window> s_instances = new();
 
-    private static IntPtr MainWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    public Win32Window(ViewModel viewModel, Action onInit)
+    {
+        _delegWndProc = MainWndProc;;
+        _summaryTextControlProc = SummaryTextControlProc;
+        _listBoxControlProc = ListBoxControlProc;
+        _listBoxPanelControlProc = ListBoxPanelControlProc;
+        _previewPanelControlProc = PreviewPanelControlProc;
+        _previewControlProc = PreviewControlProc;
+        _textBoxPanelControlProc = TextBoxPanelControlProc;
+        _editControlProc = EditControlProc;
+        _viewModel = viewModel;
+        _onInit = onInit;
+        _viewModel.SetView(this);
+        s_instances.Add(this);
+    }
+
+    private IntPtr MainWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
         IntPtr hdc;
         switch (msg)
@@ -1235,7 +1257,7 @@ class Win32Window
                     1,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_previewPanelHwnd, PreviewPanelControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_previewPanelHwnd, _previewPanelControlProc, 0, IntPtr.Zero);
                 ShowWindow(_previewPanelHwnd, _showPreview ? 1 : 0);
                 
                 _previewHwnd = CreateWindowEx(
@@ -1251,7 +1273,7 @@ class Win32Window
                     2,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_previewHwnd, PreviewControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_previewHwnd, _previewControlProc, 0, IntPtr.Zero);
                 
                 _textBoxPanelHwnd = CreateWindowEx(
                     0,
@@ -1266,7 +1288,7 @@ class Win32Window
                     3,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_textBoxPanelHwnd, TextBoxPanelControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_textBoxPanelHwnd, _textBoxPanelControlProc, 0, IntPtr.Zero);
 
                 var summaryTextWidth = 400;
                 var searchInputWidth = controlWidth - summaryTextWidth;
@@ -1283,7 +1305,7 @@ class Win32Window
                     4,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_textBoxHwnd, EditControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_textBoxHwnd, _editControlProc, 0, IntPtr.Zero);
                 
                 _staticTextHwnd = CreateWindowEx(
                     0,
@@ -1298,7 +1320,7 @@ class Win32Window
                     5,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_staticTextHwnd, SummaryTextControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_staticTextHwnd, _summaryTextControlProc, 0, IntPtr.Zero);
                 
                 _listBoxPanelHwnd = CreateWindowEx(
                     0,
@@ -1313,7 +1335,7 @@ class Win32Window
                     6,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_listBoxPanelHwnd, ListBoxPanelControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_listBoxPanelHwnd, _listBoxPanelControlProc, 0, IntPtr.Zero);
                     
                 _listBoxHwnd = CreateWindowEx(
                     0,
@@ -1328,7 +1350,7 @@ class Win32Window
                     7,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_listBoxHwnd, ListBoxControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_listBoxHwnd, _listBoxControlProc, 0, IntPtr.Zero);
                     
                 long style = GetWindowLong(_listBoxHwnd, GWL_STYLE);
                 style &= ~WS_BORDER;
@@ -1393,7 +1415,7 @@ class Win32Window
         return DefWindowProc(hWnd, msg, wParam, lParam);
     }
     
-    public static void SetListBoxItems()
+    public void SetListBoxItems()
     {
         if (_viewModel == null)
         {
@@ -1411,7 +1433,7 @@ class Win32Window
         PostMessage(_rootHwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
     }
 
-    public static void ShowToast(string text, int duration)
+    public void ShowToast(string text, int duration)
     {
         _toastExpirationTicks = DateTime.UtcNow.Add(TimeSpan.FromMilliseconds(duration)).Ticks;
         _toastString = text;
@@ -1419,7 +1441,7 @@ class Win32Window
         PostMessage(_rootHwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
     }
 
-    public static void SetPreviewLines(List<string> lines)
+    public void SetPreviewLines(List<string> lines)
     {
         _lines = lines.ToList();
         Interlocked.Increment(ref _previewVersion);
@@ -1427,14 +1449,14 @@ class Win32Window
         InvalidateRect(_previewHwnd, IntPtr.Zero, true);
     }
 
-    public static void TogglePreview(bool visible)
+    public void TogglePreview(bool visible)
     {
         Interlocked.Exchange(ref _showPreview, visible);
         Interlocked.Exchange(ref _lastPreviewVersion, 0);
         PostMessage(_rootHwnd, WM_TOGGLE_PREVIEW, IntPtr.Zero, IntPtr.Zero);
     }
 
-    public static void ShowImagePreview(Bitmap image)
+    public void ShowImagePreview(Bitmap image)
     {
         _bitmap = image;
         Interlocked.Increment(ref _previewVersion);
@@ -1442,7 +1464,7 @@ class Win32Window
         InvalidateRect(_previewHwnd, IntPtr.Zero, true);
     }
 
-    public static void SetHeader(string text)
+    public void SetHeader(string text)
     {
         _hasHeader = true;
         _headerText = text;
@@ -1451,7 +1473,7 @@ class Win32Window
         _viewModel.SetNumberOfRows(_maxListboxItems);
     }
 
-    public static void HideHeader()
+    public void HideHeader()
     {
         _hasHeader = false;
     }
