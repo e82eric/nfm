@@ -35,6 +35,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileWalker", "FileWalker\Fi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileSystem.Avalonia", "FileSystem.Avalonia\FileSystem.Avalonia.csproj", "{C459C9F4-D10A-4964-B182-9766BABEAC7D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32KeyHandler", "Win32KeyHandler\Win32KeyHandler.csproj", "{CDE88AB7-5271-4DA4-96DA-5394E466FD8A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32Menu", "Win32Menu\Win32Menu.csproj", "{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -108,5 +112,13 @@ Global
 		{C459C9F4-D10A-4964-B182-9766BABEAC7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C459C9F4-D10A-4964-B182-9766BABEAC7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C459C9F4-D10A-4964-B182-9766BABEAC7D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CDE88AB7-5271-4DA4-96DA-5394E466FD8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CDE88AB7-5271-4DA4-96DA-5394E466FD8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CDE88AB7-5271-4DA4-96DA-5394E466FD8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CDE88AB7-5271-4DA4-96DA-5394E466FD8A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

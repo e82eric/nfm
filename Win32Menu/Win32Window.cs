@@ -8,7 +8,7 @@ using System.Runtime.Versioning;
 namespace Win32FromForms;
 
 [SupportedOSPlatform("windows")]
-class Win32Window
+public class Win32Window
 {
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
@@ -172,10 +172,6 @@ class Win32Window
     private static extern bool DeleteObject(IntPtr hObject);
 
     private const UInt32 WM_USER = 0x0400;
-    private const UInt32 WM_ITEMS_UPDATED = WM_USER + 1;
-    private const UInt32 WM_SUMMARY_TIMER = WM_USER + 2;
-    private const UInt32 WM_TOGGLE_PREVIEW = WM_USER + 3;
-    private const UInt32 WS_VISIBLE = 0x10000000;
     private const UInt32 CS_DBLCLKS = 8;
     private const UInt32 CS_VREDRAW = 1;
     private const UInt32 CS_HREDRAW = 2;
@@ -393,6 +389,14 @@ class Win32Window
     private const int HIGHLIGHTED_TEXT_COLOR = 0x0000a5ff; //ffa500
     private const int CORNER_RADIUS = 7;
     
+    private const UInt32 WM_ITEMS_UPDATED = WM_USER + 1;
+    private const UInt32 WM_SUMMARY_TIMER = WM_USER + 2;
+    private const UInt32 WM_TOGGLE_PREVIEW = WM_USER + 3;
+    private const UInt32 WM_SHOW_ROOT = WM_USER + 4;
+    private const UInt32 WM_HIDE_ROOT = WM_USER + 5;
+    private const UInt32 WM_INITALIZED = WM_USER + 6;
+    private const UInt32 WS_VISIBLE = 0x10000000;
+    
     static ModifierKeys GetModifiersPressed()
     {
         ModifierKeys modifiersPressed = ModifierKeys.None;
@@ -528,7 +532,7 @@ class Win32Window
         switch (uMsg)
         {
             case WM_PAINT:
-                if (_snapshot == null || _viewModel == null)
+                if (_snapshot == null)
                 {
                     _ = BeginPaint(hWnd, out ps);
                     EndPaint(hWnd, ref ps);
@@ -801,7 +805,7 @@ class Win32Window
                     {
                         var text = new StringBuilder(GetWindowTextLength(_textBoxHwnd) + 1);
                         GetWindowText(_textBoxHwnd, text, text.Capacity);
-                        _viewModel.SetSearchString(text.ToString());
+                        Task.Run(() => _viewModel.SetSearchString(text.ToString()));
                     }
                 }
                 return 0;
@@ -915,7 +919,7 @@ class Win32Window
                     return 0;
                 }
 
-                if (wParam == VK_RETURN)
+                if (wParam == VK_RETURN || wParam == VK_ESCAPE)
                 {
                     return 0;
                 }
@@ -965,7 +969,7 @@ class Win32Window
                             return 0;
                         case VK_ESCAPE:
                             _viewModel.OnEscape();
-                            break;
+                            return 0;
                     }
                 }
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
@@ -1103,7 +1107,7 @@ class Win32Window
             WS_EX_LAYERED | WS_EX_TOPMOST,
             wind_class.lpszClassName,
             "nfm",
-            WS_VISIBLE | WS_POPUP,
+             WS_POPUP,
             windowX,
             windowY,
             windowWidth,
@@ -1121,7 +1125,6 @@ class Win32Window
 
         _instance = wind_class.hInstance;
         SetLayeredWindowAttributes(_rootHwnd, 0x000000, 0, 0x00000001);
-        ShowWindow(_rootHwnd, 1);
         UpdateWindow(_rootHwnd);
         
         if (_rootHwnd == 0)
@@ -1376,12 +1379,15 @@ class Win32Window
 
                 if (_onInit == null)
                 {
-                    Console.WriteLine("_onInit must be set");
                     ExitProcess(1);
                     return 1;
                 }
-                
-                Task.Run(() => _onInit());
+
+                PostMessage(hWnd, WM_INITALIZED, 0, 0);
+                break;
+            
+            case WM_INITALIZED:
+                _onInit();
                 break;
                 
             case WM_ERASEBKGND:
@@ -1401,7 +1407,7 @@ class Win32Window
                 break;
                 
             case WM_ITEMS_UPDATED:
-                if (_snapshot != null && _viewModel != null)
+                if (_snapshot != null)
                 {
                     InvalidateRect(_listBoxHwnd, IntPtr.Zero, true);
                     UpdateWindow(_listBoxHwnd);
@@ -1411,19 +1417,25 @@ class Win32Window
             case WM_TOGGLE_PREVIEW:
                 ShowWindow(_previewPanelHwnd, _showPreview ? 1 : 0);
                 break;
+            
+            case WM_SHOW_ROOT:
+                ShowWindow(_rootHwnd, 1);
+                SetWindowText(_textBoxHwnd, string.Empty);
+                SetFocus(_textBoxHwnd);
+                SetListBoxItems();
+                break;
+            
+            case WM_HIDE_ROOT:
+                ShowWindow(_rootHwnd, 0);
+                break;
         }
         return DefWindowProc(hWnd, msg, wParam, lParam);
     }
     
     public void SetListBoxItems()
     {
-        if (_viewModel == null)
-        {
-            return;
-        }
-        
         var snapshot = new Snapshot();
-        _viewModel.FillSnapshot(snapshot, _maxListboxItems);
+        _viewModel.FillSnapshot(snapshot);
 
         lock (ItemsLock)
         {
@@ -1476,5 +1488,15 @@ class Win32Window
     public void HideHeader()
     {
         _hasHeader = false;
+    }
+
+    public void Hide()
+    {
+        PostMessage(_rootHwnd, WM_HIDE_ROOT, 0, 0);
+    }
+
+    public void Show()
+    {
+        PostMessage(_rootHwnd, WM_SHOW_ROOT, 0, 0);
     }
 }
