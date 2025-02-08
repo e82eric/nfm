@@ -58,6 +58,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private string _lastPreviewPath { get; set; } = string.Empty;
     private bool _showPreview { get; set; }
     private Viewport? _viewport;
+    private PreviewViewport? _previewViewport;
     private Win32Window? _view;
     private int _searchVersion = 0;
     private int _lastSearchVersion = -1;
@@ -66,6 +67,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     
     private Win32Window View => _view ! ?? throw new InvalidOperationException("View has not been set.");
     private Viewport ViewPort => _viewport ! ?? throw new InvalidOperationException("Viewport has not been set.");
+    private PreviewViewport PreviewViewPort => _previewViewport ! ?? throw new InvalidOperationException("PreviewViewport has not been set.");
+    
     public void SetView(Win32Window view)
     {
         _view = view;
@@ -483,7 +486,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public void RenderText(List<string> lines, string fileExtension)
     {
-        View.SetPreviewLines(lines);
+        PreviewViewPort.SetLines(lines);
+        View.SetPreviewLines(PreviewViewPort.ViewportLines());
     }
 
     public void RenderError(string errorInfo)
@@ -502,6 +506,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         {
             _viewport = new Viewport(rows);
         }
+    }
+
+    public void SetPreviewNumberOfRow(int rows)
+    {
+        _previewViewport = new PreviewViewport(rows);
     }
 
     public void SelectNext()
@@ -547,5 +556,17 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         {
             Environment.Exit(0);
         }
+    }
+
+    public void PreviewHalfPageUp()
+    {
+        PreviewViewPort.HalfPageUp();
+        View.SetPreviewLines(PreviewViewPort.ViewportLines());
+    }
+
+    public void PreviewHalfPageDown()
+    {
+        PreviewViewPort.HalfPageDown();
+        View.SetPreviewLines(PreviewViewPort.ViewportLines());
     }
 }

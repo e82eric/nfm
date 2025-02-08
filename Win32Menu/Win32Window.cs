@@ -881,18 +881,17 @@ public class Win32Window
                 GetTextMetrics(hNewDc, out tm);
                 for (var i = 0; i < _lines.Count; i++)
                 {
-                    var itemHeight = tm.tmHeight + 3;
-                    var itemTop = rect.top + (i * itemHeight);
+                    var itemTop = rect.top + (i * _previewItemHeight);
                     var rcItem = new RECT
                     {
                         top = itemTop,
-                        bottom = itemTop + itemHeight,
+                        bottom = itemTop + _previewItemHeight,
                         left = rect.left,
                         right = rect.right
                     };
 
                     int textHeight = tm.tmHeight;
-                    int centeredY = rcItem.top + (itemHeight - textHeight) / 2;
+                    int centeredY = rcItem.top + (_previewItemHeight - textHeight) / 2;
 
                     var line = _lines[i];
 
@@ -933,6 +932,18 @@ public class Win32Window
                 var modifiers = GetModifiersPressed();
                 if (modifiers != ModifierKeys.None)
                 {
+                    if (modifiers == ModifierKeys.LCtl && wParam == VK_PAGEUP)
+                    {
+                        _viewModel.PreviewHalfPageUp();
+                        return 0;
+                    }
+                    
+                    if (modifiers == ModifierKeys.LCtl && wParam == VK_PAGEDOWN)
+                    {
+                        _viewModel.PreviewHalfPageDown();
+                        return 0;
+                    }
+                    
                     if (modifiers == ModifierKeys.LCtl && wParam == VK_BACK)
                     {
                         DeletePreviousWord(hWnd);
@@ -1201,6 +1212,7 @@ public class Win32Window
     private bool _hasHeader;
     private string? _headerText;
     private int _listBoxItemHeight;
+    private int _previewItemHeight;
     private static List<Win32Window> s_instances = new();
 
     public Win32Window(ViewModel viewModel, Action onInit)
@@ -1236,6 +1248,7 @@ public class Win32Window
 
                 _maxListboxItems = 15;
                 _listBoxItemHeight = (tm.tmHeight + (ListboxItemPadding * 2));
+                _previewItemHeight = tm.tmHeight + 3;
                 var controlHeight = _maxListboxItems * _listBoxItemHeight;
                 var padding = 15;
                 var panelX = 11;
@@ -1244,8 +1257,10 @@ public class Win32Window
                 var panelHeight = controlHeight + (padding * 2);
                 var searchInputHeight = tm.tmHeight + padding + padding;
                 var panelGap = 7;
+                var previewItems = controlHeight / _previewItemHeight;
                 _viewModel.SetPreviewHeight(controlHeight);
                 _viewModel.SetNumberOfRows(_maxListboxItems);
+                _viewModel.SetPreviewNumberOfRow(previewItems);
                 
                 _previewPanelHwnd = CreateWindowEx(
                     0,

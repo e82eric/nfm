@@ -1,4 +1,60 @@
-﻿class Viewport
+﻿class PreviewViewport
+{
+    public int ViewportSelectedIndex;
+
+    public PreviewViewport(int viewportRows)
+    {
+        _viewportRows = viewportRows;
+        StartRow = 0;
+        ViewportSelectedIndex = 0;
+    }
+    
+    public int StartRow;
+    private readonly int _viewportRows;
+    private List<string>? _lines;
+    private List<string> Lines => _lines ?? throw new InvalidOperationException("Lines cannot be null");
+
+    public int EndRow => Math.Min(StartRow + _viewportRows, Lines.Count);
+    
+    public void HalfPageDown()
+    {
+        var half = _viewportRows / 2;
+        if (StartRow + half < Lines.Count && EndRow < Lines.Count)
+        {
+            StartRow += half;
+        }
+    }
+    
+    public void HalfPageUp()
+    {
+        var half = _viewportRows / 2;
+        if (StartRow - half > 0)
+        {
+            StartRow -= half;
+        }
+        else
+        {
+            StartRow = 0;
+        }
+    }
+
+    private void Reset()
+    {
+        StartRow = 0;
+    }
+
+    public void SetLines(List<string> lines)
+    {
+        _lines = lines;
+        Reset();
+    }
+
+    public List<string> ViewportLines()
+    {
+        return Lines.GetRange(StartRow, EndRow - StartRow).ToList();
+    }
+}
+class Viewport
 {
     public int ViewportSelectedIndex;
 
@@ -12,13 +68,10 @@
     
     public int SelectedIndex;
     public int StartRow;
-    private int _viewportRows;
+    private readonly int _viewportRows;
     private int _totalRows;
 
-    public int EndRow
-    {
-        get { return StartRow + Math.Min(_viewportRows, _totalRows) ; }
-    }
+    public int EndRow => Math.Min(StartRow + _viewportRows, _totalRows);
 
     public void SelectNext()
     {
@@ -75,6 +128,33 @@
             SelectedIndex = _totalRows - 1;
             ViewportSelectedIndex = _totalRows - 1;
         }
+    }
+    
+    public void HalfPageDown()
+    {
+        var half = _viewportRows / 2;
+        if (StartRow + half < _totalRows && EndRow < _totalRows)
+        {
+            StartRow += half;
+        }
+    }
+    
+    public void HalfPageUp()
+    {
+        var half = _viewportRows / 2;
+        if (StartRow - half > 0)
+        {
+            StartRow -= half;
+        }
+        else
+        {
+            StartRow = 0;
+        }
+    }
+
+    public void Reset()
+    {
+        StartRow = 0;
     }
 
     public void SelectHalfPageUp()
