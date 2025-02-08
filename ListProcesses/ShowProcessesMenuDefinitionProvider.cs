@@ -14,7 +14,7 @@ public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, A
         var header = string.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
             "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)");
         var definition = CreateDefinition(ProcessLister.RunSortedByWorkingSet2, header ,Comparers.ScoreLengthAndValue);
-        definition.KeyBindings.Add((KeyModifiers.Control, Key.K), async lineObj =>
+        definition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_K), async lineObj =>
         {
             var line = (string)lineObj;
             var match = Regex.Match(line, @"\s+([0-9]+)\s+");
@@ -30,7 +30,7 @@ public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, A
             await mainViewModel.ShowToast($"Killed process {pid}", 500);
             await ProcessLister.KillProcessById(line, pid);
         });
-        definition.KeyBindings.Add((KeyModifiers.Control, Key.M), async lineObj =>
+        definition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_M), async lineObj =>
         {
             var line = (string)lineObj;
             var match = Regex.Match(line, @"\s+([0-9]+)\s+");
@@ -64,7 +64,7 @@ public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, A
                 }
             });
         });
-        definition.KeyBindings.Add((KeyModifiers.Control, Key.Z), async lineObj =>
+        definition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_Z), async lineObj =>
         {
             var line = (string)lineObj;
             var match = Regex.Match(line, @"\s+([0-9]+)\s+");
@@ -94,19 +94,19 @@ public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, A
             //});
         });
 
-        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByCpu2, (KeyModifiers.Control, Key.D1));
-        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByPid2, (KeyModifiers.Control, Key.D2));
-        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByPrivateBytes2, (KeyModifiers.Control, Key.D3));
-        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByWorkingSet2, (KeyModifiers.Control, Key.D4));
+        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByCpu2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F1));
+        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByPid2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F2));
+        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByPrivateBytes2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F3));
+        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByWorkingSet2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F4));
 
         return definition;
     }
 
     private void AddResultKeyBinding(
-        Dictionary<(KeyModifiers, Key), Func<object, Task>> keyBindings,
+        Dictionary<(ModifierKeys, int), Func<object, Task>> keyBindings,
         string header,
         Func<ChannelWriter<object>, CancellationToken, Task> asyncFunc,
-        (KeyModifiers Control, Key D4) keys)
+        (ModifierKeys Control, int D4) keys)
     {
         keyBindings.Add(keys, async _ =>
         {

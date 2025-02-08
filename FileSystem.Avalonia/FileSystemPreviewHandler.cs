@@ -5,7 +5,7 @@ namespace nfm.menu;
 
 public class FileSystemPreviewHandler : IPreviewHandler
 {
-    public async Task Handle(IPreviewRenderer renderer, object node, CancellationToken ct)
+    public async Task Handle(IPreviewRenderer renderer, object node, int height, CancellationToken ct)
     {
         var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5));
         var path = node.ToString();
@@ -100,7 +100,7 @@ public class FileSystemPreviewHandler : IPreviewHandler
                 memoryStream.Seek(0, SeekOrigin.Begin);
                 try
                 {
-                    renderer.RenderImage(new Bitmap(memoryStream));
+                    renderer.RenderImage(memoryStream);
                 }
                 catch (Exception e)
                 {
@@ -187,7 +187,8 @@ public class FileSystemPreviewHandler : IPreviewHandler
                 displayText = "The provided path does not exist.";
             }
             
-            renderer.RenderText(displayText, extension);
+            //TODO:This should be a list
+            renderer.RenderText([displayText], extension);
         }
     }
     

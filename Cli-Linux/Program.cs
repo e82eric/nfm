@@ -56,7 +56,7 @@ class Program
                 return Task.CompletedTask;
             });
             viewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            var command = new StdInMenuDefinitionProvider(viewModel, hasPreview, editCommand, previewCommand);
+            var command = new StdInMenuDefinitionProvider(viewModel, hasPreview, editCommand, previewCommand, string.Empty);
             var app = new App(viewModel, command);
             return app;
         }).UsePlatformDetect().With(new X11PlatformOptions

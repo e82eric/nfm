@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -467,7 +468,8 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
                 var backing = selected.BackingObj;
                 if (_definition?.PreviewHandler != null && backing != null)
                 {
-                    await _definition.PreviewHandler.Handle(this, backing, ct);
+                    //TODO: height should be 0
+                    await _definition.PreviewHandler.Handle(this, backing, 0, ct);
                 }
             }
         }
@@ -689,6 +691,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
 
     public async Task HandleKeyUp(Key eKey, KeyModifiers eKeyModifiers)
     {
+        var key = KeyToVirtualKeyConverter.ConvertKeyToVirtualKey(eKey);
         switch (eKey)
         {
             case Key.End:
@@ -704,8 +707,30 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
                 }
                 break;
         }
-        
-        if (eKeyModifiers == KeyModifiers.Control)
+
+        ModifierKeys modifiers = 0;
+
+        if (eKeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            modifiers |= ModifierKeys.LCtl;
+        }
+
+        if (eKeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            modifiers |= ModifierKeys.LAlt;
+        }
+
+        if (eKeyModifiers.HasFlag(KeyModifiers.Meta))
+        {
+            modifiers |= ModifierKeys.LWin;
+        }
+
+        if (eKeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            modifiers |= ModifierKeys.LShift;
+        }
+
+        if (modifiers == ModifierKeys.LCtl)
         {
             if (eKey == Key.E)
             {
@@ -714,7 +739,7 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
                     EditDialogOpen = true;
                 }
             }
-            else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
+            else if (_definition != null && _definition.KeyBindings.TryGetValue((modifiers, key), out var action))
             {
                 var highlightedText = DisplayItems[SelectedIndex];
                 if (highlightedText != null && highlightedText.BackingObj != null)
@@ -824,14 +849,14 @@ public class MainViewModel : IPreviewRenderer, INotifyPropertyChanged, IMainView
         }
     }
 
-    public void RenderImage(Bitmap bitmap)
+    public void RenderImage(MemoryStream stream)
     {
-        PreviewImage = bitmap;
+        PreviewImage = new Bitmap(stream);
     }
 
-    public void RenderText(string info, string fileExtension)
+    public void RenderText(List<string> info, string fileExtension)
     {
-        PreviewText = info;
+        PreviewText = string.Join(Environment.NewLine, info);
         PreviewExtension = fileExtension;
     }
 
