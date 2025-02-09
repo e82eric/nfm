@@ -339,7 +339,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     
     public async Task RunDefinitionAsync(MenuDefinition definition)
     {
-        View.Show();
+        _showPreview = definition.HasPreview;
+        View.Show(definition.HasPreview);
         _chunks.Clear();
         _chunks.Add(new Chunk());
         _searchString = string.Empty;

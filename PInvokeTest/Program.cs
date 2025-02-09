@@ -84,7 +84,7 @@ class Program
                     fileSystemOptions.MaxDepth,
                     [fileSystemOptions.RootDirectory],
                     true,
-                    true,
+                    fileSystemOptions.HasPreview,
                     fileSystemOptions.DirectoriesOnly,
                     fileSystemOptions.FilesOnly,
                     viewModel,

@@ -1434,10 +1434,18 @@ public class Win32Window
                 break;
             
             case WM_SHOW_ROOT:
+                var showPreview = (int)lParam;
+                if (showPreview == 1)
+                {
+                    PostMessage(_rootHwnd, WM_TOGGLE_PREVIEW, 0, 0);
+                }
                 ShowWindow(_rootHwnd, 1);
+                _showPreview = Convert.ToBoolean(showPreview);
+                ShowWindow(_previewPanelHwnd, showPreview);
                 SetWindowText(_textBoxHwnd, string.Empty);
                 SetFocus(_textBoxHwnd);
                 SetListBoxItems();
+                UpdateWindow(_rootHwnd);
                 break;
             
             case WM_HIDE_ROOT:
@@ -1510,8 +1518,8 @@ public class Win32Window
         PostMessage(_rootHwnd, WM_HIDE_ROOT, 0, 0);
     }
 
-    public void Show()
+    public void Show(bool showPreview)
     {
-        PostMessage(_rootHwnd, WM_SHOW_ROOT, 0, 0);
+        PostMessage(_rootHwnd, WM_SHOW_ROOT, 0, showPreview ? 1 : 0);
     }
 }
