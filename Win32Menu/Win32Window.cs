@@ -4,6 +4,7 @@ using nfm.menu;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.Versioning;
+using Core;
 
 namespace Win32FromForms;
 
@@ -383,7 +384,7 @@ public class Win32Window
     private const int BORDER_COLOR = 0x00888545; //0x00bbggrr
     private const int BACKGROUND_COLOR = 0x00282828; //0x00bbggrr
     private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
-    private const int TEXT_COLOR = 0x008499a8; //0x00bbggrr
+    private const int TEXT_COLOR = 0x008499a8; //0x00a88499
     private const int SPINNER_COLOR = BORDER_COLOR;
     //private const int HIGHLIGHTED_TEXT_COLOR = 0x000e5dd6; //0x00bbggrr
     private const int HIGHLIGHTED_TEXT_COLOR = 0x0000a5ff; //ffa500
@@ -395,6 +396,7 @@ public class Win32Window
     private const UInt32 WM_SHOW_ROOT = WM_USER + 4;
     private const UInt32 WM_HIDE_ROOT = WM_USER + 5;
     private const UInt32 WM_INITALIZED = WM_USER + 6;
+    private const UInt32 WM_SET_SEARCH_STRING = WM_USER + 7;
     private const UInt32 WS_VISIBLE = 0x10000000;
     
     static ModifierKeys GetModifiersPressed()
@@ -895,7 +897,20 @@ public class Win32Window
 
                     var line = _lines[i];
 
-                    TextOut(hNewDc, rect.left, centeredY, line, line.Length);
+                    var xOffset = 0;
+                    foreach (var segment in line)
+                    {
+                        SIZE sz;
+                        GetTextExtentPoint32(hNewDc, segment.Text, segment.Text.Length, out sz);
+                        var color = segment.State.Foreground;
+                        int colorRef = (color.B << 16) | (color.G << 8) | color.R;
+                        var backgroundColor = segment.State.Background;
+                        int backgroundColorRef = (backgroundColor.B << 16) | (backgroundColor.G << 8) | backgroundColor.R;
+                        SetTextColor(hNewDc, colorRef);
+                        SetBkColor(hNewDc, backgroundColorRef);
+                        TextOut(hNewDc, rect.left + xOffset, centeredY, segment.Text, segment.Text.Length);
+                        xOffset += sz.cx;
+                    }
                 }
 
                 EndBufferedPaint(hBufferedPaint, true);
@@ -1181,9 +1196,9 @@ public class Win32Window
             fontName);
     }
 
-    private Action? _onInit;
+    private readonly Action _onInit;
     private Snapshot? _snapshot;
-    private List<string>? _lines;
+    private List<List<TextSegment>>? _lines;
     private int _previewVersion;
     private int _lastPreviewVersion;
     private readonly Lock ItemsLock = new();
@@ -1448,6 +1463,18 @@ public class Win32Window
                 UpdateWindow(_rootHwnd);
                 break;
             
+            case WM_SET_SEARCH_STRING:
+                string? searchStr = Marshal.PtrToStringUni(lParam);
+                if (searchStr != null)
+                {
+                    SetWindowText(_textBoxHwnd, searchStr);
+                    SendMessage(_textBoxHwnd, EM_SETSEL, searchStr.Length - 1, searchStr.Length - 1);
+                }
+
+                Marshal.FreeHGlobal(lParam); // Free memory to avoid leaks
+
+                break;
+            
             case WM_HIDE_ROOT:
                 ShowWindow(_rootHwnd, 0);
                 break;
@@ -1476,7 +1503,7 @@ public class Win32Window
         PostMessage(_rootHwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
     }
 
-    public void SetPreviewLines(List<string> lines)
+    public void SetPreviewLines(List<List<TextSegment>> lines)
     {
         _lines = lines.ToList();
         Interlocked.Increment(ref _previewVersion);
@@ -1521,5 +1548,11 @@ public class Win32Window
     public void Show(bool showPreview)
     {
         PostMessage(_rootHwnd, WM_SHOW_ROOT, 0, showPreview ? 1 : 0);
+    }
+    
+    public void SetSearchString(string searchString)
+    {
+        IntPtr searchStrPtr = Marshal.StringToHGlobalUni(searchString);
+        PostMessage(_rootHwnd, WM_SET_SEARCH_STRING, 0, searchStrPtr);
     }
 }

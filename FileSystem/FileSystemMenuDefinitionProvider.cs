@@ -51,6 +51,9 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
         bool hasPreview,
         bool directoriesOnly,
         bool filesOnly,
+        char? delimiter,
+        string? previewStartLineCommand,
+        string? previewStartLineOffsetCommand,
         IMainViewModel viewModel,
         IComparer<Entry>? comparer,
         Action? onClosed)
@@ -81,7 +84,12 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
             FinalComparer = _comparer ?? FinalEntryComparer,
             OnClosed = _onClosed,
             ScoreFunc = ScoreFunc,
-            PreviewHandler = new PreviewHandler(),
+            PreviewHandler = new PreviewHandler(
+                "bat --style=numbers --color=always --theme=gruvbox-dark --paging=never {0}",
+                "pwsh -C dir {0}",
+                delimiter,
+                previewStartLineCommand,
+                previewStartLineOffsetCommand),
             EditAction = (itemObj, newText) =>
             {
                 var itemStr = itemObj.ToString();
@@ -143,6 +151,9 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
                 _hasPreview,
                 _directoriesOnly,
                 _filesOnly,
+                null,
+                null,
+                null,
                 _viewModel,
                 null,
                 _onClosed).Get();

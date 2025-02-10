@@ -8,6 +8,9 @@ public class StdInMenuDefinitionProvider(
     bool hasPreview,
     string? editCommandStr,
     string? previewCommand,
+    char? delimiter,
+    string? previewStartLineCommand,
+    string? previewStartLineOffsetCommand,
     string? header) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
@@ -17,7 +20,12 @@ public class StdInMenuDefinitionProvider(
             AsyncFunction = Run,
             Header = header,
             HasPreview = hasPreview,
-            PreviewHandler = previewCommand != null ? new CommandPreviewHandler(previewCommand) : new PreviewHandler(),
+            PreviewHandler = previewCommand != null ? new CommandPreviewHandler(previewCommand, delimiter, previewStartLineCommand, previewStartLineOffsetCommand) : new PreviewHandler(
+                "bat --style=numbers --color=always --theme=gruvbox-dark --paging=never {0}",
+                "pwsh -C dir {0}",
+                delimiter,
+                previewStartLineCommand,
+                previewStartLineOffsetCommand),
             ResultHandler = new StdOutResultHandler(viewModel),
             MinScore = 0,
             QuitOnEscape = true,

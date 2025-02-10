@@ -15,6 +15,8 @@ public class MenuDefinition
     public string? Header { get; init; } = null;
     public bool QuitOnEscape { get; init; } = false;
     public bool HasPreview { get; init; } = false;
+    public char? PreviewDelimiter { get; set; }
+    public string? PreviewStartLineCommand { get; set; }
 
     public IComparer<Entry>? Comparer
     {

@@ -1,9 +1,26 @@
 ﻿using System.Diagnostics;
+using Core;
 
 namespace nfm.menu;
 
-public class PreviewHandler : IPreviewHandler
+public class PreviewHandler(
+    string fileCommandTemplate,
+    string directoryCommandTemplate,
+    char? delimiter,
+    string? previewStartLineCommand,
+    string? previewStartLineOffsetCommand) : IPreviewHandler
 {
+    private readonly CommandPreviewHandler _fileHandler = new(
+        fileCommandTemplate,
+        delimiter,
+        previewStartLineCommand,
+        previewStartLineOffsetCommand);
+    private readonly CommandPreviewHandler _directoryHandler = new(
+        directoryCommandTemplate,
+        delimiter,
+        previewStartLineCommand,
+        previewStartLineOffsetCommand);
+    
     public async Task Handle(IPreviewRenderer renderer, object node, int height, CancellationToken ct)
     {
         var timeoutTask = Task.Delay(TimeSpan.FromSeconds(5));
@@ -114,73 +131,19 @@ public class PreviewHandler : IPreviewHandler
         }
         else
         {
+            
             var displayText = string.Empty;
-            var extension = ".txt";
             if (File.Exists(path))
             {
-                var info = new FileInfo(path);
-                var (isText, fileLines) = await TryReadTextFile(info, Int32.MaxValue, ct);
-                if (fileLines == null)
-                {
-                    return;
-                }
-                if (ct.IsCancellationRequested)
-                {
-                    return;
-                }
-                if (isText)
-                {
-                    renderer.RenderText(fileLines, extension);
-                    return;
-                }
-                else
-                {
-                    var lines = new List<string>();
-                    var fileInfo = new FileInfo(path);
-                    lines.Add($"File: {fileInfo.Name}");
-                    lines.Add($"Path: {fileInfo.FullName}");
-                    lines.Add($"Size: {fileInfo.Length} bytes");
-                    lines.Add($"Created: {fileInfo.CreationTime}");
-                    lines.Add($"Last Accessed: {fileInfo.LastAccessTime}");
-                    lines.Add($"Last Modified: {fileInfo.LastWriteTime}");
-                    lines.Add($"Extension: {fileInfo.Extension}");
-                    lines.Add($"Is Read-Only: {fileInfo.IsReadOnly}");
-                    lines.Add($"Attributes: {fileInfo.Attributes}");
-                    lines.Add("The file appears to be binary and was not read.");
-                    renderer.RenderText(lines, ".txt");
-                    return;
-                }
+                await _fileHandler.Handle(renderer, node, height, ct);
             }
             else if (Directory.Exists(path))
             {
-                var lines = new List<string>();
-                var dirInfo = new DirectoryInfo(path);
-                lines.Add($"Directory: {dirInfo.Name}");
-                lines.Add($"Path: {dirInfo.FullName}");
-                lines.Add($"Created: {dirInfo.CreationTime}");
-                lines.Add($"Last Modified: {dirInfo.LastWriteTime}");
-                lines.Add($"Attributes: {dirInfo.Attributes}");
-                lines.Add($"Items");
-
-                var i = 0;
-                foreach (var fileSystemInfo in dirInfo.EnumerateFileSystemInfos())
-                {
-                    if (ct.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    if (i > 15)
-                    {
-                        break;
-                    }
-
-                    lines.Add($"  {fileSystemInfo.Name}");
-                }
-                renderer.RenderText(lines, ".txt");
+                await _directoryHandler.Handle(renderer, node, height, ct);
                 return;
             }
             displayText = "The provided path does not exist.";
-            renderer.RenderText([displayText], extension);
+            renderer.RenderText(TextSegment.BasicText(displayText), 0);
         }
     }
     

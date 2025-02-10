@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Runtime.Versioning;
 using System.Threading.Channels;
+using Core;
 using nfm.menu;
 using nfzf;
 using Win32FromForms;
@@ -343,7 +344,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         View.Show(definition.HasPreview);
         _chunks.Clear();
         _chunks.Add(new Chunk());
-        _searchString = string.Empty;
+        _searchString = definition.SearchString;
+        View.SetSearchString(_searchString);
         _definition = definition;
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
         if (_definition.Header != null)
@@ -485,15 +487,15 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         View.ShowImagePreview(bitmap);
     }
 
-    public void RenderText(List<string> lines, string fileExtension)
+    public void RenderText(List<List<TextSegment>> lines, int startLine)
     {
-        PreviewViewPort.SetLines(lines);
+        PreviewViewPort.SetLines(lines, startLine);
         View.SetPreviewLines(PreviewViewPort.ViewportLines());
     }
 
     public void RenderError(string errorInfo)
     {
-        View.SetPreviewLines([errorInfo]);
+        View.SetPreviewLines(TextSegment.BasicText(errorInfo));
     }
 
     public void SetPreviewHeight(int height)

@@ -7,6 +7,9 @@ class StdInOptions
     public string? Header { get; set; }
     public string? EditCommand { get; set; }
     public string? PreviewCommand { get; set; }
+    public char? Delimiter { get; set; }
+    public string? PreviewStartLineCommand { get; set; }
+    public string? PreviewStartLineOffsetCommand { get; set; }
 }
 
 class FileSystemOptions
@@ -17,6 +20,9 @@ class FileSystemOptions
     public bool HasPreview { get; set; } = false;
     public bool DirectoriesOnly { get; set; } = false;
     public bool FilesOnly { get; set; } = false;
+    public char? Delimiter { get; set; }
+    public string? PreviewStartLineCommand { get; set; }
+    public string? PreviewStartLineOffsetCommand { get; set; }
 }
 
 class CommandOptions
@@ -58,6 +64,9 @@ class Program
                             stdInOptions.PreviewCommand != null,
                             null,
                             stdInOptions.PreviewCommand,
+                            stdInOptions.Delimiter,
+                            stdInOptions.PreviewStartLineCommand,
+                            stdInOptions.PreviewStartLineOffsetCommand,
                             stdInOptions.Header);
                         var window = new Win32Window(viewModel,() =>
                         {
@@ -87,6 +96,9 @@ class Program
                     fileSystemOptions.HasPreview,
                     fileSystemOptions.DirectoriesOnly,
                     fileSystemOptions.FilesOnly,
+                    fileSystemOptions.Delimiter,
+                    fileSystemOptions.PreviewStartLineCommand,
+                    fileSystemOptions.PreviewStartLineOffsetCommand,
                     viewModel,
                     null,
                     null);
@@ -148,6 +160,24 @@ class Program
                 options.PreviewCommand = args[i + 1];
                 i++;
             }
+            else if (args[i] == "--previewstartlinecommand" && i + 1 < args.Length)
+            {
+                options.PreviewStartLineCommand = args[i + 1];
+                i++;
+            }
+            else if (args[i] == "--previewstartlineoffsetcommand" && i + 1 < args.Length)
+            {
+                options.PreviewStartLineOffsetCommand = args[i + 1];
+                i++;
+            }
+            else if (args[i] == "--delimiter" && i + 1 < args.Length)
+            {
+                if (args[i + 1].Length == 1)
+                {
+                    options.Delimiter = args[i + 1][0];
+                }
+                i++;
+            }
         }
         return options;
     }
@@ -185,6 +215,24 @@ class Program
             else if (args[i] == "--filesonly")
             {
                 options.FilesOnly = true;
+            }
+            else if (args[i] == "--previewstartlinecommand" && i + 1 < args.Length)
+            {
+                options.PreviewStartLineCommand = args[i + 1];
+                i++;
+            }
+            else if (args[i] == "--previewstartlineoffsetcommand" && i + 1 < args.Length)
+            {
+                options.PreviewStartLineOffsetCommand = args[i + 1];
+                i++;
+            }
+            else if (args[i] == "--delimiter" && i + 1 < args.Length)
+            {
+                if (args[i + 1].Length == 1)
+                {
+                    options.Delimiter = args[i + 1][0];
+                }
+                i++;
             }
         }
         return options;

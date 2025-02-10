@@ -68,16 +68,15 @@ public static class ProcessRunner
             process.StartInfo.RedirectStandardError = true;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.CreateNoWindow = true;
+            process.StartInfo.StandardOutputEncoding = Encoding.UTF8;
+            process.StartInfo.WorkingDirectory = Directory.GetCurrentDirectory();
 
             var standardOutput = new List<string>();
             var standardError = new List<string>();
 
             process.OutputDataReceived += (sender, args) =>
             {
-                if (!string.IsNullOrWhiteSpace(args.Data))
-                {
-                    standardOutput.Add(args.Data);
-                }
+                standardOutput.Add(args.Data ?? string.Empty);
             };
 
             process.ErrorDataReceived += (sender, args) =>
