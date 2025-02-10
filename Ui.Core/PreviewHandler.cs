@@ -136,6 +136,7 @@ public class PreviewHandler(
             if (File.Exists(path))
             {
                 await _fileHandler.Handle(renderer, node, height, ct);
+                return;
             }
             else if (Directory.Exists(path))
             {

@@ -85,8 +85,8 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
             OnClosed = _onClosed,
             ScoreFunc = ScoreFunc,
             PreviewHandler = new PreviewHandler(
-                "bat --style=numbers --color=always --theme=gruvbox-dark --paging=never {0}",
-                "pwsh -C dir {0}",
+                "bat --style=numbers --color=always --theme=gruvbox-dark --paging=never \"{0}\"",
+                "dir \"{0}\"",
                 delimiter,
                 previewStartLineCommand,
                 previewStartLineOffsetCommand),

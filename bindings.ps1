@@ -24,7 +24,7 @@ foreach ($viMode in @('Command', 'Insert')) {
   } -ViMode $viMode
 
   Set-PSReadLineKeyHandler -Key "ctrl+t" -ScriptBlock {
-    $result = & nfm.exe filesystem --rootdirectory "$((Get-Location).Path)"
+    $result = & nfm.exe filesystem --haspreview --rootdirectory "$((Get-Location).Path)"
       if($result) {
         [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result)
       }
@@ -43,13 +43,43 @@ foreach ($viMode in @('Command', 'Insert')) {
   } -ViMode $viMode
 }
 
+function gs {
+  param($searchString)
+
+  if ([string]::IsNullOrWhiteSpace($searchString)) {
+    $searchString = Read-Host "Search String"
+  }
+
+  $selection = rg --crlf --no-messages --hidden -i --vimgrep $searchString | fzf --delimiter=: --preview "bat --color=always --style=numbers --theme=gruvbox-dark --highlight-line {2} {1}" --preview-window="+{2}+3/2" --preview-window=up
+
+  if (-not $selection) {
+    exit
+  }
+
+  # Extract file path and line number
+  $parts = $selection -split ":", 3
+  if ($parts.Count -lt 2) {
+    exit
+  }
+
+  $dest = $parts[0]
+  $line = $parts[1]
+
+  if (-not $dest -or -not $line) {
+    exit
+  }
+
+  # Open the file in Neovim at the specified line
+  nvim "$dest" +$line
+}
+
 function tab_expansion_preview {
   param($directory, $item)
   $trimmed = $item -replace '^\S+\s*', ''
   if($item.StartsWith("ProviderItem")) { 
-    cmd /c type "$($directory)\$($trimmed)" 
+    bat -H 5 --paging=never --color=always --style=numbers --theme=gruvbox-dark "$($directory)\$($trimmed)" 
   } elseif($item.StartsWith("ProviderContainer")) { 
-    cmd /c dir "$($directory)\$($trimmed)" 
+    dir "$($directory)\$($trimmed)" 
   } else { 
     Get-Help $trimmed 
   }
@@ -88,4 +118,33 @@ Set-PSReadLineKeyHandler -Key "ctrl+spacebar" -ScriptBlock {
       [Microsoft.PowerShell.PSConsoleReadLine]::Replace($leftCursor, $replacementLength, $trimmed)
     }
   }
+}
+
+
+function gs {
+  param($searchString)
+
+  if ([string]::IsNullOrWhiteSpace($searchString)) {
+    $searchString = Read-Host "Search String"
+  }
+
+  $selection = rg --crlf --no-messages --hidden -i --vimgrep $searchString | nfm.exe --previewcommand 'bat --color=always --style=numbers --theme=gruvbox-dark --highlight-line "{1}" "{0}"' --delimiter : --previewstartlinecommand "{1}" --previewstartlineoffsetcommand 3
+
+  if (-not $selection) {
+    return
+  }
+
+  $parts = $selection -split ":", 3
+  if ($parts.Count -lt 2) {
+    return
+  }
+
+  $dest = $parts[0]
+  $line = $parts[1]
+
+  if (-not $dest -or -not $line) {
+    return
+  }
+
+  nvim "$dest" +$line
 }
