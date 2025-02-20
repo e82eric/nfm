@@ -1,11 +1,17 @@
-﻿class Viewport
+﻿using nfm.menu;
+
+class Viewport
 {
+    private int _endRow;
+    private List<TerminalEscapedLine> _items;
     public int ViewportSelectedIndex;
+    public int StartLinesToClip { get; set; }
 
     public Viewport(int viewportRows)
     {
         _viewportRows = viewportRows;
         StartRow = 0;
+        _endRow = 0;
         ViewportSelectedIndex = 0;
         _totalRows = 0;
     }
@@ -15,22 +21,48 @@
     private readonly int _viewportRows;
     private int _totalRows;
 
-    public int EndRow => Math.Min(StartRow + _viewportRows, _totalRows);
+    public int EndRow => _endRow;
+
+    public void SetItems(List<TerminalEscapedLine> items)
+    {
+        _items = items;
+        var accumulatedLines = 0;
+        var i = 0;
+        while (accumulatedLines < _viewportRows && i < items.Count())
+        {
+            var item = _items[StartRow + i];
+            accumulatedLines += item.Lines.Count;
+            i++;
+        }
+                                                 
+        _endRow = StartRow + i;
+    }
 
     public void SelectNext()
     {
         if (SelectedIndex + 1 < _totalRows)
         {
-            SelectedIndex++;
-
-            if (ViewportSelectedIndex + 1 < _viewportRows)
+            if (SelectedIndex + 1 < EndRow)
             {
                 ViewportSelectedIndex++;
             }
             else
             {
-                StartRow++;
+                var accumulatedLines = 0;
+                var i = 0;
+                _endRow++;
+                while (accumulatedLines < _viewportRows)
+                {
+                    var item = _items[(_endRow - 1) - i];
+                    accumulatedLines += item.Lines.Count;
+                    i++;
+                }
+                
+                StartRow = EndRow - i;
+                StartLinesToClip = Math.Max(0, accumulatedLines - _viewportRows);
+                ViewportSelectedIndex = EndRow - StartRow - 1;
             }
+            SelectedIndex++;
         }
     }
 
@@ -46,7 +78,19 @@
             }
             else
             {
+                var accumulatedLines = 0;
+                var i = 0;
                 StartRow--;
+                while (accumulatedLines < _viewportRows)
+                {
+                    var item = _items[StartRow + i];
+                    accumulatedLines += item.Lines.Count;
+                    i++;
+                }
+                
+                _endRow = StartRow + i;
+                ViewportSelectedIndex = 0;
+                StartLinesToClip = 0;
             }
         }
     }

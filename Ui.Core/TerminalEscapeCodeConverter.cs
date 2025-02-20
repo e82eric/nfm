@@ -1,5 +1,5 @@
 ﻿using System.Drawing;
-using System.Text.RegularExpressions;
+using nfm.menu;
 
 namespace Core;
 
@@ -11,6 +11,11 @@ public class TextSegment
     public static List<List<TextSegment>> BasicText(string val)
     {
         return [ new() { new() { State = new AnsiState(), Text = val } } ];
+    }
+
+    public static List<TextSegment> BlankLine()
+    {
+        return [new() { State = new AnsiState(), Text = string.Empty }];
     }
 }
 
@@ -31,87 +36,161 @@ public class AnsiState
     {
         return new AnsiState
         {
-            Bold = this.Bold,
-            Italic = this.Italic,
-            Underline = this.Underline,
-            Strikethrough = this.Strikethrough,
-            Foreground = this.Foreground,
-            Background = this.Background
+            Bold = Bold,
+            Italic = Italic,
+            Underline = Underline,
+            Strikethrough = Strikethrough,
+            Foreground = Foreground,
+            Background = Background
         };
     }
 }
 
 public static class TerminalEscapeCodeConverter
 {
-    // We'll capture them so we can split text around them.
-    private static readonly Regex AnsiRegex =
-        new Regex(@"(\x1B\[[0-9;]*m)", RegexOptions.Compiled);
-
     // We keep track of every color we encounter in a dictionary so we can build
     // the color table in the final RTF. Key: Color, Value: index in RTF colortbl.
-    private static Dictionary<Color, int> _colorMap = new Dictionary<Color, int>();
 
     // The main entry point
     public static List<List<TextSegment>> Convert(List<string> text)
     {
         // Reset color map each time we convert
-        _colorMap = new Dictionary<Color, int>();
+        //new Dictionary<Color, int>();
 
         var segments = new List<List<TextSegment>>();
         foreach (var line in text)
         {
-            segments.Add(ParseAnsi(line));
+            segments.Add(Convert(line));
         }
 
         return segments;
     }
 
+    public static EscapedLine Parse(string line)
+    {
+        var lines = Convert(line);
+        return new EscapedLine(lines);
+    }
+
+    // public static List<Line> ConvertToColoredListBoxLine(string lineText, IList<int> pos)
+    // {
+    //     var result = new List<Line>();
+    //     var splitLines = lineText.Split(["\r\n", "\n"], StringSplitOptions.None);
+    //
+    //     var accumulatedLength = 0;
+    //     foreach (var split in splitLines)
+    //     {
+    //         var segments = Convert(split);
+    //         var textLength = segments.Select(s => s.Text.Length).Sum();
+    //         var linePos = new List<int>();
+    //         foreach (var p in pos)
+    //         {
+    //             if (p >= accumulatedLength && p < accumulatedLength + textLength)
+    //             {
+    //                 var adjustedP = p - accumulatedLength;
+    //                 linePos.Add(adjustedP);
+    //             }
+    //         }
+    //
+    //         var line = new Line(split, segments, linePos);
+    //         result.Add(line);
+    //         accumulatedLength += textLength;
+    //     }
+    //
+    //     return result;
+    // }
+
     /// <summary>
     /// Splits the input text into segments of plain text, each associated with
     /// the final AnsiState after applying any preceding escape codes.
     /// </summary>
-    private static List<TextSegment> ParseAnsi(string text)
+    public static List<TextSegment> Convert(string text)
     {
-        if (String.IsNullOrEmpty(text))
+        if (string.IsNullOrEmpty(text))
         {
-            return [new() { State = new AnsiState(), Text = string.Empty }];
+            return TextSegment.BlankLine();
         }
-        
+
         var segments = new List<TextSegment>();
         var currentState = new AnsiState();
-
-        int lastIndex = 0;
-        var matches = AnsiRegex.Matches(text);
-
-        foreach (Match match in matches)
+    
+        int i = 0;
+        while (i < text.Length)
         {
-            // Text before this escape sequence
-            if (match.Index > lastIndex)
+            // Find the next ESC character (ASCII 27)
+            int escPos = text.IndexOf('\x1B', i);
+            if (escPos == -1)
             {
-                string rawText = text.Substring(lastIndex, match.Index - lastIndex);
-                segments.Add(new TextSegment
+                // No more escape sequences, remainder of the text is plain
+                if (i < text.Length)
                 {
-                    Text = rawText,
-                    State = currentState.Clone()
-                });
+                    string rawText = text.Substring(i);
+                    if (!string.IsNullOrEmpty(rawText))
+                    {
+                        segments.Add(new TextSegment
+                        {
+                            Text = rawText,
+                            State = currentState.Clone()
+                        });
+                    }
+                }
+                break; 
             }
 
-            // The escape sequence itself, e.g. \x1B[38;5;203m
-            string escapeCode = match.Groups[1].Value;  // e.g. ESC[38;5;203m
-            ApplySgrCodes(currentState, escapeCode);
-
-            lastIndex = match.Index + match.Length;
-        }
-
-        // Remaining text after last match
-        if (lastIndex < text.Length)
-        {
-            string rawText = text.Substring(lastIndex);
-            segments.Add(new TextSegment
+            // If there's text before the ESC, add it as plain text
+            if (escPos > i)
             {
-                Text = rawText,
-                State = currentState.Clone()
-            });
+                string rawText = text.Substring(i, escPos - i);
+                if (!string.IsNullOrEmpty(rawText))
+                {
+                    segments.Add(new TextSegment
+                    {
+                        Text = rawText,
+                        State = currentState.Clone()
+                    });
+                }
+            }
+
+            // Now we've found ESC at escPos. Check if the next char is '[' (start of CSI)
+            if (escPos + 1 < text.Length && text[escPos + 1] == '[')
+            {
+                // Find the trailing 'm' of the SGR sequence
+                int mPos = text.IndexOf('m', escPos + 2);
+                if (mPos == -1)
+                {
+                    // If no 'm' found, treat everything from escPos on as plain text or just break
+                    // We’ll just add it as plain text and break.
+                    string rawText = text.Substring(escPos);
+                    segments.Add(new TextSegment
+                    {
+                        Text = rawText,
+                        State = currentState.Clone()
+                    });
+                    break;
+                }
+                else
+                {
+                    // Extract the entire escape sequence, e.g. "\x1B[38;5;203m"
+                    string ansiEscape = text.Substring(escPos, (mPos - escPos + 1));
+
+                    // Apply the codes to currentState
+                    ApplySgrCodes(currentState, ansiEscape);
+
+                    // Advance past this escape sequence
+                    i = mPos + 1;
+                }
+            }
+            else
+            {
+                // We found an ESC that does not look like SGR (e.g. ESC not followed by '[')
+                // For simplicity, treat it as plain text and move on.
+                segments.Add(new TextSegment
+                {
+                    Text = text.Substring(escPos, 1),
+                    State = currentState.Clone()
+                });
+                i = escPos + 1;
+            }
         }
 
         return segments;
@@ -235,8 +314,7 @@ public static class TerminalEscapeCodeConverter
         state.Italic = false;
         state.Underline = false;
         state.Strikethrough = false;
-        // Typical terminal default is "light gray on black"
-        state.Foreground = ColorTranslator.FromHtml("#a88499");
+        state.Foreground = ColorTranslator.FromHtml("#a89984");
         state.Background = ColorTranslator.FromHtml("#282828");
     }
 

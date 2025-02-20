@@ -39,6 +39,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32KeyHandler", "Win32Key
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32Menu", "Win32Menu\Win32Menu.csproj", "{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ui.Core.Tests", "Ui.Core.Tests\Ui.Core.Tests.csproj", "{69A15048-2B49-476F-85F0-D60DF5846725}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PowershellHistoryReader", "PowershellHistoryReader\PowershellHistoryReader.csproj", "{A1720C30-5152-4701-A91E-C0BA2F89C28C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -120,5 +124,13 @@ Global
 		{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{69A15048-2B49-476F-85F0-D60DF5846725}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69A15048-2B49-476F-85F0-D60DF5846725}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69A15048-2B49-476F-85F0-D60DF5846725}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69A15048-2B49-476F-85F0-D60DF5846725}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1720C30-5152-4701-A91E-C0BA2F89C28C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1720C30-5152-4701-A91E-C0BA2F89C28C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1720C30-5152-4701-A91E-C0BA2F89C28C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1720C30-5152-4701-A91E-C0BA2F89C28C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

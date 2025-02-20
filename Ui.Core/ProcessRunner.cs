@@ -1,8 +1,6 @@
 ﻿using System.Diagnostics;
-using System.IO;
 using System.Text;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace nfm.menu;
 

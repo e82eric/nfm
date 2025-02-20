@@ -10,6 +10,8 @@ class StdInOptions
     public char? Delimiter { get; set; }
     public string? PreviewStartLineCommand { get; set; }
     public string? PreviewStartLineOffsetCommand { get; set; }
+    public bool ShowGap { get; set; } = false;
+    public string? LineContinuation { get; set; }
 }
 
 class FileSystemOptions
@@ -34,6 +36,7 @@ class FileReaderOptions
 {
     public string? Path { get; set; }
     public string? SearchString { get; set; }
+    public bool ShowGap { get; set; } = false;
 }
 
 [SupportedOSPlatform("windows")]
@@ -67,10 +70,15 @@ class Program
                             stdInOptions.Delimiter,
                             stdInOptions.PreviewStartLineCommand,
                             stdInOptions.PreviewStartLineOffsetCommand,
-                            stdInOptions.Header);
+                            stdInOptions.Header,
+                            stdInOptions.LineContinuation,
+                            stdInOptions.ShowGap);
                         var window = new Win32Window(viewModel,() =>
                         {
-                            _ =viewModel.RunDefinitionAsync(menuDefinitionProvider.Get()); 
+                            Task.Run(async () =>
+                            {
+                                await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get());
+                            });
                         });
                         window.Run();
                         return;
@@ -118,29 +126,10 @@ class Program
                     return;
                 }
             }
-            else if (args[0] == "filereader")
-            {
-                var fileReaderOptions = ParseFileReaderOptions(args);
-                if (fileReaderOptions != null && fileReaderOptions.Path != null)
-                {
-                    var searchString = fileReaderOptions.SearchString ?? string.Empty;
-                    var window = new Win32Window(viewModel, () =>
-                    {
-                        var definitionProvider = new ReadFileMenuDefinitionProvider(
-                            fileReaderOptions.Path,
-                            Comparers.ScoreOnly, 
-                            searchString,
-                            viewModel);
-                        var definition = definitionProvider.Get();
-                        _ = viewModel.RunDefinitionAsync(definition);
-                    });
-                    window.Run();
-                }
-            }
         }
     }
     
-    private static StdInOptions? ParseStdInOptions(string[] args)
+    private static StdInOptions ParseStdInOptions(string[] args)
     {
         var options = new StdInOptions();
         for (int i = 0; i < args.Length; i++)
@@ -176,6 +165,19 @@ class Program
                 {
                     options.Delimiter = args[i + 1][0];
                 }
+                i++;
+            }
+            else if (args[i] == "--gap")
+            {
+                options.ShowGap = true;
+            }
+            else if (args[i] == "--linecontinuation")
+            {
+                if (args[i + 1].Length == 1)
+                {
+                    options.LineContinuation = args[i + 1];
+                }
+
                 i++;
             }
         }
@@ -242,25 +244,6 @@ class Program
     {
         var options = new CommandOptions();
         options.Command = args.Skip(1).ToList();
-        return options;
-    }
-
-    private static FileReaderOptions? ParseFileReaderOptions(string[] args)
-    {
-        var options = new FileReaderOptions();
-        for (int i = 1; i < args.Length; i++)
-        {
-            if (args[i] == "--path" && i + 1 < args.Length)
-            {
-                options.Path = args[i + 1];
-                i++;
-            }
-            else if (args[i] == "--searchstring" && i + 1 < args.Length)
-            {
-                options.SearchString = args[i + 1];
-                i++;
-            }
-        }
         return options;
     }
 }

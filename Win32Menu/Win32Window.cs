@@ -385,6 +385,7 @@ public class Win32Window
     private const int BACKGROUND_COLOR = 0x00282828; //0x00bbggrr
     private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
     private const int TEXT_COLOR = 0x008499a8; //0x00a88499
+    private const int GAP_COLOR = 0x00454950; //0x00504945
     private const int SPINNER_COLOR = BORDER_COLOR;
     //private const int HIGHLIGHTED_TEXT_COLOR = 0x000e5dd6; //0x00bbggrr
     private const int HIGHLIGHTED_TEXT_COLOR = 0x0000a5ff; //ffa500
@@ -586,13 +587,24 @@ public class Win32Window
                 var itemXOffset = 5;
                 lock (ItemsLock)
                 {
+                    var nextItemY = 0;
                     for (var i = 0; i < _snapshot.Items.Count; i++)
                     {
-                        var itemTop = listBoxStartY + (i * _listBoxItemHeight);
+                        var item = _snapshot.Items[i];
+                        var startLine = 0;
+                        var itemLines = item.Lines.Count;
+                        if (i == 0)
+                        {
+                            itemLines = item.Lines.Count - _snapshot.StartLinesToClip;
+                            startLine = _snapshot.StartLinesToClip;
+                        }
+                        int totalHeight = itemLines * _listBoxItemHeight;
+                        
+                        var itemTop = listBoxStartY + nextItemY;
                         var rcItem = new RECT
                         {
                             top = itemTop,
-                            bottom = itemTop + _listBoxItemHeight,
+                            bottom = itemTop + totalHeight,
                             left = ps.rcPaint.left,
                             right = ps.rcPaint.right
                         };
@@ -607,40 +619,66 @@ public class Win32Window
                             SetBkColor(hNewDc, BACKGROUND_COLOR);
                         }
 
+                        if (_snapshot.ShowGap)
+                        {
+                            IntPtr hPen = CreatePen(PS_SOLID, 1, GAP_COLOR);
+                            SelectObject(hNewDc, hPen);
+                            MoveToEx(hNewDc, 0, itemTop + totalHeight - 2, IntPtr.Zero);
+                            LineTo(hNewDc, ps.rcPaint.right, itemTop + totalHeight - 2);
+                        }
+                        
                         SetTextColor(hNewDc, TEXT_COLOR);
-
-                        int centeredY = rcItem.top + (_listBoxItemHeight / 2) - (textHeight / 2);
 
                         if (i < _snapshot.Items.Count)
                         {
-                            TextOut(
-                                hNewDc,
-                                itemXOffset,
-                                centeredY,
-                                _snapshot.Items[i].Text,
-                                _snapshot.Items[i].Text.Length);
-                            SetTextColor(hNewDc, HIGHLIGHTED_TEXT_COLOR);
-                            for (int j = 0; j < _snapshot.Items[i].Pos.Count; j++)
+                            for (var iIndex = 0; iIndex < itemLines; iIndex++)
                             {
-                                SIZE sz;
-                                var textIndex = _snapshot.Items[i].Pos[j];
-                                GetTextExtentPoint32(hNewDc, _snapshot.Items[i].Text, textIndex, out sz);
-                                TextOut(
-                                    hNewDc,
-                                    sz.cx + itemXOffset,
-                                    centeredY,
-                                    _snapshot.Items[i].Text[textIndex].ToString(),
-                                    1);
+                                var line = item.Lines[startLine + iIndex];
+                                var xOffset = 0;
+                                var centeredY = rcItem.top + (_listBoxItemHeight * iIndex) + (textHeight / 2);
+                                foreach (var segment in line.Segments)
+                                {
+                                    SIZE sz;
+                                    GetTextExtentPoint32(hNewDc, segment.Text, segment.Text.Length, out sz);
+                                    var color = segment.State.Foreground;
+                                    int colorRef = (color.B << 16) | (color.G << 8) | color.R;
+                                    var backgroundColor = segment.State.Background;
+                                    int backgroundColorRef = (backgroundColor.B << 16) | (backgroundColor.G << 8) |
+                                                             backgroundColor.R;
+                                    SetTextColor(hNewDc, colorRef);
+                                    TextOut(
+                                        hNewDc,
+                                        itemXOffset + xOffset,
+                                        centeredY,
+                                        segment.Text,
+                                        segment.Text.Length);
+                                    xOffset += sz.cx;
+                                }
+
+                                SetTextColor(hNewDc, HIGHLIGHTED_TEXT_COLOR);
+                                for (int j = 0; j < line.Pos.Count; j++)
+                                {
+                                    var pos = line.Pos[j];
+                                    SIZE sz;
+                                    GetTextExtentPoint32(hNewDc, line.LineText(), pos, out sz);
+                                    TextOut(
+                                        hNewDc,
+                                        sz.cx + itemXOffset,
+                                        centeredY,
+                                        line.LineText()[pos].ToString(),
+                                        1);
+                                }
                             }
                         }
 
-                        SetTextColor(hNewDc, TEXT_COLOR);
+                        nextItemY += totalHeight;
                     }
                 }
 
                 if (_toastVisible && _toastString != null)
                 {
                     SetBkColor(hNewDc, BACKGROUND_COLOR);
+                    SetTextColor(hNewDc, TEXT_COLOR);
                     var padding = 10;
                 
                     var height = ps.rcPaint.bottom - ps.rcPaint.top;
@@ -1160,7 +1198,8 @@ public class Win32Window
         }
         
         uint msg;
-        while (GetMessage(out msg, IntPtr.Zero, 0, 0) != 0)
+        _cts = new CancellationTokenSource();
+        while (GetMessage(out msg, IntPtr.Zero, 0, 0) != 0 && !_cts.IsCancellationRequested)
         {
             TranslateMessage(ref msg);
             DispatchMessage(ref msg);
@@ -1201,7 +1240,7 @@ public class Win32Window
     private List<List<TextSegment>>? _lines;
     private int _previewVersion;
     private int _lastPreviewVersion;
-    private readonly Lock ItemsLock = new();
+    private readonly object ItemsLock = new();
     private IntPtr _font;
     private IntPtr _rootHwnd;
     private IntPtr _textBoxHwnd;
@@ -1228,6 +1267,7 @@ public class Win32Window
     private string? _headerText;
     private int _listBoxItemHeight;
     private int _previewItemHeight;
+    public static CancellationTokenSource _cts;
     private static List<Win32Window> s_instances = new();
 
     public Win32Window(ViewModel viewModel, Action onInit)
@@ -1471,7 +1511,7 @@ public class Win32Window
                     SendMessage(_textBoxHwnd, EM_SETSEL, searchStr.Length - 1, searchStr.Length - 1);
                 }
 
-                Marshal.FreeHGlobal(lParam); // Free memory to avoid leaks
+                Marshal.FreeHGlobal(lParam);
 
                 break;
             
@@ -1543,6 +1583,7 @@ public class Win32Window
     public void Hide()
     {
         PostMessage(_rootHwnd, WM_HIDE_ROOT, 0, 0);
+        _cts.Cancel();
     }
 
     public void Show(bool showPreview)
