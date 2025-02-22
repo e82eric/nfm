@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
-using Avalonia.Input;
 using nfzf;
 using nfzf.ListProcesses;
 

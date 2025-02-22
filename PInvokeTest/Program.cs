@@ -12,6 +12,9 @@ class StdInOptions
     public string? PreviewStartLineOffsetCommand { get; set; }
     public bool ShowGap { get; set; } = false;
     public string? LineContinuation { get; set; }
+    public bool WrapLines { get; set; }
+    public string? SearchString { get; set; }
+    public bool NoLengthSort { get; set; }
 }
 
 class FileSystemOptions
@@ -25,18 +28,13 @@ class FileSystemOptions
     public char? Delimiter { get; set; }
     public string? PreviewStartLineCommand { get; set; }
     public string? PreviewStartLineOffsetCommand { get; set; }
+    public bool WrapLines { get; set; }
+    public bool ShowGap { get; set; }
 }
 
 class CommandOptions
 {
     public IEnumerable<string>? Command { get; set; }
-}
-
-class FileReaderOptions
-{
-    public string? Path { get; set; }
-    public string? SearchString { get; set; }
-    public bool ShowGap { get; set; } = false;
 }
 
 [SupportedOSPlatform("windows")]
@@ -72,6 +70,9 @@ class Program
                             stdInOptions.PreviewStartLineOffsetCommand,
                             stdInOptions.Header,
                             stdInOptions.LineContinuation,
+                            stdInOptions.SearchString,
+                            stdInOptions.WrapLines,
+                            stdInOptions.NoLengthSort ? Comparers.ScoreOnly : Comparers.ScoreLengthAndValue,
                             stdInOptions.ShowGap);
                         var window = new Win32Window(viewModel,() =>
                         {
@@ -104,15 +105,20 @@ class Program
                     fileSystemOptions.HasPreview,
                     fileSystemOptions.DirectoriesOnly,
                     fileSystemOptions.FilesOnly,
+                    fileSystemOptions.WrapLines,
                     fileSystemOptions.Delimiter,
                     fileSystemOptions.PreviewStartLineCommand,
                     fileSystemOptions.PreviewStartLineOffsetCommand,
+                    fileSystemOptions.ShowGap,
                     viewModel,
                     null,
                     null);
                 var window = new Win32Window(viewModel,() =>
                 {
-                    _ =viewModel.RunDefinitionAsync(definitionProvider.Get()); 
+                    Task.Run(async () =>
+                    {
+                        await viewModel.RunDefinitionAsync(definitionProvider.Get()); 
+                    });
                 });
                 window.Run();
             }
@@ -149,6 +155,11 @@ class Program
                 options.PreviewCommand = args[i + 1];
                 i++;
             }
+            else if (args[i] == "--searchstring" && i + 1 < args.Length)
+            {
+                options.SearchString = args[i + 1];
+                i++;
+            }
             else if (args[i] == "--previewstartlinecommand" && i + 1 < args.Length)
             {
                 options.PreviewStartLineCommand = args[i + 1];
@@ -170,6 +181,14 @@ class Program
             else if (args[i] == "--gap")
             {
                 options.ShowGap = true;
+            }
+            else if (args[i] == "--nolengthsort")
+            {
+                options.NoLengthSort = true;
+            }
+            else if (args[i] == "--wrap")
+            {
+                options.WrapLines = true;
             }
             else if (args[i] == "--linecontinuation")
             {
@@ -217,6 +236,14 @@ class Program
             else if (args[i] == "--filesonly")
             {
                 options.FilesOnly = true;
+            }
+            else if (args[i] == "--wrap")
+            {
+                options.WrapLines = true;
+            }
+            else if (args[i] == "--gap")
+            {
+                options.ShowGap = true;
             }
             else if (args[i] == "--previewstartlinecommand" && i + 1 < args.Length)
             {

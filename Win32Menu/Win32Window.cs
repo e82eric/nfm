@@ -542,6 +542,7 @@ public class Win32Window
                     return 0;
                 }
                 
+                IntPtr gapPen = CreatePen(PS_SOLID, 1, GAP_COLOR);
                 var hdc = BeginPaint(_listBoxHwnd, out ps);
                 var hBufferedPaint = BeginBufferedPaint(
                     hdc,
@@ -592,10 +593,11 @@ public class Win32Window
                     {
                         var item = _snapshot.Items[i];
                         var startLine = 0;
-                        var itemLines = item.Lines.Count;
+                        var linesToRender = _snapshot.WrapLines ? item.WrappedLines() : item.Lines;
+                        var itemLines = linesToRender.Count;
                         if (i == 0)
                         {
-                            itemLines = item.Lines.Count - _snapshot.StartLinesToClip;
+                            itemLines = linesToRender.Count - _snapshot.StartLinesToClip;
                             startLine = _snapshot.StartLinesToClip;
                         }
                         int totalHeight = itemLines * _listBoxItemHeight;
@@ -619,21 +621,13 @@ public class Win32Window
                             SetBkColor(hNewDc, BACKGROUND_COLOR);
                         }
 
-                        if (_snapshot.ShowGap)
-                        {
-                            IntPtr hPen = CreatePen(PS_SOLID, 1, GAP_COLOR);
-                            SelectObject(hNewDc, hPen);
-                            MoveToEx(hNewDc, 0, itemTop + totalHeight - 2, IntPtr.Zero);
-                            LineTo(hNewDc, ps.rcPaint.right, itemTop + totalHeight - 2);
-                        }
-                        
                         SetTextColor(hNewDc, TEXT_COLOR);
 
                         if (i < _snapshot.Items.Count)
                         {
                             for (var iIndex = 0; iIndex < itemLines; iIndex++)
                             {
-                                var line = item.Lines[startLine + iIndex];
+                                var line = linesToRender[startLine + iIndex];
                                 var xOffset = 0;
                                 var centeredY = rcItem.top + (_listBoxItemHeight * iIndex) + (textHeight / 2);
                                 foreach (var segment in line.Segments)
@@ -669,6 +663,13 @@ public class Win32Window
                                         1);
                                 }
                             }
+                        }
+                        
+                        if (_snapshot.ShowGap)
+                        {
+                            SelectObject(hNewDc, gapPen);
+                            MoveToEx(hNewDc, 0, itemTop + totalHeight - 2, IntPtr.Zero);
+                            LineTo(hNewDc, ps.rcPaint.right, itemTop + totalHeight - 2);
                         }
 
                         nextItemY += totalHeight;

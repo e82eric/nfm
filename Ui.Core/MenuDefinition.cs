@@ -18,6 +18,7 @@ public class MenuDefinition
     public char? PreviewDelimiter { get; set; }
     public string? PreviewStartLineCommand { get; set; }
     public bool ShowGap { get; set; } = false;
+    public bool Wrap { get; set; } = false;
 
     public IComparer<Entry>? Comparer
     {

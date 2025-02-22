@@ -1,9 +1,27 @@
 ﻿using System.Drawing;
 using Core;
+using nfm.menu;
 using NUnit.Framework;
 
 namespace Ui.Core.Tests
 {
+    [TestFixture]
+    public class TextWrapTests()
+    {
+        [Test]
+        public void Test1()
+        {
+            var segment = new TextSegment()
+            {
+                Text = """C:\Users\eric\src\nfzf\PowershellHistoryReader\bin\debug\net9.0\PowershellHistoryReader.exe | bat --style=plain --paging=never --color=always --theme="Visual Studio Dark+" --language=ps1 | C:\Users\eric\src\nfzf\PInvokeTest\bin\debug\net9.0\nfm.exe --linecontinuation `` --gap""",
+                State = new AnsiState()
+            };
+            
+            var line = new EscapedLine([segment]);
+            var wrapped = line.WrapLines();
+        }
+    }
+    
     [TestFixture]
     public class ListBoxTerminalEscapeCodeConverterTests()
     {

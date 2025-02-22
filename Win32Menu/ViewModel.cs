@@ -26,6 +26,7 @@ public class Snapshot
     public int SelectedIndex { get; set; }
     public bool ShowGap { get; set; }
     public int StartLinesToClip { get; set; }
+    public bool WrapLines { get; set; }
 }
 
 [SupportedOSPlatform("windows")]
@@ -118,6 +119,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             snapshot.SelectedIndex = ViewPort.ViewportSelectedIndex;
             snapshot.ShowGap = _definition.ShowGap;
             snapshot.StartLinesToClip = ViewPort.StartLinesToClip;
+            snapshot.WrapLines = _definition.Wrap;
         }
     }
 
@@ -195,7 +197,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         }
 
         Searching = true;
-        var completeChunks = _chunks.Where(c => c.IsComplete).ToList();
+        var completeChunks = _chunks.ToList();
 
         if (string.IsNullOrEmpty(_searchString))
         {
@@ -241,7 +243,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     }
                 }
                 
-                ViewPort.SetItems(Items);
+                ViewPort.SetItems(Items, _definition.Wrap);
                 ViewPort.SetTotalRows(Items.Count);
             }
 
@@ -341,7 +343,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                 }
             }
 
-            ViewPort.SetItems(Items);
+            ViewPort.SetItems(Items, _definition.Wrap);
             ViewPort.SetTotalRows(Items.Count);
         }
 

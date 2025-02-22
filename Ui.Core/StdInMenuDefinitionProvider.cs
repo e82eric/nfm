@@ -15,6 +15,9 @@ public class StdInMenuDefinitionProvider(
     string? previewStartLineOffsetCommand,
     string? header,
     string? lineContinuationChar,
+    string? searchString,
+    bool wrap,
+    IComparer<Entry>? comparer,
     bool showGap) : IMenuDefinitionProvider
 {
     public MenuDefinition Get()
@@ -51,7 +54,7 @@ public class StdInMenuDefinitionProvider(
                 var score = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, score);
             },
-            Comparer = Comparers.ScoreLengthAndValue,
+            Comparer = comparer,
             EditAction = editCommandStr == null ? null : async (item, newValue) =>
             {
                 var oldValue = item.ToString();
@@ -64,7 +67,9 @@ public class StdInMenuDefinitionProvider(
 
                 return Result.Error(result.StandardOutput + "\n\n" + result.StandardError);
             },
-            ShowGap = showGap
+            ShowGap = showGap,
+            Wrap = wrap,
+            SearchString = searchString
         };
         return definition;
     }

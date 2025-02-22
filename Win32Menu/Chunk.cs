@@ -3,7 +3,7 @@
     public int Size { get; private set; } = 0;
     public readonly object[] Items;
     //TODO: Max this a command line option
-    public const int MaxSize = 1000;
+    public const int MaxSize = 10000;
     private bool _manualComplete = false;
 
     public Chunk()

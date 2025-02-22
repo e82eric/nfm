@@ -51,9 +51,11 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
         bool hasPreview,
         bool directoriesOnly,
         bool filesOnly,
+        bool wrap,
         char? delimiter,
         string? previewStartLineCommand,
         string? previewStartLineOffsetCommand,
+        bool gap,
         IMainViewModel viewModel,
         IComparer<Entry>? comparer,
         Action? onClosed)
@@ -83,6 +85,8 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
             Comparer = _comparer ?? EntryComparer,
             FinalComparer = _comparer ?? FinalEntryComparer,
             OnClosed = _onClosed,
+            Wrap = wrap,
+            ShowGap = gap,
             ScoreFunc = ScoreFunc,
             PreviewHandler = new PreviewHandler(
                 "bat --style=numbers --color=always --theme=gruvbox-dark --paging=never \"{0}\"",
@@ -151,10 +155,12 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
                 _hasPreview,
                 _directoriesOnly,
                 _filesOnly,
+                false,
                 null,
                 null,
                 null,
-                _viewModel,
+                false,
+               _viewModel,
                 null,
                 _onClosed).Get();
 

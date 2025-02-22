@@ -23,9 +23,11 @@ public class ShowDirectoryResultHandler(
                 hasPreview,
                 directoriesOnly,
                 filesOnly,
+                false,
                 null,
                 null,
                 null,
+                false,
                 viewModel,
                 null,
                 onClosed).Get();

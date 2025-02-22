@@ -20,18 +20,20 @@ class Viewport
     public int StartRow;
     private readonly int _viewportRows;
     private int _totalRows;
+    private bool _wrap;
 
     public int EndRow => _endRow;
 
-    public void SetItems(List<TerminalEscapedLine> items)
+    public void SetItems(List<TerminalEscapedLine> items, bool wrap)
     {
+        _wrap = wrap;
         _items = items;
         var accumulatedLines = 0;
         var i = 0;
         while (accumulatedLines < _viewportRows && i < items.Count())
         {
             var item = _items[StartRow + i];
-            accumulatedLines += item.Lines.Count;
+            accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
             i++;
         }
                                                  
@@ -54,7 +56,7 @@ class Viewport
                 while (accumulatedLines < _viewportRows)
                 {
                     var item = _items[(_endRow - 1) - i];
-                    accumulatedLines += item.Lines.Count;
+                    accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
                     i++;
                 }
                 
@@ -84,7 +86,7 @@ class Viewport
                 while (accumulatedLines < _viewportRows)
                 {
                     var item = _items[StartRow + i];
-                    accumulatedLines += item.Lines.Count;
+                    accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
                     i++;
                 }
                 
