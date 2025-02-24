@@ -69,7 +69,7 @@ public class StdInMenuDefinitionProvider(
             },
             ShowGap = showGap,
             Wrap = wrap,
-            SearchString = searchString
+            SearchString = searchString,
         };
         return definition;
     }

@@ -467,12 +467,6 @@ public class Win32Window
         switch (uMsg)
         {
             case WM_PAINT:
-                if (_viewModel == null)
-                {
-                    _ = BeginPaint(hWnd, out ps);
-                    EndPaint(hWnd, ref ps);
-                    return 0;
-                }
                 char[] spinner = { '\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2827', '\u2807', '\u280F' };
 
                 char[] spinnerBuffer = new char[10];
@@ -535,14 +529,18 @@ public class Win32Window
         switch (uMsg)
         {
             case WM_PAINT:
-                if (_snapshot == null)
+                Snapshot? snapshot;
+                lock (ItemsLock)
+                {
+                    snapshot = _snapshot;
+                }
+                if (snapshot == null)
                 {
                     _ = BeginPaint(hWnd, out ps);
                     EndPaint(hWnd, ref ps);
                     return 0;
                 }
                 
-                IntPtr gapPen = CreatePen(PS_SOLID, 1, GAP_COLOR);
                 var hdc = BeginPaint(_listBoxHwnd, out ps);
                 var hBufferedPaint = BeginBufferedPaint(
                     hdc,
@@ -566,8 +564,7 @@ public class Win32Window
                 
                 if (_hasHeader && _headerText != null)
                 {
-                    IntPtr hPen = CreatePen(PS_SOLID, 1, BORDER_COLOR);
-                    IntPtr hOldPen = SelectObject(hNewDc, hPen);
+                    IntPtr hOldPen = SelectObject(hNewDc, _borderPen);
                     SelectObject(hNewDc, _font);
 
                     SetBkColor(hNewDc, BACKGROUND_COLOR);
@@ -589,16 +586,16 @@ public class Win32Window
                 lock (ItemsLock)
                 {
                     var nextItemY = 0;
-                    for (var i = 0; i < _snapshot.Items.Count; i++)
+                    for (var i = 0; i < snapshot.Items.Count; i++)
                     {
-                        var item = _snapshot.Items[i];
+                        var item = snapshot.Items[i];
                         var startLine = 0;
-                        var linesToRender = _snapshot.WrapLines ? item.WrappedLines() : item.Lines;
+                        var linesToRender = snapshot.WrapLines ? item.WrappedLines() : item.Lines;
                         var itemLines = linesToRender.Count;
                         if (i == 0)
                         {
-                            itemLines = linesToRender.Count - _snapshot.StartLinesToClip;
-                            startLine = _snapshot.StartLinesToClip;
+                            itemLines = linesToRender.Count - snapshot.StartLinesToClip;
+                            startLine = snapshot.StartLinesToClip;
                         }
                         int totalHeight = itemLines * _listBoxItemHeight;
                         
@@ -610,7 +607,7 @@ public class Win32Window
                             left = ps.rcPaint.left,
                             right = ps.rcPaint.right
                         };
-                        if (i == _snapshot.SelectedIndex)
+                        if (i == snapshot.SelectedIndex)
                         {
                             FillRect(hNewDc, ref rcItem, _selectedBackgroundBrush);
                             SetBkColor(hNewDc, SELECTED_BACKGROUND_COLOR);
@@ -623,7 +620,7 @@ public class Win32Window
 
                         SetTextColor(hNewDc, TEXT_COLOR);
 
-                        if (i < _snapshot.Items.Count)
+                        if (i < snapshot.Items.Count)
                         {
                             for (var iIndex = 0; iIndex < itemLines; iIndex++)
                             {
@@ -665,9 +662,9 @@ public class Win32Window
                             }
                         }
                         
-                        if (_snapshot.ShowGap)
+                        if (snapshot.ShowGap)
                         {
-                            SelectObject(hNewDc, gapPen);
+                            SelectObject(hNewDc, _gapPen);
                             MoveToEx(hNewDc, 0, itemTop + totalHeight - 2, IntPtr.Zero);
                             LineTo(hNewDc, ps.rcPaint.right, itemTop + totalHeight - 2);
                         }
@@ -701,7 +698,7 @@ public class Win32Window
                     
                     using (Graphics g = Graphics.FromHdc(hNewDc))
                     {
-                        g.SmoothingMode = SmoothingMode.AntiAlias;
+                        g.SmoothingMode = SmoothingMode.HighQuality;
 
                         using (GraphicsPath path = GetRoundedRect(toastRect, CORNER_RADIUS))
                         {
@@ -760,15 +757,12 @@ public class Win32Window
                 return PaintPanelBorder(hWnd);
             }
             case WM_COMMAND:
-                if (_viewModel != null)
+                var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
+                if (notificationCode == EN_CHANGE)
                 {
-                    var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
-                    if (notificationCode == EN_CHANGE)
-                    {
-                        var text = new StringBuilder(GetWindowTextLength(_textBoxHwnd) + 1);
-                        GetWindowText(_textBoxHwnd, text, text.Capacity);
-                        _viewModel.SetSearchString(text.ToString());
-                    }
+                    var text = new StringBuilder(GetWindowTextLength(_textBoxHwnd) + 1);
+                    GetWindowText(_textBoxHwnd, text, text.Capacity);
+                    _viewModel.SetSearchString(text.ToString());
                 }
                 return 0;
             case WM_CTLCOLOREDIT:
@@ -794,16 +788,16 @@ public class Win32Window
             BPBF_COMPATIBLEBITMAP,
             IntPtr.Zero,
             out var hNewDc);
-
         if (hBufferedPaint == IntPtr.Zero || hNewDc == IntPtr.Zero)
         {
             return IntPtr.Zero;
         }
 
+        var blackBrush = CreateSolidBrush(BACKGROUND_COLOR + 10);
+        FillRect(hNewDc, ref ps.rcPaint, blackBrush);
         using (Graphics g = Graphics.FromHdc(hNewDc))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-
             Rectangle rect = new Rectangle(
                 ps.rcPaint.left + BORDER_THICKNESS,
                 ps.rcPaint.top + BORDER_THICKNESS,
@@ -839,15 +833,12 @@ public class Win32Window
                 return PaintPanelBorder(hWnd);
             }
             case WM_COMMAND:
-                if (_viewModel != null)
+                var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
+                if (notificationCode == EN_CHANGE)
                 {
-                    var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
-                    if (notificationCode == EN_CHANGE)
-                    {
-                        var text = new StringBuilder(GetWindowTextLength(_textBoxHwnd) + 1);
-                        GetWindowText(_textBoxHwnd, text, text.Capacity);
-                        Task.Run(() => _viewModel.SetSearchString(text.ToString()));
-                    }
+                    var text = new StringBuilder(GetWindowTextLength(_textBoxHwnd) + 1);
+                    GetWindowText(_textBoxHwnd, text, text.Capacity);
+                    Task.Run(() => _viewModel.SetSearchString(text.ToString()));
                 }
                 return 0;
             case WM_CTLCOLOREDIT:
@@ -858,7 +849,7 @@ public class Win32Window
                 return _backgroundBrush;
             }
             case WM_ERASEBKGND:
-                return 0;
+                return 1;
             default:
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
@@ -953,6 +944,7 @@ public class Win32Window
                 }
 
                 EndBufferedPaint(hBufferedPaint, true);
+                EndPaint(hWnd, ref ps);
             }
                 return 1;
             case WM_ERASEBKGND:
@@ -978,7 +970,7 @@ public class Win32Window
                 }
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
             case WM_KEYDOWN:
-                if (_snapshot == null || _viewModel == null)
+                if (_snapshot == null)
                 {
                     return 1;
                 }
@@ -1148,10 +1140,11 @@ public class Win32Window
         int windowX = monitorCenterX - (windowWidth / 2);
         int windowY = monitorCenterY - (windowHeight / 2);
         
+        var tmpBrush = CreateSolidBrush(BACKGROUND_COLOR + 10);
         WNDCLASSEX wind_class = new WNDCLASSEX();
         wind_class.cbSize = (int)Marshal.SizeOf<WNDCLASSEX>();
         wind_class.style = (int)(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS );
-        wind_class.hbrBackground = (IntPtr) COLOR_BACKGROUND  + 1;
+        wind_class.hbrBackground = tmpBrush;
         wind_class.cbClsExtra = 0;
         wind_class.cbWndExtra = 0;
         wind_class.hInstance = GetModuleHandle(null);;
@@ -1189,7 +1182,7 @@ public class Win32Window
         }
 
         _instance = wind_class.hInstance;
-        SetLayeredWindowAttributes(_rootHwnd, 0x000000, 0, 0x00000001);
+        SetLayeredWindowAttributes(_rootHwnd, BACKGROUND_COLOR + 10, 250, 0x00000001);
         UpdateWindow(_rootHwnd);
         
         if (_rootHwnd == 0)
@@ -1252,6 +1245,8 @@ public class Win32Window
     private IntPtr _listBoxHwnd;
     private IntPtr _listBoxPanelHwnd;
     private IntPtr _backgroundBrush;
+    private IntPtr _gapPen;
+    private IntPtr _borderPen;
     private IntPtr _selectedBackgroundBrush;
     private IntPtr _instance;
     private readonly ViewModel _viewModel;
@@ -1298,7 +1293,9 @@ public class Win32Window
                 SelectObject(hdc, _font);
                 GetTextMetrics(hdc, out var tm);
                 ReleaseDC(hWnd, hdc);
-                    
+
+                _borderPen = CreatePen(PS_SOLID, 1, BORDER_COLOR);
+                _gapPen = CreatePen(PS_SOLID, 1, GAP_COLOR);
                 _backgroundBrush = CreateSolidBrush(BACKGROUND_COLOR);
                 _selectedBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR);
 
@@ -1348,7 +1345,7 @@ public class Win32Window
                     _instance,
                     IntPtr.Zero);
                 SetWindowSubclass(_previewHwnd, _previewControlProc, 0, IntPtr.Zero);
-                
+
                 _textBoxPanelHwnd = CreateWindowEx(
                     0,
                     "static",
@@ -1502,6 +1499,7 @@ public class Win32Window
                 SetFocus(_textBoxHwnd);
                 SetListBoxItems();
                 UpdateWindow(_rootHwnd);
+                FocusStealer.BringToForeground(_rootHwnd);
                 break;
             
             case WM_SET_SEARCH_STRING:
@@ -1572,19 +1570,23 @@ public class Win32Window
         _hasHeader = true;
         _headerText = text;
         //This should really trigger a re-calc...
-        _maxListboxItems -= 1;
-        _viewModel.SetNumberOfRows(_maxListboxItems);
+        var numberOfRows = _maxListboxItems - 1;
+        _viewModel.SetNumberOfRows(numberOfRows);
     }
 
     public void HideHeader()
     {
         _hasHeader = false;
+        _viewModel.SetNumberOfRows(_maxListboxItems);
     }
 
-    public void Hide()
+    public void Hide(bool quit)
     {
         PostMessage(_rootHwnd, WM_HIDE_ROOT, 0, 0);
-        _cts.Cancel();
+        if (quit)
+        {
+            _cts.Cancel();
+        }
     }
 
     public void Show(bool showPreview)

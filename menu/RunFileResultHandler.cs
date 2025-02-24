@@ -8,10 +8,10 @@ public class RunFileResultHandler : IResultHandler
 {
     public async Task HandleAsync(object outputObj)
     {
-        var output = (FileSystemNode)outputObj;
+        var output = outputObj.ToString();
         var startInfo = new ProcessStartInfo
         {
-            FileName = output.ToString(),
+            FileName = output,
             UseShellExecute = true
         };
         await Task.Run(() => Process.Start(startInfo));

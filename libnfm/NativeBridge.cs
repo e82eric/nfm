@@ -1,20 +1,19 @@
 ﻿using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Threading.Channels;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Input;
 using nfzf;
+using Win32FromForms;
 
 namespace nfm.menu;
 
+[SupportedOSPlatform("windows")]
 public static class NativeBridge
 {
     private static Thread? _appThread;
-    private static App? _app;
-    private static readonly MainViewModel ViewModel = new();
+    private static readonly ViewModel ViewModel = new();
     
     private unsafe class ListWindowsNativeResultHandler(delegate* unmanaged<IntPtr, void*, void> onSelect, void* state) : IResultHandler
     {
@@ -140,22 +139,20 @@ public static class NativeBridge
         {
             throw new PlatformNotSupportedException("This functionality is only supported on Windows.");
         }
-        if (_app == null)
+        _appThread = new Thread(() =>
         {
-            _appThread = new Thread(() =>
+            
+            ViewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
+            ViewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (o, model) =>
             {
-                BuildApp()
-                    .Start((application, args) => RunApp(application), Array.Empty<string>());
-                _app?.Initialize();
+                ViewModel.TogglePreview();
+                return Task.CompletedTask;
             });
-            _appThread.SetApartmentState(ApartmentState.STA);
-            _appThread.Start();
-        }
-
-        while (_app == null || !_app.IsInitialized)
-        {
-            Thread.Sleep(100);
-        }
+            var window = new Win32Window(ViewModel, () => { });
+            window.Run();
+        });
+        _appThread.SetApartmentState(ApartmentState.STA);
+        _appThread.Start();
     }
     
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowFileSystem), CallConvs = [typeof(CallConvCdecl)])]
@@ -182,10 +179,16 @@ public static class NativeBridge
             showPreview,
             false,
             false,
-            ViewModel,
+            true,
             null,
+            null,
+            null,
+            true,
+            ViewModel,
+            Comparers.ScoreLengthAndValue,
             () => onClosed());
-        _app?.RunDefinition(command);
+        
+        RunDefinition(command.Get());
     }
     
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowProgramsList), CallConvs = [typeof(CallConvCdecl)])]
@@ -205,10 +208,16 @@ public static class NativeBridge
             false,
             false,
             true,
+            true,
+            null,
+            null,
+            null,
+            true,
             ViewModel,
             ProgramComparer,
             () => onClosed());
-        _app?.RunDefinition(command);
+        
+        RunDefinition(command.Get());
     }
     
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowWindowsList), CallConvs = [typeof(CallConvCdecl)])]
@@ -216,7 +225,8 @@ public static class NativeBridge
     {
         var command = new ShowWindowsMenuDefinitionProvider2(
             new ListWindowsNativeResultHandler(onSelect, state), () => onClosed());
-        _app?.RunDefinition(command);
+        
+        RunDefinition(command.Get());
     }
     
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowProcessesList), CallConvs = [typeof(CallConvCdecl)])]
@@ -226,7 +236,7 @@ public static class NativeBridge
         void* state)
     {
         var command = new ShowProcessesMenuDefinitionProvider(ViewModel, () => onClosed());
-        _app?.RunDefinition(command);
+        RunDefinition(command.Get());
     }
     
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowItemsList), CallConvs = [typeof(CallConvCdecl)])]
@@ -238,13 +248,13 @@ public static class NativeBridge
         void* state)
     {
         var command = new NativeItemsListMenuDefinitionProvider(header, nativeItemsAction, onSelect, onClosed, state);
-        _app?.RunDefinition(command);
+        RunDefinition(command.Get());
     }
     
     [UnmanagedCallersOnly(EntryPoint = nameof(RunLastDefinition), CallConvs = [typeof(CallConvCdecl)])]
     public static void RunLastDefinition()
     {
-        _app?.RunLastDefinition();
+        ViewModel.ShowLastDefinition();
     }
 
     [UnmanagedCallersOnly(EntryPoint = "Hide")]
@@ -257,30 +267,21 @@ public static class NativeBridge
     {
         try
         {
-            await ViewModel!.Close();
+            await ViewModel.Close(false);
         }
         catch (Exception)
         {
             //TODO: Logging
         }
     }
-    
-    private static AppBuilder BuildApp() 
-        => AppBuilder.Configure(() =>
-        {
-            ViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.C), ClipboardHelper.CopyStringToClipboard);
-            ViewModel.GlobalKeyBindings.Add((KeyModifiers.Control, Key.P), (_, vm) => {
-                vm.TogglePreview();
-                return Task.CompletedTask;
-            });
-            _app = new App(ViewModel);
-            return _app;
-        }).UsePlatformDetect();
 
-    private static void RunApp(Application app)
+    private static void RunDefinition(MenuDefinition definition)
     {
-        app.Run(CancellationToken.None);
-    } 
+        Task.Run(async () =>
+        {
+            await ViewModel.RunDefinitionAsync(definition);
+        });
+    }
     
     private static readonly IComparer<Entry> ProgramComparer = Comparer<Entry>.Create((x, y) =>
     {

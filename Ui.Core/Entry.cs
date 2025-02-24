@@ -17,8 +17,23 @@ public class TerminalEscapedLine
 
     public List<EscapedLine> WrappedLines()
     {
-        var result = Lines.SelectMany(s => s.WrapLines());
-        return result.ToList();
+        var result = new List<EscapedLine>();
+        foreach (var line in Lines)
+        {
+            if (line.LineText().Length < 131)
+            {
+                result.Add(line);
+            }
+            else
+            {
+                foreach (var wrappedLine in line.WrapLines())
+                {
+                   result.Add(wrappedLine);
+                }
+            }
+            
+        }
+        return result;
     }
 
     public void SetPos(IList<int> val)

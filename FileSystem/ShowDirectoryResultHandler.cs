@@ -1,6 +1,4 @@
-﻿using nfzf.FileSystem;
-
-namespace nfm.menu;
+﻿namespace nfm.menu;
 
 public class ShowDirectoryResultHandler(
     IMainViewModel viewModel,
@@ -13,12 +11,12 @@ public class ShowDirectoryResultHandler(
 {
     public async Task HandleAsync(object outputObj)
     {
-        var output = (FileSystemNode)outputObj;
+        var output = outputObj.ToString();
         var definition =
             new FileSystemMenuDefinitionProvider(
                 new FileSystemResultHandler(viewModel, fileResultHandler, this, quitOnEscape, true),
                 Int32.MaxValue,
-                [output.ToString()],
+                [output],
                 quitOnEscape,
                 hasPreview,
                 directoriesOnly,

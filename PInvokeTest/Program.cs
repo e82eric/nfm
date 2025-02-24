@@ -6,6 +6,7 @@ class StdInOptions
 {
     public string? Header { get; set; }
     public string? EditCommand { get; set; }
+    public bool ShowPreview { get; set; }
     public string? PreviewCommand { get; set; }
     public char? Delimiter { get; set; }
     public string? PreviewStartLineCommand { get; set; }
@@ -22,7 +23,6 @@ class FileSystemOptions
     public bool SearchDirectoryOnSelect { get; set; } = false;
     public string RootDirectory { get; set; } = string.Empty;
     public int MaxDepth { get; set; } = int.MaxValue;
-    public bool HasPreview { get; set; } = false;
     public bool DirectoriesOnly { get; set; } = false;
     public bool FilesOnly { get; set; } = false;
     public char? Delimiter { get; set; }
@@ -30,6 +30,7 @@ class FileSystemOptions
     public string? PreviewStartLineOffsetCommand { get; set; }
     public bool WrapLines { get; set; }
     public bool ShowGap { get; set; }
+    public bool ShowPreview { get; set; }
 }
 
 class CommandOptions
@@ -62,7 +63,7 @@ class Program
                     {
                         var menuDefinitionProvider = new StdInMenuDefinitionProvider(
                             viewModel,
-                            stdInOptions.PreviewCommand != null,
+                            stdInOptions.ShowPreview,
                             null,
                             stdInOptions.PreviewCommand,
                             stdInOptions.Delimiter,
@@ -102,7 +103,7 @@ class Program
                     fileSystemOptions.MaxDepth,
                     [fileSystemOptions.RootDirectory],
                     true,
-                    fileSystemOptions.HasPreview,
+                    fileSystemOptions.ShowPreview,
                     fileSystemOptions.DirectoriesOnly,
                     fileSystemOptions.FilesOnly,
                     fileSystemOptions.WrapLines,
@@ -182,6 +183,10 @@ class Program
             {
                 options.ShowGap = true;
             }
+            else if (args[i] == "--showpreview")
+            {
+                options.ShowPreview = true;
+            }
             else if (args[i] == "--nolengthsort")
             {
                 options.NoLengthSort = true;
@@ -225,9 +230,9 @@ class Program
                     i++;
                 }
             }
-            else if (args[i] == "--haspreview")
+            else if (args[i] == "--showpreview")
             {
-                options.HasPreview = true;
+                options.ShowPreview = true;
             }
             else if (args[i] == "--directoriesonly")
             {

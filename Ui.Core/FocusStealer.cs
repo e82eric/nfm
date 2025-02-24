@@ -1,15 +1,13 @@
-﻿using System;
-using System.Runtime.InteropServices;
-using Avalonia.Platform;
+﻿using System.Runtime.InteropServices;
 
 namespace nfm.menu;
 
-internal static class FocusStealer
+public static class FocusStealer
 {
-    public static void BringToForeground(IPlatformHandle platformHandle)
+    public static void BringToForeground(IntPtr hwnd)
     {
 #if WINDOWS
-        FocusWindowWithWin32(platformHandle.Handle);
+        FocusWindowWithWin32(hwnd);
         INPUT input = new INPUT { Type = INPUTTYPE.INPUTMOUSE, Data = { } };
         INPUT[] inputs = new INPUT[] { input };
 

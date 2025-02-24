@@ -21,12 +21,11 @@ public class FileSystemResultHandler(
 
     public async Task HandleAsync(object outputObj)
     {
-        var output = (FileSystemNode)outputObj;
-        var path = output.ToString();
+        var path = outputObj.ToString();
         if (!IsDirectory(path) || !searchDirectories)
         {
-            await viewModel.Close();
-            await fileResultHandler.HandleAsync(output);
+            await viewModel.Close(quitAfter);
+            await fileResultHandler.HandleAsync(path);
 
             if (quitAfter)
             {
@@ -35,7 +34,7 @@ public class FileSystemResultHandler(
         }
         else
         {
-            await directoryResultHandler.HandleAsync(output);
+            await directoryResultHandler.HandleAsync(path);
         }
     }
 }

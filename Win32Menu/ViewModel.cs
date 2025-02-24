@@ -38,7 +38,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         public Slab Slab { get; } = slab;
     }
 
-    private const int MaxItems = 1000;
+    private const int MaxItems = 100;
     private static readonly IList<int> EmptyPos = new List<int>();
     
     private MenuDefinition? _definition;
@@ -52,7 +52,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private readonly AsyncAutoResetEvent _restartSearchSignal;
     private readonly AsyncAutoResetEvent _previewSignal;
     private readonly UnboundedChannelOptions _channelOptions;
-    private readonly object _snapshotLock = new();
+    private readonly Lock _snapshotLock = new();
     public bool Searching;
     public bool Reading;
     public int NumberOfItems;
@@ -155,7 +155,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             var delay = Task.Delay(TimeSpan.FromMilliseconds(250));
             var searchSignalTask = _restartSearchSignal.WaitAsync();
             await Task.WhenAny(delay, searchSignalTask);
-            await Search();
+            //Searching is all cpu, need to make sure this doesn't get scheduled on the same thread as reading from the source
+            await Task.Run(Search);
         }
     }
 
@@ -184,18 +185,19 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         _localResultsPool.Add(threadLocalData);
     }
 
-    private Task Search()
+    private void Search()
     {
         if (_definition == null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         if (_lastSearchVersion == _searchVersion)
         {
-            return Task.CompletedTask;
+            return;
         }
 
+        var currentSearchVersion = _searchVersion;
         Searching = true;
         var completeChunks = _chunks.ToList();
 
@@ -216,7 +218,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                 
                         if (item is TerminalEscapedLine escapedLine)
                         {
-                            escapedLine.SetPos([]);
+                            escapedLine.SetPos(EmptyPos);
                             Items.Add(escapedLine);
                         }
                         else
@@ -224,7 +226,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                             var fullFilePath = item.ToString();
                             if (fullFilePath != null)
                             {
-                                var segment = new TextSegment() { State = new AnsiState(), Text = fullFilePath };
+                                var segment = new TextSegment { State = new AnsiState(), Text = fullFilePath };
                                 var segments = new List<TextSegment> { segment };
                                 var line = new EscapedLine(segments);
                                 var terminalEscapedLine = new TerminalEscapedLine();
@@ -232,7 +234,6 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                                 Items.Add(terminalEscapedLine);
                             }
                         }
-                
                 
                         itemsAdded++;
                     }
@@ -251,8 +252,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             Searching = false;
             View.SetListBoxItems();
             _previewSignal.Set();
-            Interlocked.Exchange(ref _lastSearchVersion, _searchVersion);
-            return Task.CompletedTask;
+            Interlocked.Exchange(ref _lastSearchVersion, currentSearchVersion);
+            return;
         }
 
         var parallelOptions = new ParallelOptions
@@ -298,7 +299,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
         if (ct.IsCancellationRequested)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         foreach (var localData in _localResultsPool)
@@ -351,9 +352,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         _previewSignal.Set();
 
         Searching = false;
-        
-        Interlocked.Exchange(ref _lastSearchVersion, _searchVersion);
-        return Task.CompletedTask;
+        Interlocked.Exchange(ref _lastSearchVersion, currentSearchVersion);
     }
 
     void SortAction(object node, int length, int score, int i, List<Entry> results, IComparer<Entry>? comparer)
@@ -388,6 +387,10 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         if (_definition.Header != null)
         {
             View.SetHeader(_definition.Header);
+        }
+        else
+        {
+            View.HideHeader();
         }
         if (definition.AsyncFunction != null)
         {
@@ -505,10 +508,10 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         return Task.CompletedTask;
     }
 
-    public Task Close()
+    public Task Close(bool quit)
     {
         _currentDefinitionCancellationTokenSource?.Cancel();
-        View.Hide();
+        View.Hide(quit);
         return Task.CompletedTask;
     }
 
@@ -592,6 +595,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         if (_definition.OnClosed != null)
         {
             _definition.OnClosed();
+            Close(false);
         }
         else if (_definition.QuitOnEscape)
         {
@@ -609,5 +613,10 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     {
         PreviewViewPort.HalfPageDown();
         View.SetPreviewLines(PreviewViewPort.ViewportLines());
+    }
+
+    public void ShowLastDefinition()
+    {
+        View.Show(_definition.HasPreview);
     }
 }

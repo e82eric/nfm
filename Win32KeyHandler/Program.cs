@@ -14,7 +14,6 @@ public class Program
         var window = new Win32Window(viewModel, () =>
         {
         });
-        
             var definitionProvider = new FileSystemMenuDefinitionProvider(
                 new StdOutResultHandler(viewModel),
                 int.MaxValue,
@@ -23,9 +22,14 @@ public class Program
                 true,
                 false,
                 false,
-                viewModel,
+                true,
                 null,
-                () => { viewModel.Close(); });
+                null,
+                null,
+                true,
+                viewModel,
+                Comparers.ScoreLengthAndValue, 
+                () => { viewModel.Close(false); });
             var keyBindings = new Dictionary<(GlobalKeyHandler.Modifiers, int), Func<Task>>
             {
                 {
