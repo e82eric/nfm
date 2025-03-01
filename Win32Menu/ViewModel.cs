@@ -38,7 +38,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         public Slab Slab { get; } = slab;
     }
 
-    private const int MaxItems = 100;
+    private const int MaxItems = 1000;
     private static readonly IList<int> EmptyPos = new List<int>();
     
     private MenuDefinition? _definition;
@@ -104,12 +104,15 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     public void FillSnapshot(Snapshot snapshot)
     {
         snapshot.Items.Clear();
+        if (!Items.Any())
+        {
+            return;
+        }
         lock (_snapshotLock)
         {
-            var numberOfRows = ViewPort.EndRow - ViewPort.StartRow;
-            for (var i = 0; i < numberOfRows; i++)
+            for (var i = ViewPort.StartRow; i <= ViewPort.EndRow; i++)
             {
-                var item = Items[i + ViewPort.StartRow];
+                var item = Items[i];
                 snapshot.Items.Add(item);
             }
 

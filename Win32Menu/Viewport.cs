@@ -1,6 +1,6 @@
 ﻿using nfm.menu;
 
-class Viewport
+public class Viewport
 {
     private int _endRow;
     private List<TerminalEscapedLine> _items;
@@ -26,46 +26,83 @@ class Viewport
 
     public void SetItems(List<TerminalEscapedLine> items, bool wrap)
     {
+        if (items.Count == 0)
+        {
+            StartRow = 0;
+            _endRow = 0;
+            return;
+        }
+        
         _wrap = wrap;
         _items = items;
+        //StartRow = 0;
+        ReflowFromTop();
+    }
+    
+    private void ReflowFromBottom()
+    {
         var accumulatedLines = 0;
         var i = 0;
-        while (accumulatedLines < _viewportRows && i < items.Count())
+        while (accumulatedLines < _viewportRows && _endRow - i >= 0)
         {
-            var item = _items[StartRow + i];
+            var item = _items[_endRow -  i];
             accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
+            
             i++;
         }
-                                                 
-        _endRow = StartRow + i;
+
+        if (EndRow - i + 1 <= 0 && accumulatedLines < _viewportRows)
+        {
+            StartRow = 0;
+            ReflowFromTop();
+            return;
+        }
+                
+        StartRow = Math.Max(0, EndRow - i + 1);
+        StartLinesToClip = Math.Max(0, accumulatedLines - _viewportRows);
     }
 
     public void SelectNext()
     {
-        if (SelectedIndex + 1 < _totalRows)
+        if (SelectedIndex + 1 < _items.Count())
         {
-            if (SelectedIndex + 1 < EndRow)
+            if (SelectedIndex + 1 <= EndRow)
             {
                 ViewportSelectedIndex++;
             }
             else
             {
-                var accumulatedLines = 0;
-                var i = 0;
-                _endRow++;
-                while (accumulatedLines < _viewportRows)
+                if (_endRow <= _items.Count)
                 {
-                    var item = _items[(_endRow - 1) - i];
-                    accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
-                    i++;
+                    _endRow++;
+                    ReflowFromBottom();
+                    ViewportSelectedIndex = Math.Max(0, EndRow - StartRow);
                 }
-                
-                StartRow = EndRow - i;
-                StartLinesToClip = Math.Max(0, accumulatedLines - _viewportRows);
-                ViewportSelectedIndex = EndRow - StartRow - 1;
             }
             SelectedIndex++;
         }
+    }
+    
+    private void ReflowFromTop()
+    {
+        var accumulatedLines = 0;
+        var i = 0;
+        while (accumulatedLines < _viewportRows && StartRow + i < _items.Count)
+        {
+            var item = _items[StartRow + i];
+            accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
+            i++;
+        }
+
+        if (StartRow + i >= _items.Count)
+        {
+            _endRow = _items.Count - 1;
+            ReflowFromBottom();
+            return;
+        }
+                
+        _endRow = Math.Min(_items.Count - 1, StartRow + i - 1);
+        StartLinesToClip = 0;
     }
 
     public void SelectPrevious()
@@ -78,90 +115,42 @@ class Viewport
             {
                 ViewportSelectedIndex--;
             }
-            else
+            else if(StartRow > 0)
             {
-                var accumulatedLines = 0;
-                var i = 0;
                 StartRow--;
-                while (accumulatedLines < _viewportRows)
-                {
-                    var item = _items[StartRow + i];
-                    accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
-                    i++;
-                }
-                
-                _endRow = StartRow + i;
+                ReflowFromTop();
                 ViewportSelectedIndex = 0;
-                StartLinesToClip = 0;
             }
         }
     }
 
     public void SelectHalfPageDown()
     {
-        var half = _viewportRows / 2;
-        if (SelectedIndex + half < _totalRows)
+        if (_endRow + 1 < _items.Count)
         {
-            SelectedIndex += half;
-
-            if (ViewportSelectedIndex + half < _viewportRows)
-            {
-                ViewportSelectedIndex += half;
-            }
-            else
-            {
-                StartRow += half;
-            }
+            StartRow = _endRow + 1;
+            ReflowFromTop();
+            SelectedIndex = StartRow + ViewportSelectedIndex;
         }
         else
         {
-            SelectedIndex = _totalRows - 1;
-            ViewportSelectedIndex = _totalRows - 1;
+            SelectedIndex = _items.Count - 1;
+            ViewportSelectedIndex = _viewportRows - 1;
         }
-    }
-    
-    public void HalfPageDown()
-    {
-        var half = _viewportRows / 2;
-        if (StartRow + half < _totalRows && EndRow < _totalRows)
-        {
-            StartRow += half;
-        }
-    }
-    
-    public void HalfPageUp()
-    {
-        var half = _viewportRows / 2;
-        if (StartRow - half > 0)
-        {
-            StartRow -= half;
-        }
-        else
-        {
-            StartRow = 0;
-        }
-    }
-
-    public void Reset()
-    {
-        StartRow = 0;
     }
 
     public void SelectHalfPageUp()
     {
-        var half = _viewportRows / 2;
-        if (SelectedIndex - half > 0)
+        if (StartRow > 0)
         {
-            SelectedIndex -= half;
-
-            if (ViewportSelectedIndex - half > 0)
+            _endRow = StartRow - 1;
+            ReflowFromBottom();
+            var numberOfRows = EndRow - StartRow;
+            if (ViewportSelectedIndex > numberOfRows)
             {
-                ViewportSelectedIndex -= half;
+                ViewportSelectedIndex = numberOfRows;
             }
-            else
-            {
-                StartRow -= half;
-            }
+            SelectedIndex = StartRow + ViewportSelectedIndex;
         }
         else
         {

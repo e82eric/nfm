@@ -241,4 +241,5 @@ namespace Ui.Core.Tests
             Assert.That(segments[1].State.Foreground, Is.EqualTo(expected));
         }
     }
+    
 }

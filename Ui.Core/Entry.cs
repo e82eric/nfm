@@ -55,6 +55,15 @@ public class TerminalEscapedLine
             accumulatedLength += line.LineText().Length;
         }
     }
+
+    public static TerminalEscapedLine SimpleText(string value)
+    {
+        var result = new TerminalEscapedLine();
+        var segments = new List<TextSegment>();
+        segments.Add(new TextSegment {State = new AnsiState(), Text = value});
+        result.Lines.Add(new EscapedLine(segments));
+        return result;
+    }
     
     public override string ToString()
     {
