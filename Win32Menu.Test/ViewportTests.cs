@@ -111,6 +111,47 @@ namespace nfm.menu.Tests
         }
         
         [Test]
+        public void SetItemsWithoutWrap_SameNumberOfRowsAsViewport()
+        {
+            int viewportRows = 3;
+            var viewport = new Viewport(viewportRows);
+            var items = new List<TerminalEscapedLine>
+            {
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+            };
+
+            viewport.SetItems(items, wrap: false);
+            
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
+
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(2));
+        }
+        
+        [Test]
+        public void SetItemsWithoutWrap_LessThanViewport()
+        {
+            int viewportRows = 3;
+            var viewport = new Viewport(viewportRows);
+            var items = new List<TerminalEscapedLine>
+            {
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+            };
+
+            viewport.SetItems(items, wrap: false);
+            
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
+
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(1));
+        }
+        
+        [Test]
         public void TestSetItemsWithWrap()
         {
             TerminalEscapedLine MultiLine(params string[] lines)

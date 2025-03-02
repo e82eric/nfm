@@ -35,11 +35,10 @@ public class Viewport
         
         _wrap = wrap;
         _items = items;
-        //StartRow = 0;
         ReflowFromTop();
     }
     
-    private void ReflowFromBottom()
+    private void ReflowFromBottom(bool stop)
     {
         var accumulatedLines = 0;
         var i = 0;
@@ -51,7 +50,7 @@ public class Viewport
             i++;
         }
 
-        if (EndRow - i + 1 <= 0 && accumulatedLines < _viewportRows)
+        if (EndRow - i + 1 <= 0 && accumulatedLines < _viewportRows && !stop)
         {
             StartRow = 0;
             ReflowFromTop();
@@ -75,7 +74,7 @@ public class Viewport
                 if (_endRow <= _items.Count)
                 {
                     _endRow++;
-                    ReflowFromBottom();
+                    ReflowFromBottom(true);
                     ViewportSelectedIndex = Math.Max(0, EndRow - StartRow);
                 }
             }
@@ -97,7 +96,7 @@ public class Viewport
         if (StartRow + i >= _items.Count)
         {
             _endRow = _items.Count - 1;
-            ReflowFromBottom();
+            ReflowFromBottom(true);
             return;
         }
                 
@@ -144,7 +143,7 @@ public class Viewport
         if (StartRow > 0)
         {
             _endRow = StartRow - 1;
-            ReflowFromBottom();
+            ReflowFromBottom(false);
             var numberOfRows = EndRow - StartRow;
             if (ViewportSelectedIndex > numberOfRows)
             {
