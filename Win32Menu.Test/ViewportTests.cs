@@ -58,7 +58,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             
             Assert.That(viewport.StartRow, Is.EqualTo(2));
             Assert.That(viewport.EndRow, Is.EqualTo(4));
@@ -367,7 +367,7 @@ namespace nfm.menu.Tests
 
             viewport.SetItems(items, wrap: false);
 
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
 
             Assert.That(viewport.StartRow, Is.EqualTo(2));
             Assert.That(viewport.EndRow, Is.EqualTo(4));
@@ -391,13 +391,13 @@ namespace nfm.menu.Tests
 
             viewport.SetItems(items, wrap: false);
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             Assert.That(viewport.StartRow, Is.EqualTo(2));
             Assert.That(viewport.EndRow, Is.EqualTo(4));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(2));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
 
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             Assert.That(viewport.StartRow, Is.EqualTo(2));
             Assert.That(viewport.EndRow, Is.EqualTo(4));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(4));
@@ -429,19 +429,19 @@ namespace nfm.menu.Tests
             Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             Assert.That(viewport.StartRow, Is.EqualTo(3));
             Assert.That(viewport.EndRow, Is.EqualTo(5));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(3));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
 
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             Assert.That(viewport.StartRow, Is.EqualTo(6));
             Assert.That(viewport.EndRow, Is.EqualTo(8));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(6));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             Assert.That(viewport.StartRow, Is.EqualTo(7));
             Assert.That(viewport.EndRow, Is.EqualTo(9));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(7));
@@ -464,14 +464,14 @@ namespace nfm.menu.Tests
 
             viewport.SetItems(items, wrap: false);
 
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
 
             Assert.That(viewport.StartRow, Is.EqualTo(2));
             Assert.That(viewport.EndRow, Is.EqualTo(4));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(2));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
 
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
 
             Assert.That(viewport.StartRow, Is.EqualTo(0));
             Assert.That(viewport.EndRow, Is.EqualTo(2));
@@ -506,63 +506,63 @@ namespace nfm.menu.Tests
             Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
 
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
 
             Assert.That(viewport.StartRow, Is.EqualTo(3));
             Assert.That(viewport.EndRow, Is.EqualTo(5));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(3));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
 
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
 
             Assert.That(viewport.StartRow, Is.EqualTo(6));
             Assert.That(viewport.EndRow, Is.EqualTo(8));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(6));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
 
             Assert.That(viewport.StartRow, Is.EqualTo(7));
             Assert.That(viewport.EndRow, Is.EqualTo(9));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(7));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
 
             Assert.That(viewport.StartRow, Is.EqualTo(7));
             Assert.That(viewport.EndRow, Is.EqualTo(9));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(9));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(2));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
 
             Assert.That(viewport.StartRow, Is.EqualTo(4));
             Assert.That(viewport.EndRow, Is.EqualTo(6));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(6));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(2));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
 
             Assert.That(viewport.StartRow, Is.EqualTo(1));
             Assert.That(viewport.EndRow, Is.EqualTo(3));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(3));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(2));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
             
             Assert.That(viewport.StartRow, Is.EqualTo(0));
             Assert.That(viewport.EndRow, Is.EqualTo(2));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(2));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(2));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
             
             Assert.That(viewport.StartRow, Is.EqualTo(0));
             Assert.That(viewport.EndRow, Is.EqualTo(2));
             Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
             
             Assert.That(viewport.StartRow, Is.EqualTo(0));
             Assert.That(viewport.EndRow, Is.EqualTo(2));
@@ -821,7 +821,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
 
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             
             Assert.That(viewport.StartRow, Is.EqualTo(2));
             Assert.That(viewport.EndRow, Is.EqualTo(3));
@@ -829,7 +829,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             
             Assert.That(viewport.StartRow, Is.EqualTo(4));
             Assert.That(viewport.EndRow, Is.EqualTo(5));
@@ -837,7 +837,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             
             Assert.That(viewport.StartRow, Is.EqualTo(5));
             Assert.That(viewport.EndRow, Is.EqualTo(6));
@@ -845,7 +845,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
             
-            viewport.SelectHalfPageDown();
+            viewport.PageDown();
             
             Assert.That(viewport.StartRow, Is.EqualTo(5));
             Assert.That(viewport.EndRow, Is.EqualTo(6));
@@ -853,7 +853,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(2));
             Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
             
             Assert.That(viewport.StartRow, Is.EqualTo(3));
             Assert.That(viewport.EndRow, Is.EqualTo(4));
@@ -861,7 +861,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(1));
             Assert.That(viewport.StartLinesToClip, Is.EqualTo(2));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
             
             Assert.That(viewport.StartRow, Is.EqualTo(1));
             Assert.That(viewport.EndRow, Is.EqualTo(2));
@@ -869,7 +869,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(1));
             Assert.That(viewport.StartLinesToClip, Is.EqualTo(1));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
             
             Assert.That(viewport.StartRow, Is.EqualTo(0));
             Assert.That(viewport.EndRow, Is.EqualTo(1));
@@ -877,7 +877,7 @@ namespace nfm.menu.Tests
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(1));
             Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
             
-            viewport.SelectHalfPageUp();
+            viewport.PageUp();
             
             Assert.That(viewport.StartRow, Is.EqualTo(0));
             Assert.That(viewport.EndRow, Is.EqualTo(1));

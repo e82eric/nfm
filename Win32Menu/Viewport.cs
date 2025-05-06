@@ -5,7 +5,7 @@ public class Viewport
     private int _endRow;
     private List<TerminalEscapedLine> _items;
     public int ViewportSelectedIndex;
-    public int StartLinesToClip { get; set; }
+    public int StartLinesToClip { get; private set; }
 
     public Viewport(int viewportRows)
     {
@@ -123,7 +123,7 @@ public class Viewport
         }
     }
 
-    public void SelectHalfPageDown()
+    public void PageDown()
     {
         if (_endRow + 1 < _items.Count)
         {
@@ -138,7 +138,7 @@ public class Viewport
         }
     }
 
-    public void SelectHalfPageUp()
+    public void PageUp()
     {
         if (StartRow > 0)
         {

@@ -58,7 +58,7 @@ public class ClipboardHelper
 #endif
     }
 #if WINDOWS
-    private static void Copy(string text)
+    public static void Copy(string text)
     {
         IntPtr hGlobal = IntPtr.Zero;
         try

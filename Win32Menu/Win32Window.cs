@@ -384,6 +384,7 @@ public class Win32Window
     private const int BORDER_COLOR = 0x00888545; //0x00bbggrr
     private const int BACKGROUND_COLOR = 0x00282828; //0x00bbggrr
     private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
+    private const int SELECTED_BACKGROUND_COLOR_2 = 0x00545c66; //0x00665c54
     private const int TEXT_COLOR = 0x008499a8; //0x00a88499
     private const int GAP_COLOR = 0x00454950; //0x00504945
     private const int SPINNER_COLOR = BORDER_COLOR;
@@ -398,6 +399,8 @@ public class Win32Window
     private const UInt32 WM_HIDE_ROOT = WM_USER + 5;
     private const UInt32 WM_INITALIZED = WM_USER + 6;
     private const UInt32 WM_SET_SEARCH_STRING = WM_USER + 7;
+    private const UInt32 WM_FOCUS_PREVIEW = WM_USER + 8;
+    private const UInt32 WM_FOCUS_SEARCH = WM_USER + 9;
     private const UInt32 WS_VISIBLE = 0x10000000;
     
     static ModifierKeys GetModifiersPressed()
@@ -492,28 +495,39 @@ public class Win32Window
                 }
 
                 IntPtr hdc = BeginPaint(hWnd, out ps);
+                var hBufferedPaint = BeginBufferedPaint(
+                    hdc,
+                    ref ps.rcPaint,
+                    BPBF_COMPATIBLEBITMAP,
+                    IntPtr.Zero,
+                    out var hNewDc);
+                if (hBufferedPaint == IntPtr.Zero)
+                {
+                    return IntPtr.Zero;
+                }
 
-                SetTextAlign(hdc, TA_LEFT);
-                FillRect(hdc, ref ps.rcPaint, _backgroundBrush);
-                SelectObject(hdc, _font);
-                SetBkMode(hdc, TRANSPARENT);
+                SetTextAlign(hNewDc, TA_LEFT);
+                FillRect(hNewDc, ref ps.rcPaint, _backgroundBrush);
+                SelectObject(hNewDc, _font);
+                SetBkMode(hNewDc, TRANSPARENT);
 
                 SIZE sz;
                 int width = ps.rcPaint.right - ps.rcPaint.left;
-                SetTextColor(hdc, TEXT_COLOR);
+                SetTextColor(hNewDc, TEXT_COLOR);
 
-                GetTextExtentPoint32(hdc, new string(countBuffer), countText.Length, out sz);
+                GetTextExtentPoint32(hNewDc, new string(countBuffer), countText.Length, out sz);
                 int offset = width - sz.cx - 2;
 
-                TextOut(hdc, offset, 2, new string(countBuffer), countText.Length);
+                TextOut(hNewDc, offset, 2, new string(countBuffer), countText.Length);
 
                 if (_viewModel.Reading || _viewModel.Searching)
                 {
-                    GetTextExtentPoint32(hdc, new string(spinnerBuffer), 1, out sz);
-                    SetTextColor(hdc, SPINNER_COLOR);
-                    TextOut(hdc, offset - sz.cx - 5, 2, new string(spinnerBuffer), 1);
+                    GetTextExtentPoint32(hNewDc, new string(spinnerBuffer), 1, out sz);
+                    SetTextColor(hNewDc, SPINNER_COLOR);
+                    TextOut(hNewDc, offset - sz.cx - 5, 2, new string(spinnerBuffer), 1);
                 }
 
+                EndBufferedPaint(hBufferedPaint, true);
                 EndPaint(hWnd, ref ps);
                 return 1;
             case WM_ERASEBKGND:
@@ -927,6 +941,22 @@ public class Win32Window
 
                     var line = _lines[i];
 
+                    var selectedLine = false;
+                    var selectedAndFocused = false;
+                    if (_viewModel.PreviewViewPort.Focused)
+                    {
+                        if (i + _viewModel.PreviewViewPort.StartRow >= _viewModel.PreviewViewPort.SelectedLineStart && i + _viewModel.PreviewViewPort.StartRow <= _viewModel.PreviewViewPort.SelectedLineEnd)
+                        {
+                            selectedLine = true;
+                            if (i + _viewModel.PreviewViewPort.StartRow ==
+                                _viewModel.PreviewViewPort.SelectedLineFocused)
+                            {
+                                selectedAndFocused = true;
+                            }
+                            FillRect(hNewDc, ref rcItem, _viewModel.PreviewViewPort.YankInProgress ? _highlightBackgroundBrush : selectedAndFocused ? _selectedBackgroundBrush : _selectedBackgroundBrush2);
+                        }
+                    }
+
                     var xOffset = 0;
                     foreach (var segment in line)
                     {
@@ -935,9 +965,9 @@ public class Win32Window
                         var color = segment.State.Foreground;
                         int colorRef = (color.B << 16) | (color.G << 8) | color.R;
                         var backgroundColor = segment.State.Background;
-                        int backgroundColorRef = (backgroundColor.B << 16) | (backgroundColor.G << 8) | backgroundColor.R;
-                        SetTextColor(hNewDc, colorRef);
+                        int backgroundColorRef = _viewModel.PreviewViewPort.YankInProgress && selectedLine ? SELECTED_BACKGROUND_COLOR_2 : selectedAndFocused ? SELECTED_BACKGROUND_COLOR : selectedLine ? SELECTED_BACKGROUND_COLOR_2 : (backgroundColor.B << 16) | (backgroundColor.G << 8) | backgroundColor.R;
                         SetBkColor(hNewDc, backgroundColorRef);
+                        SetTextColor(hNewDc, _viewModel.PreviewViewPort.YankInProgress && selectedLine ? BACKGROUND_COLOR : colorRef);
                         TextOut(hNewDc, rect.left + xOffset, centeredY, segment.Text, segment.Text.Length);
                         xOffset += sz.cx;
                     }
@@ -949,6 +979,10 @@ public class Win32Window
                 return 1;
             case WM_ERASEBKGND:
                 return 0;
+            case WM_KEYDOWN:
+                var modifiers = GetModifiersPressed();
+                _viewModel.HandlePreviewKey((int)wParam, modifiers);
+                return 1;
             default:
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
@@ -1007,10 +1041,27 @@ public class Win32Window
                     switch (wParam)
                     {
                         case VK_DOWN:
-                            _viewModel.SelectNext();
+                            if (_viewModel.PreviewViewPort.Focused)
+                            {
+                                _viewModel.PreviewViewPort.SelectNextLine();
+                                SetPreviewLines(_viewModel.PreviewViewPort.ViewportLines());
+                            }
+                            else
+                            {
+                                _viewModel.SelectNext();
+                            }
                             return 0;
                         case VK_UP:
-                            _viewModel.SelectPrevious();
+                            if (_viewModel.PreviewViewPort.Focused)
+                            {
+                                _viewModel.PreviewViewPort.SelectPreviousLine();
+                                SetPreviewLines(_viewModel.PreviewViewPort.ViewportLines());
+                            }
+                            else
+                            {
+                                _viewModel.SelectPrevious();
+                            }
+
                             return 0;
                         case VK_PAGEDOWN:
                             _viewModel.SelectPageDown();
@@ -1248,6 +1299,8 @@ public class Win32Window
     private IntPtr _gapPen;
     private IntPtr _borderPen;
     private IntPtr _selectedBackgroundBrush;
+    private IntPtr _selectedBackgroundBrush2;
+    private IntPtr _highlightBackgroundBrush;
     private IntPtr _instance;
     private readonly ViewModel _viewModel;
     private Timer? _timer;
@@ -1298,6 +1351,8 @@ public class Win32Window
                 _gapPen = CreatePen(PS_SOLID, 1, GAP_COLOR);
                 _backgroundBrush = CreateSolidBrush(BACKGROUND_COLOR);
                 _selectedBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR);
+                _selectedBackgroundBrush2 = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
+                _highlightBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
 
                 _maxListboxItems = 15;
                 _listBoxItemHeight = (tm.tmHeight + (ListboxItemPadding * 2));
@@ -1514,6 +1569,14 @@ public class Win32Window
 
                 break;
             
+            case WM_FOCUS_PREVIEW:
+                SetFocus(_previewHwnd);
+                break;
+            
+            case WM_FOCUS_SEARCH:
+                SetFocus(_textBoxHwnd);
+                break;
+            
             case WM_HIDE_ROOT:
                 ShowWindow(_rootHwnd, 0);
                 break;
@@ -1545,6 +1608,11 @@ public class Win32Window
     public void SetPreviewLines(List<List<TextSegment>> lines)
     {
         _lines = lines.ToList();
+        TriggerPreviewRender();
+    }
+    
+    public void TriggerPreviewRender()
+    {
         Interlocked.Increment(ref _previewVersion);
         Interlocked.Exchange(ref _previewType, PreviewType.Text);
         InvalidateRect(_previewHwnd, IntPtr.Zero, true);
@@ -1598,5 +1666,15 @@ public class Win32Window
     {
         IntPtr searchStrPtr = Marshal.StringToHGlobalUni(searchString);
         PostMessage(_rootHwnd, WM_SET_SEARCH_STRING, 0, searchStrPtr);
+    }
+
+    public void FocusPreview()
+    {
+        PostMessage(_rootHwnd, WM_FOCUS_PREVIEW, 0, 0);
+    }
+
+    public void FocusSearch()
+    {
+        PostMessage(_rootHwnd, WM_FOCUS_SEARCH, 0, 0);
     }
 }

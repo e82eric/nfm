@@ -66,12 +66,15 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private Win32Window? _view;
     private int _searchVersion = 0;
     private int _lastSearchVersion = -1;
+    private string _previewVimState = string.Empty;
+    private DateTime _previewVimLastKeyPressTime;
+    private readonly TimeSpan _previewVimTimeout = TimeSpan.FromSeconds(1);
     
     public Dictionary<(ModifierKeys, int), Func<object, IMainViewModel, Task>> GlobalKeyBindings { get; } = new();
     
     private Win32Window View => _view ! ?? throw new InvalidOperationException("View has not been set.");
     private Viewport ViewPort => _viewport ! ?? throw new InvalidOperationException("Viewport has not been set.");
-    private PreviewViewport PreviewViewPort => _previewViewport ! ?? throw new InvalidOperationException("PreviewViewport has not been set.");
+    public PreviewViewport PreviewViewPort => _previewViewport ! ?? throw new InvalidOperationException("PreviewViewport has not been set.");
     
     public void SetView(Win32Window view)
     {
@@ -465,6 +468,121 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         Interlocked.Increment(ref _searchVersion);
         _restartSearchSignal.Set();
     }
+
+    private string GetCharFromKey(int key, ModifierKeys eKeyModifiers)
+    {
+        bool shiftPressed = (eKeyModifiers & ModifierKeys.LShift) != 0 || (eKeyModifiers & ModifierKeys.RShift) != 0;
+
+        if (key >= 0x30 && key <= 0x39)
+        {
+            return ((char)key).ToString();
+        }
+
+        if (key >= 0x41 && key <= 0x5A)
+        {
+            char ch = (char)key;
+            if (!shiftPressed)
+            {
+                ch = char.ToLower(ch);
+            }
+            return ch.ToString();
+        }
+
+        return string.Empty;
+    }
+
+    public void HandlePreviewKey(int key, ModifierKeys eKeyModifiers)
+    {
+        if ((DateTime.Now - _previewVimLastKeyPressTime) > _previewVimTimeout)
+        {
+            _previewVimState = string.Empty;
+        }
+        _previewVimLastKeyPressTime = DateTime.Now;
+        
+        var resetState = false;
+        switch (eKeyModifiers)
+        {
+            case ModifierKeys.None:
+                switch (key)
+                {
+                    case VirtualKeyCodes.VK_ESCAPE:
+                        if (PreviewViewPort.Mode == PreviewViewport.PreviewMode.Visual)
+                        {
+                            PreviewViewPort.ToggleVisualMode();
+                        }
+                        else
+                        {
+                            View.FocusSearch();
+                            PreviewViewPort.Focused = false;
+                        }
+                        View.TriggerPreviewRender();
+                        resetState = true;
+                        break;
+                    case VirtualKeyCodes.VK_DOWN:
+                        PreviewViewPort.SelectNextLine();
+                        View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                        resetState = true;
+                        break;
+                    case VirtualKeyCodes.VK_UP:
+                        PreviewViewPort.SelectPreviousLine();
+                        View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                        resetState = true;
+                        break;
+                    case VirtualKeyCodes.VK_NEXT:
+                        PreviewViewPort.SelectHalfPageDown();
+                        View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                        resetState = true;
+                        break;
+                    case VirtualKeyCodes.VK_PRIOR:
+                        PreviewViewPort.SelectHalfPageUp();
+                        View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                        resetState = true;
+                        break;
+                }
+                break;
+        }
+
+        if (resetState)
+        {
+            _previewVimState = string.Empty;
+            return;
+        }
+        
+        var keyChar = GetCharFromKey(key, eKeyModifiers);
+        _previewVimState += keyChar;
+
+        switch (_previewVimState)
+        {
+            case "gg":
+                PreviewViewPort.SelectToTop();
+                View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                _previewVimState = string.Empty;
+                break;
+            case "G":
+                PreviewViewPort.SelectToBottom();
+                View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                _previewVimState = string.Empty;
+                break;
+            case "j":
+                PreviewViewPort.SelectNextLine();
+                View.TriggerPreviewRender();
+                _previewVimState = string.Empty;
+                break;
+            case "k":
+                PreviewViewPort.SelectPreviousLine();
+                View.TriggerPreviewRender();
+                _previewVimState = string.Empty;
+                break;
+            case "v":
+                PreviewViewPort.ToggleVisualMode();
+                View.TriggerPreviewRender();
+                _previewVimState = string.Empty;
+                break;
+            case "y":
+                PreviewViewPort.CopySelected(View);
+                break;
+        }
+    }
     
     public async Task HandleKeyUp(int eKey, ModifierKeys eKeyModifiers)
     {
@@ -475,6 +593,19 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                 if (_definition?.EditAction != null)
                 {
                     //EditDialogOpen = true;
+                }
+            }
+            else if (eKey == VirtualKeyCodes.VK_V)
+            {
+                _previewViewport.ToggleVisualMode();
+            }
+            else if (eKey == VirtualKeyCodes.VK_W)
+            {
+                if (_showPreview)
+                {
+                    _previewViewport.Focused = !_previewViewport.Focused;
+                    View.FocusPreview();
+                    View.SetPreviewLines(PreviewViewPort.ViewportLines());
                 }
             }
             else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
@@ -569,14 +700,14 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     
     public void SelectPageDown()
     {
-        ViewPort.SelectHalfPageDown();
+        ViewPort.PageDown();
         View.SetListBoxItems();
         _previewSignal.Set();
     }
     
     public void SelectPageUp()
     {
-        ViewPort.SelectHalfPageUp();
+        ViewPort.PageUp();
         View.SetListBoxItems();
         _previewSignal.Set();
     }
@@ -595,14 +726,22 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     
     public void OnEscape()
     {
-        if (_definition.OnClosed != null)
+        if (_previewViewport.Focused)
         {
-            _definition.OnClosed();
-            Close(false);
+            _previewViewport.Focused = false;
+            View.SetPreviewLines(_previewViewport.ViewportLines());
         }
-        else if (_definition.QuitOnEscape)
+        else
         {
-            Environment.Exit(0);
+            if (_definition.OnClosed != null)
+            {
+                _definition.OnClosed();
+                Close(false);
+            }
+            else if (_definition.QuitOnEscape)
+            {
+                Environment.Exit(0);
+            }
         }
     }
 
