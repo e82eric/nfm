@@ -11,6 +11,35 @@ namespace Win32FromForms;
 [SupportedOSPlatform("windows")]
 public class Win32Window
 {
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int X,
+        int Y,
+        int cx,
+        int cy,
+        SetWindowPosFlags uFlags);
+
+    [Flags]
+    private enum SetWindowPosFlags : uint
+    {
+        SWP_NOSIZE         = 0x0001,
+        SWP_NOMOVE         = 0x0002,
+        SWP_NOZORDER       = 0x0004,
+        SWP_NOREDRAW       = 0x0008,
+        SWP_NOACTIVATE     = 0x0010,
+        SWP_FRAMECHANGED   = 0x0020,
+        SWP_SHOWWINDOW     = 0x0040,
+        SWP_HIDEWINDOW     = 0x0080,
+        SWP_NOCOPYBITS     = 0x0100,
+        SWP_NOOWNERZORDER  = 0x0200,
+        SWP_NOSENDCHANGING = 0x0400,
+        SWP_DEFERERASE     = 0x2000,
+        SWP_ASYNCWINDOWPOS = 0x4000,
+    }
+    
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
 
@@ -50,10 +79,10 @@ public class Win32Window
         public int tmOverhang;
         public int tmDigitizedAspectX;
         public int tmDigitizedAspectY;
-        public ushort tmFirstChar;    // Changed from byte to ushort
-        public ushort tmLastChar;     // Changed from byte to ushort
-        public ushort tmDefaultChar;  // Changed from byte to ushort
-        public ushort tmBreakChar;    // Changed from byte to ushort
+        public ushort tmFirstChar;
+        public ushort tmLastChar;
+        public ushort tmDefaultChar;
+        public ushort tmBreakChar;
         public byte tmItalic;
         public byte tmUnderlined;
         public byte tmStruckOut;
@@ -1123,20 +1152,29 @@ public class Win32Window
             SendMessage(hWnd, EM_SETSEL, (IntPtr)startPos, (IntPtr)startPos);
         }
     }
-        
-    public void Run()
+
+    private struct ScreenLocation
     {
+        public int x;
+        public int y;
+        public int width;
+        public int height;
+    }
+    
+    private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation result)
+    {
+        result = new ScreenLocation { };
         IntPtr foregroundWindow = GetForegroundWindow();
         if (foregroundWindow == IntPtr.Zero)
         {
             Console.WriteLine("No active window found.");
-            return;
+            return false;
         }
 
         if (!GetWindowRect(foregroundWindow, out RECT windowRect))
         {
             Console.WriteLine("Failed to get window rect.");
-            return;
+            return false;
         }
 
         IntPtr bestMonitor = IntPtr.Zero;
@@ -1171,7 +1209,7 @@ public class Win32Window
         if (bestMonitor == IntPtr.Zero)
         {
             Console.WriteLine("No monitor found for the focused window.");
-            return;
+            return false;
         }
 
         MONITORINFO bestMonitorInfo = new MONITORINFO();
@@ -1179,7 +1217,7 @@ public class Win32Window
         if (!GetMonitorInfo(bestMonitor, ref bestMonitorInfo))
         {
             Console.WriteLine("Failed to get monitor info.");
-            return;
+            return false;
         }
 
         int monitorCenterX = (bestMonitorInfo.rcMonitor.left + bestMonitorInfo.rcMonitor.right) / 2;
@@ -1190,7 +1228,32 @@ public class Win32Window
 
         int windowX = monitorCenterX - (windowWidth / 2);
         int windowY = monitorCenterY - (windowHeight / 2);
+
+        result.x = windowX;
+        result.y = windowY;
+        result.width = windowWidth;
+        result.height = windowHeight;
+        return true;
+    }
+
+    private static void MoveWindowToCenterOfActiveMonitor(IntPtr hwnd)
+    {
+        if (TryGetCenterOfActiveMonitorLocation(out var screenLocation))
+        {
+            SetWindowPos(
+                hwnd,
+                IntPtr.Zero,
+                screenLocation.x,
+                screenLocation.y,
+                screenLocation.width,
+                screenLocation.height,
+                SetWindowPosFlags.SWP_NOREDRAW);
+        }
+    }
         
+    public void Run()
+    {
+        TryGetCenterOfActiveMonitorLocation(out var screenLocation);
         var tmpBrush = CreateSolidBrush(BACKGROUND_COLOR + 10);
         WNDCLASSEX wind_class = new WNDCLASSEX();
         wind_class.cbSize = (int)Marshal.SizeOf<WNDCLASSEX>();
@@ -1217,10 +1280,10 @@ public class Win32Window
             wind_class.lpszClassName,
             "nfm",
              WS_POPUP,
-            windowX,
-            windowY,
-            windowWidth,
-            windowHeight,
+            screenLocation.x,
+            screenLocation.y,
+            screenLocation.width,
+            screenLocation.height,
             IntPtr.Zero,
             IntPtr.Zero,
             wind_class.hInstance,
@@ -1547,6 +1610,7 @@ public class Win32Window
                 {
                     PostMessage(_rootHwnd, WM_TOGGLE_PREVIEW, 0, 0);
                 }
+                MoveWindowToCenterOfActiveMonitor(_rootHwnd);
                 ShowWindow(_rootHwnd, 1);
                 _showPreview = Convert.ToBoolean(showPreview);
                 ShowWindow(_previewPanelHwnd, showPreview);

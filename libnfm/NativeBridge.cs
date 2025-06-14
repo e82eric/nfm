@@ -183,7 +183,7 @@ public static class NativeBridge
             null,
             null,
             null,
-            true,
+            false,
             ViewModel,
             Comparers.ScoreLengthAndValue,
             () => onClosed());
@@ -212,7 +212,7 @@ public static class NativeBridge
             null,
             null,
             null,
-            true,
+            false,
             ViewModel,
             ProgramComparer,
             () => onClosed());
