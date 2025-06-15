@@ -15,6 +15,13 @@ public class TerminalEscapedLine
     private IList<int> _pos = new List<int>();
     public List<EscapedLine> Lines { get; } = new();
 
+    public IReadOnlyList<EscapedLine> GetLinesToRender(bool wrap, int max)
+    {
+        return (wrap ? WrappedLines() : Lines)
+            .Take(max)
+            .ToList();
+    }
+
     public List<EscapedLine> WrappedLines()
     {
         var result = new List<EscapedLine>();
@@ -45,14 +52,14 @@ public class TerminalEscapedLine
             var linePos = new List<int>();
             foreach (var p in _pos)
             {
-                if (p >= accumulatedLength && p < accumulatedLength + line.LineText().Length)
+                if (p >= accumulatedLength && p < accumulatedLength + line.LineText().Length + 2)
                 {
                     linePos.Add(p - accumulatedLength);
                 }
             }
             
             line.SetPos(linePos);
-            accumulatedLength += line.LineText().Length;
+            accumulatedLength += line.LineText().Length + 2;
         }
     }
 

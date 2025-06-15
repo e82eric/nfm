@@ -45,7 +45,7 @@ public class Viewport
         while (accumulatedLines < _viewportRows && _endRow - i >= 0)
         {
             var item = _items[_endRow -  i];
-            accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
+            accumulatedLines = item.GetLinesToRender(_wrap, 11).Count;
             
             i++;
         }
@@ -89,7 +89,7 @@ public class Viewport
         while (accumulatedLines < _viewportRows && StartRow + i < _items.Count)
         {
             var item = _items[StartRow + i];
-            accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
+            accumulatedLines = item.GetLinesToRender(_wrap, 11).Count;
             i++;
         }
 

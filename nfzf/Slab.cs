@@ -25,7 +25,9 @@ public class Slab
     public Span<int> AllocInt(int size)
     {
         if (_intOffset + size > _intSlab.Length)
-            throw new InvalidOperationException("Slab out of memory for int.");
+        {
+            return new int[size];
+        }
 
         var slice = new Span<int>(_intSlab, _intOffset, size);
         _intOffset += size;
@@ -35,7 +37,9 @@ public class Slab
     public Span<char> AllocChar(int size)
     {
         if (_charOffset + size > _charSlab.Length)
-            throw new InvalidOperationException("Slab out of memory for char.");
+        {
+            return new char[size];
+        }
 
         var slice = new Span<char>(_charSlab, _charOffset, size);
         _charOffset += size;

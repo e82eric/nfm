@@ -76,6 +76,7 @@ public static class FuzzySearcher
             var matched = false;
             foreach (var term in termSet.Terms)
             {
+                slab.Reset();
                 if (term.Inv)
                 {
                     var invAlgResult = term.MatchFunction(term.CaseSensitive, text, term.Text, slab, result);
@@ -605,7 +606,6 @@ public static class FuzzySearcher
 
     public static int GetScore(ReadOnlySpan<char> text, Pattern pattern, Slab slab)
     {
-        slab.Reset();
         if (pattern.TermSets.Count == 0)
         {
             return 1;
@@ -630,6 +630,7 @@ public static class FuzzySearcher
             bool matched = false;
             foreach (var term in termSet.Terms)
             {
+                slab.Reset();
                 var res = term.MatchFunction(term.CaseSensitive, text, term.Text, slab, null);
                 if (res.Start >= 0)
                 {
