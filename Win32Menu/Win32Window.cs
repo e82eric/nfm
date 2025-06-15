@@ -633,7 +633,7 @@ public class Win32Window
                     {
                         var item = snapshot.Items[i];
                         var startLine = 0;
-                        var linesToRender = item.GetLinesToRender(snapshot.WrapLines, 11);
+                        var linesToRender = snapshot.WrapLines ? item.WrappedLines() : item.Lines;
                         var itemLines = linesToRender.Count;
                         if (i == 0)
                         {

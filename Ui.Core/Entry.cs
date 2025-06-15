@@ -15,13 +15,6 @@ public class TerminalEscapedLine
     private IList<int> _pos = new List<int>();
     public List<EscapedLine> Lines { get; } = new();
 
-    public IReadOnlyList<EscapedLine> GetLinesToRender(bool wrap, int max)
-    {
-        return (wrap ? WrappedLines() : Lines)
-            .Take(max)
-            .ToList();
-    }
-
     public List<EscapedLine> WrappedLines()
     {
         var result = new List<EscapedLine>();
