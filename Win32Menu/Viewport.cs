@@ -121,6 +121,10 @@ public class Viewport
                 ViewportSelectedIndex = 0;
             }
         }
+        else
+        {
+            ReflowFromTop();
+        }
     }
 
     public void PageDown()
@@ -155,6 +159,7 @@ public class Viewport
         {
             SelectedIndex = 0;
             ViewportSelectedIndex = 0;
+            ReflowFromTop();
         }
     }
 

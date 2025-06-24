@@ -659,6 +659,102 @@ namespace nfm.menu.Tests
         }
         
         [Test]
+        public void TestClipStartLines_BackToFirstLine_Previous()
+        {
+            int viewportRows = 3;
+            var viewport = new Viewport(viewportRows);
+            var items = new List<TerminalEscapedLine>
+            {
+                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4", "SubLine5"),
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+            };
+
+            viewport.SetItems(items, wrap: true);
+            Assert.That(items.Count, Is.EqualTo(5));
+            
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(0));
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
+
+            viewport.SelectNext();
+            
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(1));
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(1));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(1));
+            Assert.That(viewport.StartLinesToClip, Is.EqualTo(3));
+            
+            viewport.SelectPrevious();
+            
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(1));
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.StartLinesToClip, Is.EqualTo(3));
+            
+            viewport.SelectPrevious();
+            
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(0));
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
+        }
+        
+        [Test]
+        public void TestClipStartLines_BackToFirstLine_PageUp()
+        {
+            int viewportRows = 3;
+            var viewport = new Viewport(viewportRows);
+            var items = new List<TerminalEscapedLine>
+            {
+                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4", "SubLine5"),
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+                TerminalEscapedLine.SimpleText("line1"),
+            };
+
+            viewport.SetItems(items, wrap: true);
+            Assert.That(items.Count, Is.EqualTo(5));
+            
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(0));
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
+
+            viewport.SelectNext();
+            
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(1));
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(1));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(1));
+            Assert.That(viewport.StartLinesToClip, Is.EqualTo(3));
+            
+            viewport.SelectPrevious();
+            
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(1));
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.StartLinesToClip, Is.EqualTo(3));
+            
+            viewport.SelectPrevious();
+            
+            Assert.That(viewport.StartRow, Is.EqualTo(0));
+            Assert.That(viewport.EndRow, Is.EqualTo(0));
+            Assert.That(viewport.SelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
+            Assert.That(viewport.StartLinesToClip, Is.EqualTo(0));
+        }
+        
+        [Test]
         public void TestClipStartLines_SelectNextPrevious_Complex()
         {
             int viewportRows = 3;
