@@ -13,7 +13,7 @@ namespace Ui.Core.Tests
         {
             var segment = new TextSegment()
             {
-                Text = """C:\Users\eric\src\nfzf\PowershellHistoryReader\bin\debug\net9.0\PowershellHistoryReader.exe | bat --style=plain --paging=never --color=always --theme="Visual Studio Dark+" --language=ps1 | C:\Users\eric\src\nfzf\PInvokeTest\bin\debug\net9.0\nfm.exe --linecontinuation `` --gap""",
+                Text = """C:\Users\eric\src\nfzf\PowershellHistoryReader\bin\debug\net9.0\PowershellHistoryReader.exe | bat --style=plain --paging=never --color=always --theme="Visual Studio Dark+" --language=ps1 | C:\Users\eric\src\nfzf\Cli\bin\debug\net9.0\nfm.exe --linecontinuation `` --gap""",
                 State = new AnsiState()
             };
             

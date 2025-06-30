@@ -8,6 +8,7 @@
         <PublishAot>true</PublishAot>
         <InvariantGlobalization>true</InvariantGlobalization>
         <AssemblyName>nfm</AssemblyName>
+        <RootNamespace>PInvokeTest</RootNamespace>
     </PropertyGroup>
 
     <PropertyGroup>
