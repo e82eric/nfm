@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "menu": {
-      "commandName": "Project",
-      "commandLineArgs": "--command \"dir c:\\users\\eric\\src\""
-    }
-  }
-}
