@@ -26,6 +26,9 @@ public class Viewport
 
     public void SetItems(List<TerminalEscapedLine> items, bool wrap)
     {
+        SelectedIndex = 0;
+        ViewportSelectedIndex = 0;
+        StartRow = 0;
         if (items.Count == 0)
         {
             StartRow = 0;
