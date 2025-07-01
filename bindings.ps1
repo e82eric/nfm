@@ -35,10 +35,16 @@ foreach ($viMode in @('Command', 'Insert')) {
       $line = $null
       $cursor = $null
       [Microsoft.PowerShell.PSConsoleReadline]::GetBufferState([ref]$line, [ref]$cursor)
-      $result = nfm.exe filereader --path "$((Get-PSReadLineOption).HistorySavePath)" --searchstring "$($line)"
+      $result = PowershellHistoryReader.exe | bat --color=always --style=plain --theme="Visual Studio Dark+" --language=ps1 | nfm.exe --linecontinuation `` --gap --wrap --searchstring "$($line)" --nolengthsort
         if ($result) {
           [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-          [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result)
+          $result | % {
+            if($_.EndsWith('`')) {
+              [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$($_.Trim('`'))`n")
+            } else {
+              [Microsoft.PowerShell.PSConsoleReadLine]::Insert($_.Trim('`'))
+            }
+          }
         }
   } -ViMode $viMode
 }
