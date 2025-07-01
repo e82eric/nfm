@@ -1,4 +1,4 @@
-﻿using System.Runtime.Versioning;
+using System.Runtime.Versioning;
 using nfm.menu;
 using Win32FromForms;
 
@@ -98,6 +98,10 @@ class Program
             if (args[0] == "filesystem")
             {
                 var fileSystemOptions = ParseFileSystemOptions(args);
+                if (fileSystemOptions is null)
+                {
+                    return;
+                }
                 var definitionProvider = new FileSystemMenuDefinitionProvider(
                     new StdOutResultHandler(viewModel),
                     fileSystemOptions.MaxDepth,
@@ -126,7 +130,7 @@ class Program
             else if (args[0] == "command")
             {
                 var commandOptions = ParseCommandOptions(args);
-                if (commandOptions != null && commandOptions.Command != null)
+                if (commandOptions != null)
                 {
                     //BuildCommandApp(string.Join(" ", commandOptions.Command))
                     //    .Start((application, strings) => Run(application, false), args);
@@ -136,7 +140,7 @@ class Program
         }
     }
     
-    private static StdInOptions ParseStdInOptions(string[] args)
+    private static StdInOptions? ParseStdInOptions(string[] args)
     {
         var options = new StdInOptions();
         for (int i = 0; i < args.Length; i++)
@@ -204,11 +208,16 @@ class Program
 
                 i++;
             }
+            else
+            {
+                Console.Error.WriteLine($"Unknown argument: {args[i]}");
+                return null;
+            }
         }
         return options;
     }
     
-    private static FileSystemOptions ParseFileSystemOptions(string[] args)
+    private static FileSystemOptions? ParseFileSystemOptions(string[] args)
     {
         var options = new FileSystemOptions();
         for (int i = 1; i < args.Length; i++)
@@ -224,10 +233,15 @@ class Program
             }
             else if (args[i] == "--maxdepth" && i + 1 < args.Length)
             {
-                if (int.TryParse(args[i + 1], out int maxDepth))
+                if (int.TryParse(args[i + 1], out int maxDepth) && maxDepth > 0)
                 {
                     options.MaxDepth = maxDepth;
                     i++;
+                }
+                else
+                {
+                    Console.Error.WriteLine("Error: --maxdepth must be a positive integer.");
+                    return null;
                 }
             }
             else if (args[i] == "--showpreview")
@@ -268,14 +282,45 @@ class Program
                 }
                 i++;
             }
+            else
+            {
+                Console.Error.WriteLine($"Unknown argument: {args[i]}");
+                return null;
+            }
         }
+
+        if (options.DirectoriesOnly && options.FilesOnly)
+        {
+            Console.Error.WriteLine("Error: --directoriesonly and --filesonly are mutually exclusive.");
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(options.RootDirectory))
+        {
+            options.RootDirectory = Directory.GetCurrentDirectory();
+        }
+
+        if (!Directory.Exists(options.RootDirectory))
+        {
+            Console.Error.WriteLine($"Error: Directory not found: {options.RootDirectory}");
+            return null;
+        }
+
         return options;
     }
     
     private static CommandOptions? ParseCommandOptions(string[] args)
     {
-        var options = new CommandOptions();
-        options.Command = args.Skip(1).ToList();
+        var command = args.Skip(1).ToList();
+        if (!command.Any())
+        {
+            Console.Error.WriteLine("Error: No command specified.");
+            return null;
+        }
+        var options = new CommandOptions
+        {
+            Command = command
+        };
         return options;
     }
 }

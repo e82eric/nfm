@@ -24,7 +24,7 @@ foreach ($viMode in @('Command', 'Insert')) {
   } -ViMode $viMode
 
   Set-PSReadLineKeyHandler -Key "ctrl+t" -ScriptBlock {
-    $result = & nfm.exe filesystem --haspreview --rootdirectory "$((Get-Location).Path)"
+    $result = & nfm.exe filesystem --rootdirectory "$((Get-Location).Path)"
       if($result) {
         [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result)
       }
