@@ -4,6 +4,7 @@
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RootNamespace>Win32Menu.Test</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -12,7 +13,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Win32Menu\Win32Menu.csproj" />
+      <ProjectReference Include="..\Win32Ui\Win32Ui.csproj" />
     </ItemGroup>
 
 </Project>

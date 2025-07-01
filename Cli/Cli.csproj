@@ -21,7 +21,7 @@
       <ProjectReference Include="..\Ui.Core\Ui.Core.csproj" />
       <ProjectReference Include="..\FileWalker\FileWalker.csproj" />
       <ProjectReference Include="..\nfzf\nfzf.csproj" />
-      <ProjectReference Include="..\Win32Menu\Win32Menu.csproj" />
+      <ProjectReference Include="..\Win32Ui\Win32Ui.csproj" />
     </ItemGroup>
 
     <ItemGroup>

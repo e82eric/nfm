@@ -9,7 +9,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\FileSystem\FileSystem.csproj" />
-      <ProjectReference Include="..\Win32Menu\Win32Menu.csproj" />
+      <ProjectReference Include="..\Win32Ui\Win32Ui.csproj" />
     </ItemGroup>
 
 </Project>

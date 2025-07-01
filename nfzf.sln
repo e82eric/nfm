@@ -25,13 +25,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileWalker", "FileWalker\Fi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32KeyHandler", "Win32KeyHandler\Win32KeyHandler.csproj", "{CDE88AB7-5271-4DA4-96DA-5394E466FD8A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32Menu", "Win32Menu\Win32Menu.csproj", "{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32Ui", "Win32Ui\Win32Ui.csproj", "{3FC39A72-378F-43BF-89C7-939DAA2A9F1D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ui.Core.Tests", "Ui.Core.Tests\Ui.Core.Tests.csproj", "{69A15048-2B49-476F-85F0-D60DF5846725}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PowershellHistoryReader", "PowershellHistoryReader\PowershellHistoryReader.csproj", "{A1720C30-5152-4701-A91E-C0BA2F89C28C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32Menu.Test", "Win32Menu.Test\Win32Menu.Test.csproj", "{1F566FF4-36E4-4D24-9746-3BCC89EC58A2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32Ui.Test", "Win32Ui.Test\Win32Ui.Test.csproj", "{1F566FF4-36E4-4D24-9746-3BCC89EC58A2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
