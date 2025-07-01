@@ -187,7 +187,7 @@ public class Win32Window
         {
             case WM_PAINT:
                 Snapshot? snapshot;
-                lock (ItemsLock)
+                lock (_itemsLock)
                 {
                     snapshot = _snapshot;
                 }
@@ -233,14 +233,14 @@ public class Win32Window
                         _headerText,
                         _headerText.Length);
                 
-                    MoveToEx(hNewDc, 0, textHeight + ListboxItemPadding, IntPtr.Zero);
-                    LineTo(hNewDc, ps.rcPaint.right, textHeight + ListboxItemPadding);
+                    MoveToEx(hNewDc, 0, textHeight + _listboxItemPadding, IntPtr.Zero);
+                    LineTo(hNewDc, ps.rcPaint.right, textHeight + _listboxItemPadding);
                     listBoxStartY = _listBoxItemHeight;
                 }
                 
                 //Offset the x of item so that selected item background has some padding
                 var itemXOffset = 5;
-                lock (ItemsLock)
+                lock (_itemsLock)
                 {
                     var nextItemY = 0;
                     for (var i = 0; i < snapshot.Items.Count; i++)
@@ -713,7 +713,7 @@ public class Win32Window
                             _viewModel.SelectPageUp();
                             return 0;
                         case VK_RETURN:
-                            lock (ItemsLock)
+                            lock (_itemsLock)
                             {
                                 Task.Run(async () => { await _viewModel.OnReturn(); });
                             }
@@ -962,7 +962,7 @@ public class Win32Window
     private List<List<TextSegment>>? _lines;
     private int _previewVersion;
     private int _lastPreviewVersion;
-    private readonly object ItemsLock = new();
+    private readonly Lock _itemsLock = new();
     private IntPtr _font;
     private IntPtr _rootHwnd;
     private IntPtr _textBoxHwnd;
@@ -985,7 +985,7 @@ public class Win32Window
     private string? _toastString;
     private long _toastExpirationTicks;
     private bool _showPreview;
-    private int ListboxItemPadding = 7;
+    private readonly int _listboxItemPadding = 7;
     private int _maxListboxItems;
     private PreviewType _previewType;
     private Bitmap? _bitmap;
@@ -993,7 +993,7 @@ public class Win32Window
     private string? _headerText;
     private int _listBoxItemHeight;
     private int _previewItemHeight;
-    public static CancellationTokenSource _cts;
+    private static CancellationTokenSource _cts;
     private static List<Win32Window> s_instances = new();
 
     public Win32Window(ViewModel viewModel, Action onInit)
@@ -1032,7 +1032,7 @@ public class Win32Window
                 _highlightBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
 
                 _maxListboxItems = 15;
-                _listBoxItemHeight = (tm.tmHeight + (ListboxItemPadding * 2));
+                _listBoxItemHeight = (tm.tmHeight + (_listboxItemPadding * 2));
                 _previewItemHeight = tm.tmHeight + 3;
                 var controlHeight = _maxListboxItems * _listBoxItemHeight;
                 var padding = 15;
@@ -1267,7 +1267,7 @@ public class Win32Window
         var snapshot = new Snapshot();
         _viewModel.FillSnapshot(snapshot);
 
-        lock (ItemsLock)
+        lock (_itemsLock)
         {
             _snapshot = snapshot;
         }
