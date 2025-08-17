@@ -350,7 +350,7 @@ public class Win32Window
                         hMiddle - (toastTextWidth / 2) - padding,
                         middle,
                         toastTextWidth + (padding * 2),
-                       padding + tm.tmHeight + padding
+                        padding + tm.tmHeight + padding
                     );
                     
                     using (Graphics g = Graphics.FromHdc(hNewDc))
@@ -766,7 +766,7 @@ public class Win32Window
             SendMessage(hWnd, EM_SETSEL, (IntPtr)startPos, (IntPtr)startPos);
         }
     }
-
+    
     private struct ScreenLocation
     {
         public int x;
@@ -790,35 +790,8 @@ public class Win32Window
             Console.WriteLine("Failed to get window rect.");
             return false;
         }
-
-        IntPtr bestMonitor = IntPtr.Zero;
-        int bestOverlap = 0;
-
-        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (hMonitor, hdcMonitor, lprcMonitor, dwData) =>
-        {
-            MONITORINFO mi = new MONITORINFO();
-            mi.cbSize = Marshal.SizeOf(mi);
-
-            if (GetMonitorInfo(hMonitor, ref mi))
-            {
-                RECT monitorRect = mi.rcMonitor;
-
-                int overlapWidth = Math.Min(windowRect.right, monitorRect.right) - Math.Max(windowRect.left, monitorRect.left);
-                int overlapHeight = Math.Min(windowRect.bottom, monitorRect.bottom) - Math.Max(windowRect.top, monitorRect.top);
-
-                if (overlapWidth > 0 && overlapHeight > 0)
-                {
-                    int overlapArea = overlapWidth * overlapHeight;
-                    if (overlapArea > bestOverlap)
-                    {
-                        bestOverlap = overlapArea;
-                        bestMonitor = hMonitor;
-                    }
-                }
-            }
-
-            return true;
-        }, IntPtr.Zero);
+        
+        IntPtr bestMonitor = MonitorFromRect(ref windowRect, MONITOR_DEFAULTTONEAREST);
 
         if (bestMonitor == IntPtr.Zero)
         {
@@ -893,7 +866,7 @@ public class Win32Window
             WS_EX_LAYERED | WS_EX_TOPMOST,
             wind_class.lpszClassName,
             "nfm",
-             WS_POPUP,
+            WS_POPUP,
             screenLocation.x,
             screenLocation.y,
             screenLocation.width,

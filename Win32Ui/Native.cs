@@ -5,6 +5,10 @@ namespace Win32FromForms;
 
 internal static class Native
 {
+    [DllImport("user32.dll")]
+    internal static extern IntPtr MonitorFromRect(ref RECT lprc, uint dwFlags);
+    internal const uint MONITOR_DEFAULTTONEAREST = 2;
+    
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetWindowPos(
