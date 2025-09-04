@@ -58,7 +58,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     public int NumberOfItems;
     public int NumberOfScoredItems = 0;
     private int _previewHeight;
-    private List<TerminalEscapedLine> Items { get; }
+    private List<(object Obj, TerminalEscapedLine Text)> Items { get; }
     private string _lastPreviewPath { get; set; } = string.Empty;
     private bool _showPreview { get; set; }
     private Viewport? _viewport;
@@ -89,7 +89,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             _localResultsPool.Add(new ThreadLocalData(Slab.MakeDefault()));
         }
         _positionsSlab = Slab.MakeDefault();
-        Items = new List<TerminalEscapedLine>(MaxItems);
+        Items = new List<(object, TerminalEscapedLine)>(MaxItems);
         _channelOptions = new UnboundedChannelOptions 
         { 
             SingleReader = true,
@@ -116,7 +116,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             for (var i = ViewPort.StartRow; i <= ViewPort.EndRow; i++)
             {
                 var item = Items[i];
-                snapshot.Items.Add(item);
+                snapshot.Items.Add(item.Text);
             }
 
             snapshot.NumberOfItems = NumberOfItems;
@@ -134,20 +134,23 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         if (_showPreview)
         {
             string path;
+            object item;
             lock (_snapshotLock)
             {
                 if (Items.Count <= ViewPort.SelectedIndex || ViewPort.SelectedIndex < 0)
                 {
                     return Task.CompletedTask;
                 }
-                path = Items[ViewPort.SelectedIndex].ToString();
+
+                item = Items[ViewPort.SelectedIndex].Obj;
+                path = item.ToString();
             }
             if (path == _lastPreviewPath)
             {
                 return Task.CompletedTask;
             }
         
-            _definition.PreviewHandler?.Handle(this, path, _previewHeight, CancellationToken.None);
+            _definition.PreviewHandler?.Handle(this, item, _previewHeight, CancellationToken.None);
             _lastPreviewPath = path;
         }
 
@@ -225,7 +228,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                         if (item is TerminalEscapedLine escapedLine)
                         {
                             escapedLine.SetPos(EmptyPos);
-                            Items.Add(escapedLine);
+                            Items.Add((item, escapedLine));
                         }
                         else
                         {
@@ -237,7 +240,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                                 var line = new EscapedLine(segments);
                                 var terminalEscapedLine = new TerminalEscapedLine();
                                 terminalEscapedLine.Lines.Add(line);
-                                Items.Add(terminalEscapedLine);
+                                Items.Add((item, terminalEscapedLine));
                             }
                         }
                 
@@ -332,7 +335,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     if (item.Item is TerminalEscapedLine escapedLine)
                     {
                         escapedLine.SetPos(pos);
-                        Items.Add(escapedLine);
+                        Items.Add((item, escapedLine));
                     }
                     else
                     {
@@ -344,7 +347,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                             var terminalEscapedLine = new TerminalEscapedLine();
                             terminalEscapedLine.Lines.Add(line);
                             terminalEscapedLine.SetPos(pos);
-                            Items.Add(terminalEscapedLine);
+                            Items.Add((item.Item, terminalEscapedLine));
                         }
                     }
                 }
@@ -610,7 +613,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             }
             else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
-                var highlightedText = Items[ViewPort.SelectedIndex];
+                var highlightedText = Items[ViewPort.SelectedIndex].Text;
                 if (highlightedText != null && highlightedText.ToString() != null)
                 {
                     await action(highlightedText.ToString());
@@ -621,7 +624,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                 TerminalEscapedLine highlightedText;
                 lock (_snapshotLock)
                 {
-                    highlightedText = Items[ViewPort.SelectedIndex];
+                    highlightedText = Items[ViewPort.SelectedIndex].Text;
                 }
                 if (highlightedText != null)
                 {
@@ -721,7 +724,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public async Task OnReturn()
     {
-        await _definition.ResultHandler.HandleAsync(Items[ViewPort.SelectedIndex].ToString());
+        await _definition.ResultHandler.HandleAsync(Items[ViewPort.SelectedIndex].Text.ToString());
     }
     
     public void OnEscape()

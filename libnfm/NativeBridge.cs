@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Threading.Channels;
+using Core;
 using nfzf;
 using Win32FromForms;
 
@@ -315,4 +316,237 @@ public static class NativeBridge
 
         return string.Compare(strA, strB, StringComparison.Ordinal);
     });
+
+    private class ArrayColumnRow
+    {
+        public object[] Data { get; }
+        public int[] ColumnWidths { get; }
+        public bool IsHeader { get; }
+
+        public ArrayColumnRow(object[] data, int[] columnWidths, bool isHeader = false)
+        {
+            Data = data;
+            ColumnWidths = columnWidths;
+            IsHeader = isHeader;
+        }
+
+        public override string ToString()
+        {
+            return string.Join("  ", 
+                Data.Select((cell, i) => 
+                {
+                    var text = cell?.ToString() ?? string.Empty;
+                    return i < ColumnWidths.Length ? text.PadRight(ColumnWidths[i]) : text;
+                }));
+        }
+    }
+
+    private unsafe class NativeArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
+    {
+        private readonly MenuDefinition _menuDefinition;
+
+        public NativeArrayColumnMenuDefinitionProvider(
+            byte*** arrayData,
+            int rowCount,
+            int columnCount,
+            byte** columnNames,
+            int columnNamesCount,
+            int showPreview,
+            delegate* unmanaged<byte*, void*, void> onSelect,
+            delegate* unmanaged<void> onClosed,
+            void* state)
+        {
+            var managedData = ConvertNativeArrayToManaged(arrayData, rowCount, columnCount);
+            
+            string[]? managedColumnNames = null;
+            if (columnNames != null && columnNamesCount > 0)
+            {
+                managedColumnNames = new string[columnNamesCount];
+                for (int i = 0; i < columnNamesCount; i++)
+                {
+                    managedColumnNames[i] = Marshal.PtrToStringAnsi((IntPtr)columnNames[i]) ?? string.Empty;
+                }
+            }
+
+            // Calculate column widths
+            var columnWidths = CalculateColumnWidths(managedData, managedColumnNames);
+
+            // Create row objects (only data rows, no header in the items list)
+            var rows = new List<ArrayColumnRow>();
+
+            // Add data rows only
+            foreach (var row in managedData)
+            {
+                rows.Add(new ArrayColumnRow(row, columnWidths));
+            }
+
+            // Use column names as header if available
+            var header = managedColumnNames != null && managedColumnNames.Length > 0
+                ? string.Join("  ", managedColumnNames.Select((name, i) => i < columnWidths.Length ? name.PadRight(columnWidths[i]) : name))
+                : null;
+
+            _menuDefinition = new MenuDefinition
+            {
+                AsyncFunction = (writer, ct) =>
+                {
+                    foreach (var row in rows)
+                    {
+                        writer.WriteAsync(row, ct);
+                    }
+                    writer.Complete();
+                    return Task.CompletedTask;
+                },
+                ResultHandler = new NativeArrayColumnResultHandler(onSelect, state),
+                Header = header,
+                Comparer = Comparers.ScoreLengthAndValue,
+                FinalComparer = Comparers.ScoreLengthAndValue,
+                OnClosed = () => onClosed(),
+                HasPreview = showPreview != 0,
+                PreviewHandler = showPreview != 0 ? new NativeArrayColumnPreviewHandler(managedData, managedColumnNames, rows) : null,
+                ScoreFunc = (sObj, pattern, slab) =>
+                {
+                    var s = sObj.ToString() ?? string.Empty;
+                    var result = FuzzySearcher.GetScore(s, pattern, slab);
+                    return (s.Length, result);
+                }
+            };
+        }
+
+        public MenuDefinition Get() => _menuDefinition;
+
+        private static object[][] ConvertNativeArrayToManaged(byte*** arrayData, int rowCount, int columnCount)
+        {
+            var result = new object[rowCount][];
+            
+            for (int row = 0; row < rowCount; row++)
+            {
+                result[row] = new object[columnCount];
+                for (int col = 0; col < columnCount; col++)
+                {
+                    result[row][col] = Marshal.PtrToStringAnsi((IntPtr)arrayData[row][col]) ?? string.Empty;
+                }
+            }
+            
+            return result;
+        }
+
+        private static int[] CalculateColumnWidths(object[][] data, string[]? columnNames)
+        {
+            if (data.Length == 0) return [];
+
+            int columnCount = data[0].Length;
+            var columnWidths = new int[columnCount];
+
+            // Measure column widths including headers
+            if (columnNames != null)
+            {
+                for (int col = 0; col < Math.Min(columnCount, columnNames.Length); col++)
+                {
+                    columnWidths[col] = Math.Max(columnWidths[col], columnNames[col].Length);
+                }
+            }
+
+            // Measure data column widths
+            foreach (var row in data)
+            {
+                for (int col = 0; col < Math.Min(columnCount, row.Length); col++)
+                {
+                    var text = row[col]?.ToString() ?? string.Empty;
+                    columnWidths[col] = Math.Max(columnWidths[col], text.Length);
+                }
+            }
+
+            return columnWidths;
+        }
+    }
+
+    private unsafe class NativeArrayColumnResultHandler : IResultHandler
+    {
+        private readonly delegate* unmanaged<byte*, void*, void> _onSelect;
+        private readonly void* _state;
+
+        public NativeArrayColumnResultHandler(delegate* unmanaged<byte*, void*, void> onSelect, void* state)
+        {
+            _onSelect = onSelect;
+            _state = state;
+        }
+
+        public Task HandleAsync(object objOutput)
+        {
+            var output = objOutput?.ToString() ?? string.Empty;
+            var outputBytes = Encoding.UTF8.GetBytes(output);
+            
+            fixed (byte* outputPtr = outputBytes)
+            {
+                _onSelect(outputPtr, _state);
+            }
+            
+            return Task.CompletedTask;
+        }
+    }
+
+    private class NativeArrayColumnPreviewHandler : IPreviewHandler
+    {
+        private readonly object[][] _data;
+        private readonly string[]? _columnNames;
+        private readonly List<ArrayColumnRow> _rows;
+
+        public NativeArrayColumnPreviewHandler(object[][] data, string[]? columnNames, List<ArrayColumnRow> rows)
+        {
+            _data = data;
+            _columnNames = columnNames;
+            _rows = rows;
+        }
+
+        public Task Handle(IPreviewRenderer renderer, object item, int height, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (item is not ArrayColumnRow selectedRow)
+                {
+                    renderer.RenderError($"Invalid item type for preview {item?.GetType()}");
+                    return Task.CompletedTask;
+                }
+
+                var previewLines = new List<List<TextSegment>>();
+
+                for (int i = 0; i < selectedRow.Data.Length; i++)
+                {
+                    var columnName = (_columnNames != null && i < _columnNames.Length) 
+                        ? _columnNames[i] 
+                        : $"Column {i + 1}";
+                    var cellValue = selectedRow.Data[i]?.ToString() ?? string.Empty;
+                    var textSegment = new TextSegment { State = new AnsiState(), Text = $"{columnName}: {cellValue}"};
+                    previewLines.Add([textSegment]);
+                }
+
+                renderer.RenderText(previewLines, 0);
+            }
+            catch (Exception ex)
+            {
+                renderer.RenderError($"Preview error: {ex.Message}");
+            }
+            
+            return Task.CompletedTask;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "ShowArrayColumns", CallConvs = [typeof(CallConvCdecl)])]
+    public static unsafe void ShowArrayColumns(
+        byte*** arrayData,
+        int rowCount,
+        int columnCount,
+        byte** columnNames,
+        int columnNamesCount,
+        int showPreview,
+        delegate* unmanaged<byte*, void*, void> onSelect,
+        delegate* unmanaged<void> onClosed,
+        void* state)
+    {
+        var provider = new NativeArrayColumnMenuDefinitionProvider(
+            arrayData, rowCount, columnCount, 
+            columnNames, columnNamesCount, showPreview,
+            onSelect, onClosed, state);
+        RunDefinition(provider.Get());
+    }
 }

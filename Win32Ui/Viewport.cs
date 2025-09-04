@@ -3,7 +3,7 @@
 public class Viewport
 {
     private int _endRow;
-    private List<TerminalEscapedLine> _items;
+    private List<(object Obj, TerminalEscapedLine Text)> _items;
     public int ViewportSelectedIndex;
     public int StartLinesToClip { get; private set; }
 
@@ -24,7 +24,7 @@ public class Viewport
 
     public int EndRow => _endRow;
 
-    public void SetItems(List<TerminalEscapedLine> items, bool wrap)
+    public void SetItems(List<(object Obj, TerminalEscapedLine Text)> items, bool wrap)
     {
         SelectedIndex = 0;
         ViewportSelectedIndex = 0;
@@ -48,7 +48,7 @@ public class Viewport
         while (accumulatedLines < _viewportRows && _endRow - i >= 0)
         {
             var item = _items[_endRow -  i];
-            accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
+            accumulatedLines += _wrap ? item.Text.WrappedLines().Count : item.Text.Lines.Count;
             
             i++;
         }
@@ -92,7 +92,7 @@ public class Viewport
         while (accumulatedLines < _viewportRows && StartRow + i < _items.Count)
         {
             var item = _items[StartRow + i];
-            accumulatedLines += _wrap ? item.WrappedLines().Count : item.Lines.Count;
+            accumulatedLines += _wrap ? item.Text.WrappedLines().Count : item.Text.Lines.Count;
             i++;
         }
 
