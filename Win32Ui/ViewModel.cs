@@ -76,6 +76,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private Win32Window View => _view ! ?? throw new InvalidOperationException("View has not been set.");
     private Viewport ViewPort => _viewport ! ?? throw new InvalidOperationException("Viewport has not been set.");
     public PreviewViewport PreviewViewPort => _previewViewport ! ?? throw new InvalidOperationException("PreviewViewport has not been set.");
+    private MenuDefinition Definition => _definition ! ?? throw new InvalidOperationException("Definition has not been set.");
     
     public void SetView(Win32Window view)
     {
@@ -124,9 +125,9 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             snapshot.NumberOfScoredItems = NumberOfScoredItems;
             snapshot.IsWorking = Reading;
             snapshot.SelectedIndex = ViewPort.ViewportSelectedIndex;
-            snapshot.ShowGap = _definition.ShowGap;
+            snapshot.ShowGap = Definition.ShowGap;
             snapshot.StartLinesToClip = ViewPort.StartLinesToClip;
-            snapshot.WrapLines = _definition.Wrap;
+            snapshot.WrapLines = Definition.Wrap;
         }
     }
 
@@ -134,7 +135,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     {
         if (_showPreview)
         {
-            var item = _view.GetSelectedItem();
+            var item = View.GetSelectedItem();
             if (item == null)
             {
                 return Task.CompletedTask;
@@ -145,7 +146,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                 return Task.CompletedTask;
             }
         
-            _definition.PreviewHandler?.Handle(this, path, _previewHeight, CancellationToken.None);
+            Definition.PreviewHandler?.Handle(this, path, _previewHeight, CancellationToken.None);
             _lastPreviewPath = path;
         }
 
@@ -191,11 +192,6 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     private void Search()
     {
-        if (_definition == null)
-        {
-            return;
-        }
-
         if (_lastSearchVersion == _searchVersion)
         {
             return;
@@ -253,7 +249,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     }
                 }
                 
-                ViewPort.SetItems(Items, _definition.Wrap);
+                ViewPort.SetItems(Items, Definition.Wrap);
                 ViewPort.SetTotalRows(Items.Count);
             }
 
@@ -287,8 +283,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     }
                     var line = chunkWithIndex.chunk.Items[i];
                         
-                    var score = _definition.ScoreFunc(line, pattern, localData.Slab);
-                    if (score.Item2 > _definition.MinScore)
+                    var score = Definition.ScoreFunc(line, pattern, localData.Slab);
+                    if (score.Item2 > Definition.MinScore)
                     {
                         Interlocked.Increment(ref numberOfItemsWithScores);
                         SortAction(
@@ -297,7 +293,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                             score.Item2,
                             chunkWithIndex.chunkNumber * Chunk.MaxSize + i,
                             localData.Entries,
-                            _definition.Comparer);
+                            Definition.Comparer);
                     }
                     
                 }
@@ -317,7 +313,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             localData.Entries.Clear();
         }
 
-        globalList.Sort(_definition.FinalComparer);
+        globalList.Sort(Definition.FinalComparer);
         var topEntries = globalList.Take(MaxItems).ToList();
 
         lock (_snapshotLock)
@@ -353,7 +349,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                 }
             }
 
-            ViewPort.SetItems(Items, _definition.Wrap);
+            ViewPort.SetItems(Items, Definition.Wrap);
             ViewPort.SetTotalRows(Items.Count);
         }
 
@@ -396,9 +392,9 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         View.SetSearchString(definition.SearchString);
         _definition = definition;
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
-        if (_definition.Header != null)
+        if (Definition.Header != null)
         {
-            View.SetHeader(_definition.Header);
+            View.SetHeader(Definition.Header);
         }
         else
         {
@@ -600,31 +596,31 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         {
             if (eKey == VirtualKeyCodes.VK_E)
             {
-                if (_definition?.EditAction != null)
+                if (Definition?.EditAction != null)
                 {
                     //EditDialogOpen = true;
                 }
             }
             else if (eKey == VirtualKeyCodes.VK_V)
             {
-                _previewViewport.ToggleVisualMode();
+                PreviewViewPort.ToggleVisualMode();
             }
             else if (eKey == VirtualKeyCodes.VK_W)
             {
                 if (_showPreview)
                 {
-                    _previewViewport.Focused = !_previewViewport.Focused;
+                    PreviewViewPort.Focused = !PreviewViewPort.Focused;
                     View.FocusPreview();
                     View.SetPreviewLines(PreviewViewPort.ViewportLines());
                 }
             }
-            else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
+            else if (Definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
-                await action(item.ToString());
+                await action(item);
             }
             else if (GlobalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
             {
-                await globalAction(item.ToString(), this);
+                await globalAction(item, this);
             }
         }
     }
@@ -731,24 +727,24 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public async Task OnReturn(object item)
     {
-        await _definition.ResultHandler.HandleAsync(item.ToString());
+        await Definition.ResultHandler.HandleAsync(item);
     }
     
     public void OnEscape()
     {
-        if (_previewViewport.Focused)
+        if (PreviewViewPort.Focused)
         {
-            _previewViewport.Focused = false;
-            View.SetPreviewLines(_previewViewport.ViewportLines());
+            PreviewViewPort.Focused = false;
+            View.SetPreviewLines(PreviewViewPort.ViewportLines());
         }
         else
         {
-            if (_definition.OnClosed != null)
+            if (Definition.OnClosed != null)
             {
-                _definition.OnClosed();
+                Definition.OnClosed();
                 Close(false);
             }
-            else if (_definition.QuitOnEscape)
+            else if (Definition.QuitOnEscape)
             {
                 Environment.Exit(0);
             }
@@ -769,6 +765,6 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public void ShowLastDefinition()
     {
-        View.Show(_definition.HasPreview);
+        View.Show(Definition.HasPreview);
     }
 }

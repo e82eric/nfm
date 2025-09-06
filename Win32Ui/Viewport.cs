@@ -3,7 +3,7 @@
 public class Viewport
 {
     private int _endRow;
-    private List<(object Obj, TerminalEscapedLine Text)> _items;
+    private List<(object Obj, TerminalEscapedLine Text)>? _items;
     public int ViewportSelectedIndex;
     public int StartLinesToClip { get; private set; }
 
@@ -15,6 +15,8 @@ public class Viewport
         ViewportSelectedIndex = 0;
         _totalRows = 0;
     }
+    
+    private List<(object Obj, TerminalEscapedLine Text)> Items => _items ?? throw new InvalidOperationException("Lines cannot be null");
     
     public int SelectedIndex;
     public int StartRow;
@@ -68,7 +70,7 @@ public class Viewport
         var i = 0;
         while (accumulatedLines < _viewportRows && _endRow - i >= 0)
         {
-            var item = _items[_endRow -  i];
+            var item = Items[_endRow -  i];
             accumulatedLines += _wrap ? item.Text.WrappedLines().Count : item.Text.Lines.Count;
             
             i++;
@@ -87,7 +89,7 @@ public class Viewport
 
     public void SelectNext()
     {
-        if (SelectedIndex + 1 < _items.Count())
+        if (SelectedIndex + 1 < Items.Count())
         {
             if (SelectedIndex + 1 <= EndRow)
             {
@@ -95,7 +97,7 @@ public class Viewport
             }
             else
             {
-                if (_endRow <= _items.Count)
+                if (_endRow <= Items.Count)
                 {
                     _endRow++;
                     ReflowFromBottom(true);
@@ -110,21 +112,21 @@ public class Viewport
     {
         var accumulatedLines = 0;
         var i = 0;
-        while (accumulatedLines < _viewportRows && StartRow + i < _items.Count)
+        while (accumulatedLines < _viewportRows && StartRow + i < Items.Count)
         {
-            var item = _items[StartRow + i];
+            var item = Items[StartRow + i];
             accumulatedLines += _wrap ? item.Text.WrappedLines().Count : item.Text.Lines.Count;
             i++;
         }
 
-        if (StartRow + i >= _items.Count)
+        if (StartRow + i >= Items.Count)
         {
-            _endRow = _items.Count - 1;
+            _endRow = Items.Count - 1;
             ReflowFromBottom(true);
             return;
         }
                 
-        _endRow = Math.Min(_items.Count - 1, StartRow + i - 1);
+        _endRow = Math.Min(Items.Count - 1, StartRow + i - 1);
         StartLinesToClip = 0;
     }
 
@@ -153,7 +155,7 @@ public class Viewport
 
     public void PageDown()
     {
-        if (_endRow + 1 < _items.Count)
+        if (_endRow + 1 < Items.Count)
         {
             StartRow = _endRow + 1;
             ReflowFromTop();
@@ -161,7 +163,7 @@ public class Viewport
         }
         else
         {
-            SelectedIndex = _items.Count - 1;
+            SelectedIndex = Items.Count - 1;
             ViewportSelectedIndex = _viewportRows - 1;
         }
     }

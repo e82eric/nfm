@@ -22,6 +22,11 @@ public class FileSystemResultHandler(
     public async Task HandleAsync(object outputObj)
     {
         var path = outputObj.ToString();
+        if (path == null)
+        {
+            return;
+        }
+        
         if (!IsDirectory(path) || !searchDirectories)
         {
             await viewModel.Close(quitAfter);

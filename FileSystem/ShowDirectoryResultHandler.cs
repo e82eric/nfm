@@ -12,6 +12,11 @@ public class ShowDirectoryResultHandler(
     public async Task HandleAsync(object outputObj)
     {
         var output = outputObj.ToString();
+        if (output == null)
+        {
+            return;
+        }
+        
         var definition =
             new FileSystemMenuDefinitionProvider(
                 new FileSystemResultHandler(viewModel, fileResultHandler, this, quitOnEscape, true),

@@ -82,7 +82,7 @@ public class PreviewViewport
 
     public void SelectNextLine()
     {
-        if (SelectedLineEnd < _lines.Count - 1)
+        if (SelectedLineEnd < Lines.Count - 1)
         {
             if (Mode == PreviewMode.Normal)
             {
@@ -104,7 +104,7 @@ public class PreviewViewport
                 }
             }
 
-            if (SelectedLineEnd >= EndRow && StartRow + 1 < _lines.Count)
+            if (SelectedLineEnd >= EndRow && StartRow + 1 < Lines.Count)
             {
                 StartRow++;
             }
@@ -224,7 +224,7 @@ public class PreviewViewport
     {
         if (Mode == PreviewMode.Normal)
         {
-            SelectedLineStart = _lines.Count - 2;
+            SelectedLineStart = Lines.Count - 2;
             SelectedLineEnd = SelectedLineStart;
             SelectedLineFocused = SelectedLineStart;
         }
@@ -232,18 +232,18 @@ public class PreviewViewport
         {
             if (SelectedLineStart < PivotLine)
             {
-                SelectedLineEnd = _lines.Count - 1;
+                SelectedLineEnd = Lines.Count - 1;
                 SelectedLineStart = PivotLine;
                 SelectedLineFocused = SelectedLineEnd;
             }
             else
             {
-                SelectedLineEnd = _lines.Count - 2;
+                SelectedLineEnd = Lines.Count - 2;
                 SelectedLineFocused = SelectedLineEnd;
             }
         }
 
-        StartRow = Math.Max(0, _lines.Count - _viewportRows - 1);
+        StartRow = Math.Max(0, Lines.Count - _viewportRows - 1);
     }
 
     public void CopySelected(Win32Window view)
@@ -254,7 +254,7 @@ public class PreviewViewport
             return;
         }
 
-        var selectedLines = _lines.GetRange(SelectedLineStart, count);
+        var selectedLines = Lines.GetRange(SelectedLineStart, count);
 
         var linesText = selectedLines.Select(line => 
             string.Concat(line.Select(segment => segment.Text))
