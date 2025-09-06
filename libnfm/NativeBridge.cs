@@ -508,7 +508,7 @@ public static class NativeBridge
                     return Task.CompletedTask;
                 }
 
-                var previewLines = new List<List<TextSegment>>();
+                var previewLines = new List<string>();
 
                 for (int i = 0; i < selectedRow.Data.Length; i++)
                 {
@@ -516,11 +516,21 @@ public static class NativeBridge
                         ? _columnNames[i] 
                         : $"Column {i + 1}";
                     var cellValue = selectedRow.Data[i]?.ToString() ?? string.Empty;
-                    var textSegment = new TextSegment { State = new AnsiState(), Text = $"{columnName}: {cellValue}"};
-                    previewLines.Add([textSegment]);
+                    previewLines.Add($"{columnName}: {cellValue}");
                 }
 
-                renderer.RenderText(previewLines, 0);
+                List<List<TextSegment>> rows = new List<List<TextSegment>>();
+                foreach (var line in previewLines)
+                {
+                    var splitLines = line.Split('\n');
+                    foreach (var splitLine in splitLines)
+                    {
+                        var textSegment = new TextSegment { State = new AnsiState(), Text = splitLine };
+                        rows.Add([textSegment]);
+                    }
+                }
+
+                renderer.RenderText(rows, 0);
             }
             catch (Exception ex)
             {

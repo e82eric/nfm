@@ -17,9 +17,9 @@ public class Snapshot
 {
     public Snapshot()
     {
-        Items = new List<TerminalEscapedLine>(16);
+        Items = new List<(object Item, TerminalEscapedLine Text)>(16);
     }
-    public IList<TerminalEscapedLine> Items { get; private set; }
+    public IList<(object Item, TerminalEscapedLine Text)> Items { get; private set; }
     public int NumberOfItems { get; set; }
     public int NumberOfScoredItems { get; set; }
     public bool IsWorking { get; set; }
@@ -53,6 +53,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private readonly AsyncAutoResetEvent _previewSignal;
     private readonly UnboundedChannelOptions _channelOptions;
     private readonly Lock _snapshotLock = new();
+    private readonly Lock _searchStringLock = new();
     public bool Searching;
     public bool Reading;
     public int NumberOfItems;
@@ -116,7 +117,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             for (var i = ViewPort.StartRow; i <= ViewPort.EndRow; i++)
             {
                 var item = Items[i];
-                snapshot.Items.Add(item.Text);
+                snapshot.Items.Add(item);
             }
 
             snapshot.NumberOfItems = NumberOfItems;
@@ -133,24 +134,18 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     {
         if (_showPreview)
         {
-            string path;
-            object item;
-            lock (_snapshotLock)
+            var item = _view.GetSelectedItem();
+            if (item == null)
             {
-                if (Items.Count <= ViewPort.SelectedIndex || ViewPort.SelectedIndex < 0)
-                {
-                    return Task.CompletedTask;
-                }
-
-                item = Items[ViewPort.SelectedIndex].Obj;
-                path = item.ToString();
+                return Task.CompletedTask;
             }
-            if (path == _lastPreviewPath)
+            var path = item.Value.Item.ToString();
+            if (path == null ||path == _lastPreviewPath)
             {
                 return Task.CompletedTask;
             }
         
-            _definition.PreviewHandler?.Handle(this, item, _previewHeight, CancellationToken.None);
+            _definition.PreviewHandler?.Handle(this, path, _previewHeight, CancellationToken.None);
             _lastPreviewPath = path;
         }
 
@@ -210,7 +205,12 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         Searching = true;
         var completeChunks = _chunks.ToList();
 
-        if (string.IsNullOrEmpty(_searchString))
+        String currentSearchString;
+        lock (_searchStringLock)
+        {
+            currentSearchString = _searchString;
+        }
+        if (string.IsNullOrEmpty(currentSearchString))
         {
             lock (_snapshotLock)
             {
@@ -273,7 +273,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         var ct = CancellationToken.None;
         
         var globalList = new List<Entry>(MaxItems);
-        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, _searchString, true);
+        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, currentSearchString, true);
         var numberOfItemsWithScores = 0;
         Parallel.ForEach(completeChunks.Select((chunk, index) => (chunk, chunkNumber: index)), parallelOptions, 
             GetLocalResultFromPool, 
@@ -389,8 +389,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         View.Show(definition.HasPreview);
         _chunks.Clear();
         _chunks.Add(new Chunk());
-        _searchString = definition.SearchString;
-        View.SetSearchString(_searchString);
+        lock (_searchStringLock)
+        {
+            _searchString = definition.SearchString;
+        }
+        View.SetSearchString(definition.SearchString);
         _definition = definition;
         _currentDefinitionCancellationTokenSource = new CancellationTokenSource();
         if (_definition.Header != null)
@@ -467,7 +470,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     
     public void SetSearchString(string message)
     {
-        _searchString = message;
+        lock (_searchStringLock)
+        {
+            _searchString = message;
+        }
+
         Interlocked.Increment(ref _searchVersion);
         _restartSearchSignal.Set();
     }
@@ -587,7 +594,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         }
     }
     
-    public async Task HandleKeyUp(int eKey, ModifierKeys eKeyModifiers)
+    public async Task HandleKeyUp(object item, int eKey, ModifierKeys eKeyModifiers)
     {
         if (eKeyModifiers == ModifierKeys.LCtl)
         {
@@ -613,23 +620,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             }
             else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
-                var highlightedText = Items[ViewPort.SelectedIndex].Text;
-                if (highlightedText != null && highlightedText.ToString() != null)
-                {
-                    await action(highlightedText.ToString());
-                }
+                await action(item.ToString());
             }
             else if (GlobalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
             {
-                TerminalEscapedLine highlightedText;
-                lock (_snapshotLock)
-                {
-                    highlightedText = Items[ViewPort.SelectedIndex].Text;
-                }
-                if (highlightedText != null)
-                {
-                    await globalAction(highlightedText.ToString(), this);
-                }
+                await globalAction(item.ToString(), this);
             }
         }
     }
@@ -696,35 +691,47 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public void SelectNext()
     {
-        ViewPort.SelectNext();
+        lock (_snapshotLock)
+        {
+            ViewPort.SelectNext();
+        }
         View.SetListBoxItems();
         _previewSignal.Set();
     }
     
     public void SelectPageDown()
     {
-        ViewPort.PageDown();
+        lock (_snapshotLock)
+        {
+            ViewPort.PageDown();
+        }
         View.SetListBoxItems();
         _previewSignal.Set();
     }
     
     public void SelectPageUp()
     {
-        ViewPort.PageUp();
+        lock (_snapshotLock)
+        {
+            ViewPort.PageUp();
+        }
         View.SetListBoxItems();
         _previewSignal.Set();
     }
 
     public void SelectPrevious()
     {
-        ViewPort.SelectPrevious();
+        lock (_snapshotLock)
+        {
+            ViewPort.SelectPrevious();
+        }
         View.SetListBoxItems();
         _previewSignal.Set();
     }
 
-    public async Task OnReturn()
+    public async Task OnReturn(object item)
     {
-        await _definition.ResultHandler.HandleAsync(Items[ViewPort.SelectedIndex].Text.ToString());
+        await _definition.ResultHandler.HandleAsync(item.ToString());
     }
     
     public void OnEscape()

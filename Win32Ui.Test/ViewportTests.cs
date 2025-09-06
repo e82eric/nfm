@@ -26,7 +26,7 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>();
+            var items = new List<(object Obj, TerminalEscapedLine Text)>();
 
             viewport.SetItems(items, wrap: false);
             
@@ -42,13 +42,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -65,18 +65,18 @@ namespace nfm.menu.Tests
             Assert.That(viewport.SelectedIndex, Is.EqualTo(2));
             Assert.That(viewport.ViewportSelectedIndex, Is.EqualTo(0));
             
-            var newitems = new List<TerminalEscapedLine>
+            var newitems = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
             
             viewport.SetItems(newitems, wrap: false);
@@ -92,13 +92,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -115,11 +115,11 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
             };
 
             viewport.SetItems(items, wrap: false);
@@ -136,10 +136,10 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
             };
 
             viewport.SetItems(items, wrap: false);
@@ -168,11 +168,11 @@ namespace nfm.menu.Tests
             }
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                MultiLine("line1", "line2"),
-                MultiLine("line1", "line2"),
-                MultiLine("line1", "line2")
+                ("multiline1", MultiLine("line1", "line2")),
+                ("multiline2", MultiLine("line1", "line2")),
+                ("multiline3", MultiLine("line1", "line2"))
             };
 
             viewport.SetItems(items, wrap: true);
@@ -191,13 +191,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -216,13 +216,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -247,13 +247,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -291,13 +291,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -356,13 +356,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -380,13 +380,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line2"),
-                TerminalEscapedLine.SimpleText("line3"),
-                TerminalEscapedLine.SimpleText("line4"),
-                TerminalEscapedLine.SimpleText("line5")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line2", TerminalEscapedLine.SimpleText("line2")),
+                ("line3", TerminalEscapedLine.SimpleText("line3")),
+                ("line4", TerminalEscapedLine.SimpleText("line4")),
+                ("line5", TerminalEscapedLine.SimpleText("line5"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -409,18 +409,18 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line2"),
-                TerminalEscapedLine.SimpleText("line3"),
-                TerminalEscapedLine.SimpleText("line4"),
-                TerminalEscapedLine.SimpleText("line5"),
-                TerminalEscapedLine.SimpleText("line6"),
-                TerminalEscapedLine.SimpleText("line7"),
-                TerminalEscapedLine.SimpleText("line8"),
-                TerminalEscapedLine.SimpleText("line9"),
-                TerminalEscapedLine.SimpleText("line10")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line2", TerminalEscapedLine.SimpleText("line2")),
+                ("line3", TerminalEscapedLine.SimpleText("line3")),
+                ("line4", TerminalEscapedLine.SimpleText("line4")),
+                ("line5", TerminalEscapedLine.SimpleText("line5")),
+                ("line6", TerminalEscapedLine.SimpleText("line6")),
+                ("line7", TerminalEscapedLine.SimpleText("line7")),
+                ("line8", TerminalEscapedLine.SimpleText("line8")),
+                ("line9", TerminalEscapedLine.SimpleText("line9")),
+                ("line10", TerminalEscapedLine.SimpleText("line10"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -453,13 +453,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -484,18 +484,18 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1")
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1"))
             };
 
             viewport.SetItems(items, wrap: false);
@@ -575,13 +575,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
+                ("multiline1", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
             };
 
             viewport.SetItems(items, wrap: true);
@@ -663,13 +663,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4", "SubLine5"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
+                ("multiline4", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4", "SubLine5")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
             };
 
             viewport.SetItems(items, wrap: true);
@@ -711,13 +711,13 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4", "SubLine5"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLine.SimpleText("line1"),
+                ("multiline4", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4", "SubLine5")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
             };
 
             viewport.SetItems(items, wrap: true);
@@ -759,15 +759,15 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2"),
-                TerminalEscapedLine.SimpleText("line1"),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("multiline2", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("multiline3", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("multiline1", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
             };
 
             viewport.SetItems(items, wrap: true);
@@ -897,15 +897,15 @@ namespace nfm.menu.Tests
         {
             int viewportRows = 3;
             var viewport = new Viewport(viewportRows);
-            var items = new List<TerminalEscapedLine>
+            var items = new List<(object Obj, TerminalEscapedLine Text)>
             {
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4"),
-                TerminalEscapedLine.SimpleText("line1"),
-                TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2"),
-                TerminalEscapedLine.SimpleText("line1"),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("multiline2", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("multiline3", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2", "SubLine3", "SubLine4")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
+                ("multiline1", TerminalEscapedLineExtensions.MultiLine("SubLine1,", "SubLine2")),
+                ("line1", TerminalEscapedLine.SimpleText("line1")),
             };
 
             viewport.SetItems(items, wrap: true);

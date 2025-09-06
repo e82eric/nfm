@@ -26,11 +26,13 @@ public class Viewport
 
     public void SetItems(List<(object Obj, TerminalEscapedLine Text)> items, bool wrap)
     {
-        SelectedIndex = 0;
-        ViewportSelectedIndex = 0;
-        StartRow = 0;
+        var previousSelectedIndex = SelectedIndex;
+        var previousStartRow = StartRow;
+        
         if (items.Count == 0)
         {
+            SelectedIndex = 0;
+            ViewportSelectedIndex = 0;
             StartRow = 0;
             _endRow = 0;
             return;
@@ -38,7 +40,26 @@ public class Viewport
         
         _wrap = wrap;
         _items = items;
+        
+        if (previousSelectedIndex < items.Count)
+        {
+            SelectedIndex = previousSelectedIndex;
+            StartRow = Math.Min(previousStartRow, Math.Max(0, items.Count - _viewportRows));
+        }
+        else
+        {
+            SelectedIndex = 0;
+            ViewportSelectedIndex = 0;
+            StartRow = 0;
+        }
+        
         ReflowFromTop();
+        
+        ViewportSelectedIndex = SelectedIndex - StartRow;
+        if (ViewportSelectedIndex < 0)
+        {
+            ViewportSelectedIndex = 0;
+        }
     }
     
     private void ReflowFromBottom(bool stop)

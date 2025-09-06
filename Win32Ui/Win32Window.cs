@@ -247,7 +247,7 @@ public class Win32Window
                     {
                         var item = snapshot.Items[i];
                         var startLine = 0;
-                        var linesToRender = snapshot.WrapLines ? item.WrappedLines() : item.Lines;
+                        var linesToRender = snapshot.WrapLines ? item.Text.WrappedLines() : item.Text.Lines;
                         var itemLines = linesToRender.Count;
                         if (i == 0)
                         {
@@ -675,7 +675,7 @@ public class Win32Window
 
                     if ((modifiers & ModifierKeys.LShift) == 0)
                     {
-                        Task.Run(() => _viewModel.HandleKeyUp((int)wParam, modifiers));
+                        Task.Run(() => _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item, (int)wParam, modifiers));
                         return 0;
                     }
                 }
@@ -715,7 +715,7 @@ public class Win32Window
                         case VK_RETURN:
                             lock (_itemsLock)
                             {
-                                Task.Run(async () => { await _viewModel.OnReturn(); });
+                                Task.Run(async () => { await _viewModel.OnReturn(_snapshot.Items[_snapshot.SelectedIndex].Item); });
                             }
                             return 0;
                         case VK_ESCAPE:
@@ -1327,5 +1327,18 @@ public class Win32Window
     public void FocusSearch()
     {
         PostMessage(_rootHwnd, WM_FOCUS_SEARCH, 0, 0);
+    }
+
+    public (object Item, TerminalEscapedLine Text)? GetSelectedItem()
+    {
+        lock (_itemsLock)
+        {
+            if (_snapshot?.Items == null || _snapshot.SelectedIndex >= _snapshot.Items.Count ||
+                _snapshot.SelectedIndex < 0)
+            {
+                return null;
+            }
+            return _snapshot.Items[_snapshot.SelectedIndex];
+        }
     }
 }
