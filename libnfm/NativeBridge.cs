@@ -145,7 +145,6 @@ public static class NativeBridge
         }
         _appThread = new Thread(() =>
         {
-            
             ViewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
             ViewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (o, model) =>
             {

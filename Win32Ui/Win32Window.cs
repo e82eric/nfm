@@ -28,6 +28,9 @@ public class Win32Window
     private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
     private const int SELECTED_BACKGROUND_COLOR_2 = 0x00545c66; //0x00665c54
     private const int TEXT_COLOR = 0x008499a8; //0x00a88499
+    
+    private const double WINDOW_WIDTH_RATIO = 0.6;   // 60% of monitor width
+    private const double WINDOW_HEIGHT_RATIO = 0.9;  // 80% of monitor height
     private const int GAP_COLOR = 0x00454950; //0x00504945
     private const int SPINNER_COLOR = BORDER_COLOR;
     //private const int HIGHLIGHTED_TEXT_COLOR = 0x000e5dd6; //0x00bbggrr
@@ -809,8 +812,11 @@ public class Win32Window
         int monitorCenterX = (bestMonitorInfo.rcMonitor.left + bestMonitorInfo.rcMonitor.right) / 2;
         int monitorCenterY = (bestMonitorInfo.rcMonitor.top + bestMonitorInfo.rcMonitor.bottom) / 2;
         
-        int windowWidth =  (int)((bestMonitorInfo.rcMonitor.right - bestMonitorInfo.rcMonitor.left) * .5);
-        int windowHeight = (int)((bestMonitorInfo.rcMonitor.bottom - bestMonitorInfo.rcMonitor.top) * .9);;
+        int monitorWidth = bestMonitorInfo.rcMonitor.right - bestMonitorInfo.rcMonitor.left;
+        int monitorHeight = bestMonitorInfo.rcMonitor.bottom - bestMonitorInfo.rcMonitor.top;
+        
+        int windowWidth = (int)(monitorWidth * WINDOW_WIDTH_RATIO);
+        int windowHeight = (int)(monitorHeight * WINDOW_HEIGHT_RATIO);
 
         int windowX = monitorCenterX - (windowWidth / 2);
         int windowY = monitorCenterY - (windowHeight / 2);
