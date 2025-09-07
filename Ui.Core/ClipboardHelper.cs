@@ -1,5 +1,7 @@
 ﻿using System.Runtime.InteropServices;
-using nfm.menu;
+
+namespace nfm.Ui.Core;
+
 public class ClipboardHelper
 {
 #if WINDOWS

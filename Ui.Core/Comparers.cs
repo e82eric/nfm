@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace nfm.menu;
+﻿namespace nfm.Ui.Core;
 
 public static class Comparers
 {

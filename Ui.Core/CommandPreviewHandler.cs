@@ -1,6 +1,4 @@
-﻿using Core;
-
-namespace nfm.menu;
+﻿namespace nfm.Ui.Core;
 
 public class CommandPreviewHandler(string commandTemplate, char? delimiter, string? previewStartLineCommand, string? previewStartLineOffsetCommand) : IPreviewHandler
 {

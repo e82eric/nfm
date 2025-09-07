@@ -1,4 +1,6 @@
-﻿using nfm.menu;
+﻿using nfm.Ui.Core;
+
+namespace nfm.Win32Ui;
 
 public class Viewport
 {

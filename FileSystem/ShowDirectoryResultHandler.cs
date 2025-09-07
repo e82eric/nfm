@@ -1,4 +1,6 @@
-﻿namespace nfm.menu;
+﻿using nfm.Ui.Core;
+
+namespace nfm.FileSystem;
 
 public class ShowDirectoryResultHandler(
     IMainViewModel viewModel,

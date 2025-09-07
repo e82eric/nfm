@@ -6,6 +6,7 @@
         <Nullable>enable</Nullable>
         <PublishAot>true</PublishAot>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>nfm.NativeBridge</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

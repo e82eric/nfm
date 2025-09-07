@@ -5,6 +5,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>nfm.FileWalker</RootNamespace>
+        <AssemblyName>nfm.FileWalker</AssemblyName>
     </PropertyGroup>
 
 </Project>

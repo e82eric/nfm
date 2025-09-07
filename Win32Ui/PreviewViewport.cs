@@ -1,6 +1,9 @@
-using Core;
-using Win32FromForms;
+using System.Runtime.Versioning;
+using nfm.Ui.Core;
 
+namespace nfm.Win32Ui;
+
+[SupportedOSPlatform("windows")]
 public class PreviewViewport
 {
     public enum PreviewMode

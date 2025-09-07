@@ -4,11 +4,14 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Threading.Channels;
-using Core;
+using nfm.FileSystem;
+using nfm.ListProcesses;
+using nfm.ListWindows;
+using nfm.Ui.Core;
+using nfm.Win32Ui;
 using nfzf;
-using Win32FromForms;
 
-namespace nfm.menu;
+namespace nfm.NativeBridge;
 
 [SupportedOSPlatform("windows")]
 public static class NativeBridge

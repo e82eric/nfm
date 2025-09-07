@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace nfm.menu;
+namespace nfm.Ui.Core;
 
 public static class FocusStealer
 {

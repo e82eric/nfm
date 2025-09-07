@@ -1,10 +1,10 @@
 ﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
+using nfm.Ui.Core;
 using nfzf;
-using nfzf.ListProcesses;
 
-namespace nfm.menu;
+namespace nfm.ListProcesses;
 
 public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, Action? onClosed) : IMenuDefinitionProvider
 {
@@ -62,35 +62,6 @@ public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, A
                     await mainViewModel.ShowToast($"Memory dump of {pid} failed: {e.Message}");
                 }
             });
-        });
-        definition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_Z), async lineObj =>
-        {
-            var line = (string)lineObj;
-            var match = Regex.Match(line, @"\s+([0-9]+)\s+");
-            if (!match.Success)
-            {
-                await mainViewModel.ShowToast("Failed to parse process ID from input.");
-                return;
-            }
-
-            if (!int.TryParse(match.Groups[1].Value, out var pid))
-            {
-                await mainViewModel.ShowToast("Invalid process ID format.");
-                return;
-            }
-
-            //await Task.Run(async () =>
-            //{
-                try
-                {
-                    JitDebugLauncher.LaunchJitDebugger(pid);
-                    await mainViewModel.ShowToast($"Launched jit debugger for: {pid}");
-                }
-                catch (Exception e)
-                {
-                    await mainViewModel.ShowToast($"Launching jit debugger failed for {pid} failed: {e.Message}");
-                }
-            //});
         });
 
         AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByCpu2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F1));

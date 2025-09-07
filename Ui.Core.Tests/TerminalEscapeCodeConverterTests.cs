@@ -1,9 +1,7 @@
 ﻿using System.Drawing;
-using Core;
-using nfm.menu;
 using NUnit.Framework;
 
-namespace Ui.Core.Tests
+namespace nfm.Ui.Core.Tests
 {
     [TestFixture]
     public class TextWrapTests()

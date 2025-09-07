@@ -2,7 +2,7 @@
 using System.Text;
 using System.Threading.Channels;
 
-namespace nfm.menu;
+namespace nfm.Ui.Core;
 
 public static class ProcessRunner
 {

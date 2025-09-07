@@ -1,5 +1,5 @@
 ﻿using System.Threading.Channels;
-using nfm.menu;
+using nfm.PowershellHistoryReader;
 
 var historyPath =
     (args.Length > 0 ? args[0] : null)

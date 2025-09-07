@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
-using Core;
 
-namespace nfm.menu;
+namespace nfm.Ui.Core;
 
 public class PreviewHandler(
     string fileCommandTemplate,

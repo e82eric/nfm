@@ -1,4 +1,6 @@
-﻿internal sealed class AsyncAutoResetEvent
+﻿namespace nfm.Win32Ui;
+
+internal sealed class AsyncAutoResetEvent
 {
     private static readonly Task s_completed = Task.FromResult(true);
     private readonly object _lock = new();

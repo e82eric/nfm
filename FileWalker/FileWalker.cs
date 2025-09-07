@@ -4,7 +4,7 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Threading.Channels;
 using Microsoft.Win32.SafeHandles;
 
-namespace nfzf.FileSystem;
+namespace nfm.FileWalker;
 
 public class FileSystemNode
 {

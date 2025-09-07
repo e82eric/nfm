@@ -1,9 +1,8 @@
 ﻿using System.Text;
 using System.Threading.Channels;
-using Core;
 using nfzf;
 
-namespace nfm.menu;
+namespace nfm.Ui.Core;
 
 public class StdInMenuDefinitionProvider(
     IMainViewModel viewModel,
@@ -69,8 +68,9 @@ public class StdInMenuDefinitionProvider(
             },
             ShowGap = showGap,
             Wrap = wrap,
-            SearchString = searchString,
+            SearchString = searchString ?? string.Empty,
         };
+        
         return definition;
     }
     

@@ -3,11 +3,12 @@
     <PropertyGroup>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RootNamespace>Core</RootNamespace>
+        <RootNamespace>nfm.Ui.Core</RootNamespace>
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <DefineConstants Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">WINDOWS</DefineConstants>
         <DefineConstants Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">LINUX</DefineConstants>
         <TargetFramework>net9.0</TargetFramework>
+        <AssemblyName>nfm.Ui.Core</AssemblyName>
     </PropertyGroup>
 
     <ItemGroup>

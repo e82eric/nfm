@@ -1,8 +1,8 @@
 ﻿using System.Threading.Channels;
-using Core;
+using nfm.Ui.Core;
 using PSFzf.IO;
 
-namespace nfm.menu;
+namespace nfm.PowershellHistoryReader;
 
 public static class ReverseFileReader
 {

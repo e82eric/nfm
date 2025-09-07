@@ -1,7 +1,7 @@
-﻿using System;
+﻿using nfm.Ui.Core;
 using nfzf;
 
-namespace nfm.menu;
+namespace nfm.ListWindows;
 
 public class ShowWindowsMenuDefinitionProvider2(IResultHandler resultHandler, Action? onClosed) : IMenuDefinitionProvider
 {
@@ -9,7 +9,7 @@ public class ShowWindowsMenuDefinitionProvider2(IResultHandler resultHandler, Ac
     {
         var definition = new MenuDefinition
         {
-            AsyncFunction = ListWindows.Run,
+            AsyncFunction = nfm.ListWindows.ListWindows.Run,
             Header = null,
             ResultHandler = resultHandler,
             MinScore = 0,

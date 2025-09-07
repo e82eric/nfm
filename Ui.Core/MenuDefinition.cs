@@ -1,7 +1,7 @@
 ﻿using System.Threading.Channels;
 using nfzf;
 
-namespace nfm.menu;
+namespace nfm.Ui.Core;
 
 public class MenuDefinition
 {

@@ -4,6 +4,8 @@
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <AssemblyName>nfm.Ui.Core.Tests</AssemblyName>
+        <RootNamespace>nfm.Ui.Core.Tests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

@@ -1,6 +1,9 @@
 using System.Runtime.Versioning;
-using nfm.menu;
-using Win32FromForms;
+using nfm.FileSystem;
+using nfm.Ui.Core;
+using nfm.Win32Ui;
+
+namespace nfm.Cli;
 
 class StdInOptions
 {

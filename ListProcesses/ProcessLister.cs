@@ -1,10 +1,9 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Microsoft.Win32.SafeHandles;
 
-namespace nfzf.ListProcesses;
+namespace nfm.ListProcesses;
 public class ProcessLister
 {
     private const uint TH32CS_SNAPPROCESS = 0x00000002;

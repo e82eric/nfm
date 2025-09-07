@@ -2,7 +2,7 @@
 using System.Text;
 using System.Threading.Channels;
 
-namespace nfm.menu;
+namespace nfm.ListWindows;
 public class ListWindows
 {
     public class BoolWrapper

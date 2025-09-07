@@ -1,7 +1,6 @@
 ﻿using System.Drawing;
-using nfm.menu;
 
-namespace Core;
+namespace nfm.Ui.Core;
 
 public class TextSegment
 {

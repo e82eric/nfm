@@ -1,4 +1,5 @@
-﻿using Core;
+﻿using nfm.Ui.Core;
+using nfm.Win32Ui;
 using NUnit.Framework;
 namespace nfm.menu.Tests
 {

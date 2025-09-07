@@ -1,6 +1,4 @@
-﻿using System.Threading.Tasks;
-
-namespace nfm.menu;
+﻿namespace nfm.Ui.Core;
 
 public interface IMainViewModel
 {

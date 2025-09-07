@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Win32FromForms;
+namespace nfm.Win32Ui;
 
 internal static class Native
 {

@@ -4,7 +4,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TargetFramework>net9.0</TargetFramework>
-        <RootNamespace>Win32Menu</RootNamespace>
+        <RootNamespace>nfm.Win32Ui</RootNamespace>
+        <AssemblyName>nfm.Win32Ui</AssemblyName>
     </PropertyGroup>
 
     <ItemGroup>

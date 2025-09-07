@@ -1,8 +1,9 @@
 ﻿using System.Threading.Channels;
+using nfm.FileWalker;
+using nfm.Ui.Core;
 using nfzf;
-using nfzf.FileSystem;
 
-namespace nfm.menu;
+namespace nfm.FileSystem;
 
 public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
 {
@@ -42,7 +43,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
     private readonly IComparer<Entry>? _comparer;
     private readonly Action? _onClosed;
     private MenuDefinition _definition;
-    private FileWalker _fileScanner;
+    private FileWalker.FileWalker _fileScanner;
 
     public FileSystemMenuDefinitionProvider(IResultHandler resultHandler,
         int maxDepth,
@@ -70,7 +71,7 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
         _viewModel = viewModel;
         _comparer = comparer;
         _onClosed = onClosed;
-        _fileScanner = new FileWalker();
+        _fileScanner = new FileWalker.FileWalker();
         
         _definition = new MenuDefinition
         {

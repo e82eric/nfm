@@ -1,9 +1,6 @@
-﻿using System;
-using System.IO;
-using System.Threading.Tasks;
-using nfzf.FileSystem;
+﻿using nfm.Ui.Core;
 
-namespace nfm.menu;
+namespace nfm.FileSystem;
 
 public class FileSystemResultHandler(
     IMainViewModel viewModel,

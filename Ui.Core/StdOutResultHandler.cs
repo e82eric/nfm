@@ -1,4 +1,4 @@
-﻿namespace nfm.menu;
+﻿namespace nfm.Ui.Core;
 
 public class StdOutResultHandler(IMainViewModel viewModel) : IResultHandler
 {

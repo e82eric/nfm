@@ -3,11 +3,10 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
-using Core;
-using nfm.menu;
-using static Win32FromForms.Native;
+using nfm.Ui.Core;
+using static nfm.Win32Ui.Native;
 
-namespace Win32FromForms;
+namespace nfm.Win32Ui;
 
 [SupportedOSPlatform("windows")]
 public class Win32Window
@@ -893,7 +892,6 @@ public class Win32Window
         }
         
         uint msg;
-        _cts = new CancellationTokenSource();
         while (GetMessage(out msg, IntPtr.Zero, 0, 0) != 0 && !_cts.IsCancellationRequested)
         {
             TranslateMessage(ref msg);
@@ -966,7 +964,7 @@ public class Win32Window
     private string? _headerText;
     private int _listBoxItemHeight;
     private int _previewItemHeight;
-    private static CancellationTokenSource _cts;
+    private static CancellationTokenSource _cts = new();
     private static List<Win32Window> s_instances = new();
 
     public Win32Window(ViewModel viewModel, Action onInit)
