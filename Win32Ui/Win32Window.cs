@@ -777,62 +777,44 @@ public class Win32Window
         public int height;
     }
     
-    private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation result)
-    {
-        result = new ScreenLocation { };
-        IntPtr foregroundWindow = GetForegroundWindow();
-        if (foregroundWindow == IntPtr.Zero)
-        {
-            Console.WriteLine("No active window found.");
-            return false;
-        }
+    [DllImport("user32.dll", SetLastError = false)]
+    internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+    
+private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation result)
+{
+    result = new ScreenLocation();
 
-        if (!GetWindowRect(foregroundWindow, out RECT windowRect))
-        {
-            Console.WriteLine("Failed to get window rect.");
-            return false;
-        }
-        
-        IntPtr bestMonitor = MonitorFromRect(ref windowRect, MONITOR_DEFAULTTONEAREST);
+    var hwnd = GetForegroundWindow();
+    if (hwnd == IntPtr.Zero) return false;
 
-        if (bestMonitor == IntPtr.Zero)
-        {
-            Console.WriteLine("No monitor found for the focused window.");
-            return false;
-        }
+    // Prefer MonitorFromWindow when you have an HWND
+    IntPtr hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    if (hmon == IntPtr.Zero) return false;
 
-        MONITORINFO bestMonitorInfo = new MONITORINFO();
-        bestMonitorInfo.cbSize = Marshal.SizeOf(bestMonitorInfo);
-        if (!GetMonitorInfo(bestMonitor, ref bestMonitorInfo))
-        {
-            Console.WriteLine("Failed to get monitor info.");
-            return false;
-        }
+    var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+    if (!GetMonitorInfo(hmon, ref mi)) return false;
 
-        // Get DPI scaling for proper positioning
-        uint systemDpi = GetDpiForSystem();
-        float scaleFactor = systemDpi / 96.0f;
-        
-        int monitorCenterX = (bestMonitorInfo.rcMonitor.left + bestMonitorInfo.rcMonitor.right) / 2;
-        int monitorCenterY = (bestMonitorInfo.rcMonitor.top + bestMonitorInfo.rcMonitor.bottom) / 2;
-        
-        int monitorWidth = bestMonitorInfo.rcMonitor.right - bestMonitorInfo.rcMonitor.left;
-        int monitorHeight = bestMonitorInfo.rcMonitor.bottom - bestMonitorInfo.rcMonitor.top;
-        
-        // Calculate window size accounting for DPI scaling
-        int windowWidth = (int)(monitorWidth * WINDOW_WIDTH_RATIO / scaleFactor);
-        int windowHeight = (int)(monitorHeight * WINDOW_HEIGHT_RATIO / scaleFactor);
+    // Use work area so you center within the usable space (respects taskbar)
+    RECT work = mi.rcWork;
+    int monW = work.right - work.left;
+    int monH = work.bottom - work.top;
 
-        // Center position accounting for DPI scaling
-        int windowX = (int)((monitorCenterX - (windowWidth * scaleFactor / 2)) / scaleFactor);
-        int windowY = (int)((monitorCenterY - (windowHeight * scaleFactor / 2)) / scaleFactor);
+    // Your desired fractions of the monitor (e.g. 0.6f, 0.6f)
+    const float WINDOW_WIDTH_RATIO = 0.6f;
+    const float WINDOW_HEIGHT_RATIO = 0.9f;
 
-        result.x = windowX;
-        result.y = windowY;
-        result.width = windowWidth;
-        result.height = windowHeight;
-        return true;
-    }
+    int winW = (int)Math.Round(monW * WINDOW_WIDTH_RATIO);
+    int winH = (int)Math.Round(monH * WINDOW_HEIGHT_RATIO);
+
+    int x = work.left + (monW - winW) / 2;
+    int y = work.top  + (monH - winH) / 2;
+
+    result.x = x;
+    result.y = y;
+    result.width = winW;
+    result.height = winH;
+    return true;
+}
 
     private static void MoveWindowToCenterOfActiveMonitor(IntPtr hwnd)
     {
@@ -1020,8 +1002,24 @@ public class Win32Window
                 var controlHeight = _maxListboxItems * _listBoxItemHeight;
                 var padding = 15;
                 var panelX = 11;
-                var panelWidth = 1226;
-                var controlWidth = panelWidth - (padding * 2);
+                
+                // Get current window dimensions for dynamic panel sizing
+                int panelWidth;
+                int controlWidth;
+                
+                if (!GetWindowRect(hWnd, out RECT windowRect))
+                {
+                    // Fallback to hardcoded value if GetWindowRect fails
+                    panelWidth = 1226;
+                }
+                else
+                {
+                    // Calculate panel width based on actual window size
+                    int windowWidth = windowRect.right - windowRect.left;
+                    panelWidth = windowWidth - (panelX * 2); // Leave margins on both sides
+                }
+                
+                controlWidth = panelWidth - (padding * 2);
                 var panelHeight = controlHeight + (padding * 2);
                 var searchInputHeight = tm.tmHeight + padding + padding;
                 var panelGap = 7;
