@@ -809,17 +809,23 @@ public class Win32Window
             return false;
         }
 
+        // Get DPI scaling for proper positioning
+        uint systemDpi = GetDpiForSystem();
+        float scaleFactor = systemDpi / 96.0f;
+        
         int monitorCenterX = (bestMonitorInfo.rcMonitor.left + bestMonitorInfo.rcMonitor.right) / 2;
         int monitorCenterY = (bestMonitorInfo.rcMonitor.top + bestMonitorInfo.rcMonitor.bottom) / 2;
         
         int monitorWidth = bestMonitorInfo.rcMonitor.right - bestMonitorInfo.rcMonitor.left;
         int monitorHeight = bestMonitorInfo.rcMonitor.bottom - bestMonitorInfo.rcMonitor.top;
         
-        int windowWidth = (int)(monitorWidth * WINDOW_WIDTH_RATIO);
-        int windowHeight = (int)(monitorHeight * WINDOW_HEIGHT_RATIO);
+        // Calculate window size accounting for DPI scaling
+        int windowWidth = (int)(monitorWidth * WINDOW_WIDTH_RATIO / scaleFactor);
+        int windowHeight = (int)(monitorHeight * WINDOW_HEIGHT_RATIO / scaleFactor);
 
-        int windowX = monitorCenterX - (windowWidth / 2);
-        int windowY = monitorCenterY - (windowHeight / 2);
+        // Center position accounting for DPI scaling
+        int windowX = (int)((monitorCenterX - (windowWidth * scaleFactor / 2)) / scaleFactor);
+        int windowY = (int)((monitorCenterY - (windowHeight * scaleFactor / 2)) / scaleFactor);
 
         result.x = windowX;
         result.y = windowY;
