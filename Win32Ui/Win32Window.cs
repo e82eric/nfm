@@ -809,8 +809,8 @@ public class Win32Window
         int monitorCenterX = (bestMonitorInfo.rcMonitor.left + bestMonitorInfo.rcMonitor.right) / 2;
         int monitorCenterY = (bestMonitorInfo.rcMonitor.top + bestMonitorInfo.rcMonitor.bottom) / 2;
         
-        int windowWidth = 1250;
-        int windowHeight = 630 * 2;
+        int windowWidth =  (int)((bestMonitorInfo.rcMonitor.right - bestMonitorInfo.rcMonitor.left) * .5);
+        int windowHeight = (int)((bestMonitorInfo.rcMonitor.bottom - bestMonitorInfo.rcMonitor.top) * .9);;
 
         int windowX = monitorCenterX - (windowWidth / 2);
         int windowY = monitorCenterY - (windowHeight / 2);
