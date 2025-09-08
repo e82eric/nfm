@@ -7,7 +7,6 @@
         <Nullable>enable</Nullable>
         <PublishAot>true</PublishAot>
         <InvariantGlobalization>true</InvariantGlobalization>
-        <AssemblyName>nfm.PowershellHistoryReader</AssemblyName>
         <RootNamespace>nfm.PowershellHistoryReader</RootNamespace>
     </PropertyGroup>
 
