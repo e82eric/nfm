@@ -324,22 +324,46 @@ public static class NativeBridge
         public object[] Data { get; }
         public int[] ColumnWidths { get; }
         public bool IsHeader { get; }
+        public int[]? DisplayColumnIndices { get; }
 
-        public ArrayColumnRow(object[] data, int[] columnWidths, bool isHeader = false)
+        public ArrayColumnRow(object[] data, int[] columnWidths, int[]? displayColumnIndices = null, bool isHeader = false)
         {
             Data = data;
             ColumnWidths = columnWidths;
+            DisplayColumnIndices = displayColumnIndices;
             IsHeader = isHeader;
         }
 
         public override string ToString()
         {
-            return string.Join("  ", 
-                Data.Select((cell, i) => 
+            if (DisplayColumnIndices == null || DisplayColumnIndices.Length == 0)
+            {
+                return string.Join("  ", 
+                    Data.Select((cell, i) => 
+                    {
+                        var text = cell?.ToString() ?? string.Empty;
+                        return i < ColumnWidths.Length ? text.PadRight(ColumnWidths[i]) : text;
+                    }));
+            }
+
+            var displayItems = new List<string>();
+            for (int i = 0; i < DisplayColumnIndices.Length; i++)
+            {
+                int colIndex = DisplayColumnIndices[i];
+                if (colIndex >= 0 && colIndex < Data.Length)
                 {
-                    var text = cell?.ToString() ?? string.Empty;
-                    return i < ColumnWidths.Length ? text.PadRight(ColumnWidths[i]) : text;
-                }));
+                    var text = Data[colIndex]?.ToString() ?? string.Empty;
+                    var paddedText = i < ColumnWidths.Length ? text.PadRight(ColumnWidths[i]) : text;
+                    displayItems.Add(paddedText);
+                }
+                else
+                {
+                    var paddedText = i < ColumnWidths.Length ? string.Empty.PadRight(ColumnWidths[i]) : string.Empty;
+                    displayItems.Add(paddedText);
+                }
+            }
+            
+            return string.Join("  ", displayItems);
         }
     }
 
@@ -353,6 +377,8 @@ public static class NativeBridge
             int columnCount,
             byte** columnNames,
             int columnNamesCount,
+            int* displayColumnIndices,
+            int displayColumnCount,
             int showPreview,
             delegate* unmanaged<byte*, void*, void> onSelect,
             delegate* unmanaged<void> onClosed,
@@ -370,21 +396,27 @@ public static class NativeBridge
                 }
             }
 
-            // Calculate column widths
-            var columnWidths = CalculateColumnWidths(managedData, managedColumnNames);
-
-            // Create row objects (only data rows, no header in the items list)
-            var rows = new List<ArrayColumnRow>();
-
-            // Add data rows only
-            foreach (var row in managedData)
+            int[]? managedDisplayColumnIndices = null;
+            if (displayColumnIndices != null && displayColumnCount > 0)
             {
-                rows.Add(new ArrayColumnRow(row, columnWidths));
+                managedDisplayColumnIndices = new int[displayColumnCount];
+                for (int i = 0; i < displayColumnCount; i++)
+                {
+                    managedDisplayColumnIndices[i] = displayColumnIndices[i];
+                }
             }
 
-            // Use column names as header if available
-            var header = managedColumnNames != null && managedColumnNames.Length > 0
-                ? string.Join("  ", managedColumnNames.Select((name, i) => i < columnWidths.Length ? name.PadRight(columnWidths[i]) : name))
+            var displayColumnNames = FilterColumnNamesForDisplay(managedColumnNames, managedDisplayColumnIndices);
+            var columnWidths = CalculateColumnWidths(managedData, displayColumnNames, managedDisplayColumnIndices);
+
+            var rows = new List<ArrayColumnRow>();
+            foreach (var row in managedData)
+            {
+                rows.Add(new ArrayColumnRow(row, columnWidths, managedDisplayColumnIndices));
+            }
+
+            var header = displayColumnNames != null && displayColumnNames.Length > 0
+                ? string.Join("  ", displayColumnNames.Select((name, i) => i < columnWidths.Length ? name.PadRight(columnWidths[i]) : name))
                 : null;
 
             _menuDefinition = new MenuDefinition
@@ -404,7 +436,7 @@ public static class NativeBridge
                 FinalComparer = Comparers.ScoreLengthAndValue,
                 OnClosed = () => onClosed(),
                 HasPreview = showPreview != 0,
-                PreviewHandler = showPreview != 0 ? new NativeArrayColumnPreviewHandler(managedData, managedColumnNames, rows) : null,
+                PreviewHandler = showPreview != 0 ? new NativeArrayColumnPreviewHandler(managedColumnNames) : null,
                 ScoreFunc = (sObj, pattern, slab) =>
                 {
                     var s = sObj.ToString() ?? string.Empty;
@@ -415,6 +447,30 @@ public static class NativeBridge
         }
 
         public MenuDefinition Get() => _menuDefinition;
+
+
+        private static string[]? FilterColumnNamesForDisplay(string[]? originalColumnNames, int[]? displayColumnIndices)
+        {
+            if (originalColumnNames == null || displayColumnIndices == null || displayColumnIndices.Length == 0)
+            {
+                return originalColumnNames;
+            }
+
+            var filteredNames = new string[displayColumnIndices.Length];
+            for (int i = 0; i < displayColumnIndices.Length; i++)
+            {
+                int colIndex = displayColumnIndices[i];
+                if (colIndex >= 0 && colIndex < originalColumnNames.Length)
+                {
+                    filteredNames[i] = originalColumnNames[colIndex];
+                }
+                else
+                {
+                    filteredNames[i] = $"Column {colIndex + 1}";
+                }
+            }
+            return filteredNames;
+        }
 
         private static object[][] ConvertNativeArrayToManaged(byte*** arrayData, int rowCount, int columnCount)
         {
@@ -432,29 +488,43 @@ public static class NativeBridge
             return result;
         }
 
-        private static int[] CalculateColumnWidths(object[][] data, string[]? columnNames)
+        private static int[] CalculateColumnWidths(object[][] data, string[]? columnNames, int[]? displayColumnIndices)
         {
-            if (data.Length == 0) return [];
-
-            int columnCount = data[0].Length;
-            var columnWidths = new int[columnCount];
-
-            // Measure column widths including headers
-            if (columnNames != null)
+            if (data.Length == 0)
             {
-                for (int col = 0; col < Math.Min(columnCount, columnNames.Length); col++)
+                return [];
+            }
+
+            if (displayColumnIndices == null || displayColumnIndices.Length == 0)
+            {
+                int columnCount = data[0].Length;
+                displayColumnIndices = new int[columnCount];
+                for (int i = 0; i < columnCount; i++)
                 {
-                    columnWidths[col] = Math.Max(columnWidths[col], columnNames[col].Length);
+                    displayColumnIndices[i] = i;
                 }
             }
 
-            // Measure data column widths
+            var columnWidths = new int[displayColumnIndices.Length];
+
+            if (columnNames != null)
+            {
+                for (int i = 0; i < Math.Min(displayColumnIndices.Length, columnNames.Length); i++)
+                {
+                    columnWidths[i] = Math.Max(columnWidths[i], columnNames[i].Length);
+                }
+            }
+
             foreach (var row in data)
             {
-                for (int col = 0; col < Math.Min(columnCount, row.Length); col++)
+                for (int i = 0; i < displayColumnIndices.Length; i++)
                 {
-                    var text = row[col]?.ToString() ?? string.Empty;
-                    columnWidths[col] = Math.Max(columnWidths[col], text.Length);
+                    int colIndex = displayColumnIndices[i];
+                    if (colIndex >= 0 && colIndex < row.Length)
+                    {
+                        var text = row[colIndex]?.ToString() ?? string.Empty;
+                        columnWidths[i] = Math.Max(columnWidths[i], text.Length);
+                    }
                 }
             }
 
@@ -489,15 +559,11 @@ public static class NativeBridge
 
     private class NativeArrayColumnPreviewHandler : IPreviewHandler
     {
-        private readonly object[][] _data;
-        private readonly string[]? _columnNames;
-        private readonly List<ArrayColumnRow> _rows;
+        private readonly string[]? _allColumnNames;
 
-        public NativeArrayColumnPreviewHandler(object[][] data, string[]? columnNames, List<ArrayColumnRow> rows)
+        public NativeArrayColumnPreviewHandler(string[]? allColumnNames)
         {
-            _data = data;
-            _columnNames = columnNames;
-            _rows = rows;
+            _allColumnNames = allColumnNames;
         }
 
         public Task Handle(IPreviewRenderer renderer, object item, int height, CancellationToken cancellationToken)
@@ -514,8 +580,8 @@ public static class NativeBridge
 
                 for (int i = 0; i < selectedRow.Data.Length; i++)
                 {
-                    var columnName = (_columnNames != null && i < _columnNames.Length) 
-                        ? _columnNames[i] 
+                    var columnName = (_allColumnNames != null && i < _allColumnNames.Length) 
+                        ? _allColumnNames[i] 
                         : $"Column {i + 1}";
                     var cellValue = selectedRow.Data[i]?.ToString() ?? string.Empty;
                     previewLines.Add($"{columnName}: {cellValue}");
@@ -544,12 +610,14 @@ public static class NativeBridge
     }
 
     [UnmanagedCallersOnly(EntryPoint = "ShowArrayColumns", CallConvs = [typeof(CallConvCdecl)])]
-    public static unsafe void ShowArrayColumns(
+    public static unsafe void ShowArrayColumnsMenu(
         byte*** arrayData,
         int rowCount,
         int columnCount,
         byte** columnNames,
         int columnNamesCount,
+        int* displayColumnIndices,
+        int displayColumnCount,
         int showPreview,
         delegate* unmanaged<byte*, void*, void> onSelect,
         delegate* unmanaged<void> onClosed,
@@ -557,7 +625,8 @@ public static class NativeBridge
     {
         var provider = new NativeArrayColumnMenuDefinitionProvider(
             arrayData, rowCount, columnCount, 
-            columnNames, columnNamesCount, showPreview,
+            columnNames, columnNamesCount, 
+            displayColumnIndices, displayColumnCount, showPreview,
             onSelect, onClosed, state);
         RunDefinition(provider.Get());
     }
