@@ -195,13 +195,13 @@ public static class NativeBridge
     }
     
     [UnmanagedCallersOnly(EntryPoint = nameof(ShowProgramsList), CallConvs = [typeof(CallConvCdecl)])]
-    public static unsafe void ShowProgramsList(delegate* unmanaged<byte*, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
+    public static unsafe void ShowProgramsList(byte** directories, int directoryCount, delegate* unmanaged<byte*, void*, void> onSelect, delegate* unmanaged<void> onClosed, void* state)
     {
-        var appDirectories = new []{ @"c:\users\eric\AppData\Roaming\Microsoft\Windows\Start Menu",
-            @"C:\ProgramData\Microsoft\Windows\Start Menu",
-            @"c:\users\eric\AppData\Local\Microsoft\WindowsApps",
-            @"c:\users\eric\utilities",
-            @"C:\Program Files\sysinternals\"};
+        var appDirectories = new string[directoryCount];
+        for (int i = 0; i < directoryCount; i++)
+        {
+            appDirectories[i] = Marshal.PtrToStringAnsi((IntPtr)directories[i]) ?? string.Empty;
+        }
         
         var command = new FileSystemMenuDefinitionProvider(
             new NativeResultHandler(onSelect, state),
