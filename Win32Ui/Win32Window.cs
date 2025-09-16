@@ -48,6 +48,86 @@ public class Win32Window
     private const UInt32 WM_FOCUS_SEARCH = WM_USER + 9;
     private const UInt32 WS_VISIBLE = 0x10000000;
     
+    private const int RDW_INVALIDATE = 0x0001;
+    private const int RDW_ERASE = 0x0004;
+    private const int RDW_FRAME = 0x0400;
+    private const int RDW_ALLCHILDREN = 0x0080;
+    private const int RDW_UPDATENOW = 0x0100;
+    const uint WM_SIZE = 0x0005;
+
+    [DllImport("user32.dll", SetLastError = false)]
+    private static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+    
+    private void ClearUIForHide()
+    {
+        // Stop periodic UI churn while hidden
+        _timer?.Change(Timeout.Infinite, Timeout.Infinite);
+
+        // Text input
+        if (_textBoxHwnd != IntPtr.Zero)
+        {
+            SetWindowText(_textBoxHwnd, string.Empty);
+            // reset caret/selection
+            SendMessage(_textBoxHwnd, EM_SETSEL, IntPtr.Zero, IntPtr.Zero);
+        }
+
+        // Clear list model/snapshot
+        lock (_itemsLock)
+        {
+            _snapshot = null;
+        }
+
+        // Clear preview (text + image)
+        _lines = null;
+        _bitmap?.Dispose();
+        _bitmap = null;
+        Interlocked.Exchange(ref _previewType, PreviewType.Text);
+        Interlocked.Exchange(ref _previewVersion, 0);
+        Interlocked.Exchange(ref _lastPreviewVersion, 0);
+
+        // Clear toast/summary/spinner
+        _toastVisible = false;
+        _toastString = null;
+        _toastExpirationTicks = 0;
+        _spinnerCtr = 0;
+
+        // Header state
+        _hasHeader = false;
+        _headerText = null;
+
+        // Force an erase + invalidate of all children so next show starts from a blank slate
+        if (_rootHwnd != IntPtr.Zero)
+        {
+            RedrawWindow(
+                _rootHwnd,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_FRAME | RDW_UPDATENOW);
+        }
+    }
+    
+    // Light re-prime when showing
+    private void PrimeUIForShow()
+    {
+        // Restart timer for spinner/toast/summary
+        _timer?.Change(0, 70);
+
+        // Ensure children repaint fully on first show
+        if (_rootHwnd != IntPtr.Zero)
+        {
+            RedrawWindow(
+                _rootHwnd,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_FRAME | RDW_UPDATENOW);
+        }
+
+        // Make sure preview invalidates at least once after show
+        InvalidateRect(_previewHwnd, IntPtr.Zero, true);
+        InvalidateRect(_listBoxHwnd, IntPtr.Zero, true);
+        InvalidateRect(_staticTextHwnd, IntPtr.Zero, true);
+    }
+    
     static ModifierKeys GetModifiersPressed()
     {
         ModifierKeys modifiersPressed = ModifierKeys.None;
@@ -196,6 +276,7 @@ public class Win32Window
                 if (snapshot == null)
                 {
                     _ = BeginPaint(hWnd, out ps);
+                    FillRect(ps.hdc, ref ps.rcPaint, _backgroundBrush); // clear
                     EndPaint(hWnd, ref ps);
                     return 0;
                 }
@@ -520,6 +601,14 @@ public class Win32Window
         {
             case WM_PAINT:
             {
+                if (_previewType == PreviewType.Image && _bitmap == null)
+                {
+                    PAINTSTRUCT ps2; var hdc2 = BeginPaint(hWnd, out ps2);
+                    FillRect(hdc2, ref ps2.rcPaint, _backgroundBrush);
+                    EndPaint(hWnd, ref ps2);
+                    return 0;
+                }
+                
                 if (_previewType == PreviewType.Image && _bitmap != null)
                 {
                     PAINTSTRUCT imagePs;
@@ -780,41 +869,41 @@ public class Win32Window
     [DllImport("user32.dll", SetLastError = false)]
     internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
     
-private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation result)
-{
-    result = new ScreenLocation();
+    private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation result)
+    {
+        result = new ScreenLocation();
 
-    var hwnd = GetForegroundWindow();
-    if (hwnd == IntPtr.Zero) return false;
+        var hwnd = GetForegroundWindow();
+        if (hwnd == IntPtr.Zero) return false;
 
-    // Prefer MonitorFromWindow when you have an HWND
-    IntPtr hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-    if (hmon == IntPtr.Zero) return false;
+        // Prefer MonitorFromWindow when you have an HWND
+        IntPtr hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (hmon == IntPtr.Zero) return false;
 
-    var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-    if (!GetMonitorInfo(hmon, ref mi)) return false;
+        var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(hmon, ref mi)) return false;
 
-    // Use work area so you center within the usable space (respects taskbar)
-    RECT work = mi.rcWork;
-    int monW = work.right - work.left;
-    int monH = work.bottom - work.top;
+        // Use work area so you center within the usable space (respects taskbar)
+        RECT work = mi.rcWork;
+        int monW = work.right - work.left;
+        int monH = work.bottom - work.top;
 
-    // Your desired fractions of the monitor (e.g. 0.6f, 0.6f)
-    const float WINDOW_WIDTH_RATIO = 0.6f;
-    const float WINDOW_HEIGHT_RATIO = 0.9f;
+        // Your desired fractions of the monitor (e.g. 0.6f, 0.6f)
+        const float WINDOW_WIDTH_RATIO = 0.6f;
+        const float WINDOW_HEIGHT_RATIO = 0.9f;
 
-    int winW = (int)Math.Round(monW * WINDOW_WIDTH_RATIO);
-    int winH = (int)Math.Round(monH * WINDOW_HEIGHT_RATIO);
+        int winW = (int)Math.Round(monW * WINDOW_WIDTH_RATIO);
+        int winH = (int)Math.Round(monH * WINDOW_HEIGHT_RATIO);
 
-    int x = work.left + (monW - winW) / 2;
-    int y = work.top  + (monH - winH) / 2;
+        int x = work.left + (monW - winW) / 2;
+        int y = work.top  + (monH - winH) / 2;
 
-    result.x = x;
-    result.y = y;
-    result.width = winW;
-    result.height = winH;
-    return true;
-}
+        result.x = x;
+        result.y = y;
+        result.width = winW;
+        result.height = winH;
+        return true;
+    }
 
     private static void MoveWindowToCenterOfActiveMonitor(IntPtr hwnd)
     {
@@ -1206,6 +1295,7 @@ private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation resul
                     PostMessage(_rootHwnd, WM_TOGGLE_PREVIEW, 0, 0);
                 }
                 MoveWindowToCenterOfActiveMonitor(_rootHwnd);
+                PrimeUIForShow();
                 ShowWindow(_rootHwnd, 1);
                 _showPreview = Convert.ToBoolean(showPreview);
                 ShowWindow(_previewPanelHwnd, showPreview);
@@ -1228,6 +1318,11 @@ private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation resul
 
                 break;
             
+            case WM_SIZE:
+                RedrawWindow(hWnd, IntPtr.Zero, IntPtr.Zero,
+                    RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_FRAME);
+                break;
+            
             case WM_FOCUS_PREVIEW:
                 SetFocus(_previewHwnd);
                 break;
@@ -1237,6 +1332,7 @@ private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation resul
                 break;
             
             case WM_HIDE_ROOT:
+                ClearUIForHide();
                 ShowWindow(_rootHwnd, 0);
                 break;
         }

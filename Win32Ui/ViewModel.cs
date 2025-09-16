@@ -335,7 +335,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     if (item.Item is TerminalEscapedLine escapedLine)
                     {
                         escapedLine.SetPos(pos);
-                        Items.Add((item, escapedLine));
+                        Items.Add((item.Item, escapedLine));
                     }
                     else
                     {
