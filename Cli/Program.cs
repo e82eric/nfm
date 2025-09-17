@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Text;
 using nfm.FileSystem;
 using nfm.Ui.Core;
 using nfm.Win32Ui;
@@ -41,6 +42,16 @@ class CommandOptions
     public IEnumerable<string>? Command { get; set; }
 }
 
+class CsvOptions
+{
+    public int[]? ColumnIndices { get; set; }
+    public string[]? DisplayColumns { get; set; }
+    public string[]? Headers { get; set; }
+    public bool HasHeader { get; set; } = true;
+    public char Delimiter { get; set; } = ',';
+    public bool DisablePreview { get; set; } = false;
+}
+
 [SupportedOSPlatform("windows")]
 class Program
 {
@@ -61,32 +72,53 @@ class Program
                 int nextChar = Console.In.Peek();
                 if (nextChar != -1)
                 {
-                    var stdInOptions = ParseStdInOptions(args);
-                    if (stdInOptions != null)
+                    // Check if this is a CSV input request
+                    if (args.Length > 0 && args[0] == "csv")
                     {
-                        var menuDefinitionProvider = new StdInMenuDefinitionProvider(
-                            viewModel,
-                            stdInOptions.ShowPreview,
-                            null,
-                            stdInOptions.PreviewCommand,
-                            stdInOptions.Delimiter,
-                            stdInOptions.PreviewStartLineCommand,
-                            stdInOptions.PreviewStartLineOffsetCommand,
-                            stdInOptions.Header,
-                            stdInOptions.LineContinuation,
-                            stdInOptions.SearchString,
-                            stdInOptions.WrapLines,
-                            stdInOptions.NoLengthSort ? Comparers.ScoreOnly : Comparers.ScoreLengthAndValue,
-                            stdInOptions.ShowGap);
-                        var window = new Win32Window(viewModel,() =>
+                        var csvOptions = ParseCsvOptions(args);
+                        if (csvOptions != null)
                         {
-                            Task.Run(async () =>
+                            var csvProvider = CreateCsvStringArrayColumnProvider(viewModel, csvOptions);
+                            var window = new Win32Window(viewModel, () =>
                             {
-                                await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get());
+                                Task.Run(async () =>
+                                {
+                                    await viewModel.RunDefinitionAsync(csvProvider.Get());
+                                });
                             });
-                        });
-                        window.Run();
-                        return;
+                            window.Run();
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        var stdInOptions = ParseStdInOptions(args);
+                        if (stdInOptions != null)
+                        {
+                            var menuDefinitionProvider = new StdInMenuDefinitionProvider(
+                                viewModel,
+                                stdInOptions.ShowPreview,
+                                null,
+                                stdInOptions.PreviewCommand,
+                                stdInOptions.Delimiter,
+                                stdInOptions.PreviewStartLineCommand,
+                                stdInOptions.PreviewStartLineOffsetCommand,
+                                stdInOptions.Header,
+                                stdInOptions.LineContinuation,
+                                stdInOptions.SearchString,
+                                stdInOptions.WrapLines,
+                                stdInOptions.NoLengthSort ? Comparers.ScoreOnly : Comparers.ScoreLengthAndValue,
+                                stdInOptions.ShowGap);
+                            var window = new Win32Window(viewModel,() =>
+                            {
+                                Task.Run(async () =>
+                                {
+                                    await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get());
+                                });
+                            });
+                            window.Run();
+                            return;
+                        }
                     }
                 }
             }
@@ -325,5 +357,209 @@ class Program
             Command = command
         };
         return options;
+    }
+
+    private static CsvOptions? ParseCsvOptions(string[] args)
+    {
+        var options = new CsvOptions();
+        for (int i = 1; i < args.Length; i++) // Start from 1 to skip "csv"
+        {
+            if (args[i] == "--columns" && i + 1 < args.Length)
+            {
+                var columnStrings = args[i + 1].Split(',');
+                var columnIndices = new List<int>();
+                var displayColumns = new List<string>();
+
+                foreach (var colStr in columnStrings.Select(s => s.Trim()))
+                {
+                    if (int.TryParse(colStr, out var colIndex))
+                    {
+                        columnIndices.Add(colIndex);
+                    }
+                    else
+                    {
+                        displayColumns.Add(colStr);
+                    }
+                }
+
+                if (columnIndices.Count > 0)
+                {
+                    options.ColumnIndices = columnIndices.ToArray();
+                }
+                if (displayColumns.Count > 0)
+                {
+                    options.DisplayColumns = displayColumns.ToArray();
+                }
+                i++;
+            }
+            else if (args[i] == "--headers" && i + 1 < args.Length)
+            {
+                options.Headers = args[i + 1].Split(',');
+                i++;
+            }
+            else if (args[i] == "--delimiter" && i + 1 < args.Length)
+            {
+                if (args[i + 1].Length == 1)
+                {
+                    options.Delimiter = args[i + 1][0];
+                }
+                i++;
+            }
+            else if (args[i] == "--no-header")
+            {
+                options.HasHeader = false;
+            }
+            else if (args[i] == "--disable-preview")
+            {
+                options.DisablePreview = true;
+            }
+            else
+            {
+                Console.Error.WriteLine($"Unknown CSV argument: {args[i]}");
+                return null;
+            }
+        }
+        return options;
+    }
+
+    private static StringArrayColumnMenuDefinitionProvider CreateCsvStringArrayColumnProvider(IMainViewModel viewModel, CsvOptions options)
+    {
+        // Read CSV input once
+        var csvInput = Console.In.ReadToEnd();
+        if (string.IsNullOrWhiteSpace(csvInput))
+        {
+            Console.Error.WriteLine("No CSV input provided");
+            return new StringArrayColumnMenuDefinitionProvider(
+                () => new string[0][],
+                new int[0],
+                null,
+                new StdOutResultHandler(viewModel),
+                enablePreview: false,
+                viewModel: viewModel);
+        }
+
+        var lines = csvInput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var data = new List<string[]>();
+        string[]? headerRow = null;
+
+        var startIndex = 0;
+        if (options.HasHeader && lines.Length > 0)
+        {
+            headerRow = ParseCsvLine(lines[0], options.Delimiter);
+            startIndex = 1;
+        }
+
+        for (int i = startIndex; i < lines.Length; i++)
+        {
+            try
+            {
+                var row = ParseCsvLine(lines[i], options.Delimiter);
+                data.Add(row);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error parsing CSV line {i + 1}: {ex.Message}");
+            }
+        }
+
+        if (data.Count == 0)
+        {
+            Console.Error.WriteLine("No data rows found in CSV");
+            return new StringArrayColumnMenuDefinitionProvider(
+                () => new string[0][],
+                new int[0],
+                null,
+                new StdOutResultHandler(viewModel),
+                enablePreview: false,
+                viewModel: viewModel);
+        }
+
+        // Determine display approach: by column names or indices
+        var columnIndices = options.ColumnIndices;
+        var displayColumns = options.DisplayColumns;
+
+        // Auto-detect columns if neither indices nor names are specified
+        if ((columnIndices == null || columnIndices.Length == 0) &&
+            (displayColumns == null || displayColumns.Length == 0))
+        {
+            // Show first 6 columns or all columns if fewer than 6
+            var maxColumns = Math.Min(6, data.Count > 0 ? data[0].Length : 0);
+            columnIndices = Enumerable.Range(0, maxColumns).ToArray();
+        }
+
+        // If no column indices specified but we have display columns, we'll let the provider resolve them
+        if (columnIndices == null || columnIndices.Length == 0)
+        {
+            columnIndices = new int[0]; // Empty array as fallback
+        }
+
+        // Use provided headers or extract from header row for display columns
+        var headers = options.Headers;
+        if (headers == null && displayColumns != null && displayColumns.Length > 0)
+        {
+            // Headers will be resolved from displayColumns, so use displayColumns as headers
+            headers = displayColumns;
+        }
+        else if (headers == null && options.HasHeader && headerRow != null && columnIndices.Length > 0)
+        {
+            headers = columnIndices.Where(i => i < headerRow.Length)
+                                 .Select(i => headerRow[i])
+                                 .ToArray();
+        }
+
+        Func<string[][]> csvDataProvider = () => data.ToArray();
+
+        return new StringArrayColumnMenuDefinitionProvider(
+            csvDataProvider,
+            columnIndices,
+            headers,
+            new StdOutResultHandler(viewModel),
+            enablePreview: !options.DisablePreview,
+            viewModel: viewModel,
+            allColumnHeaders: headerRow,
+            displayColumns: displayColumns
+        );
+    }
+
+    private static string[] ParseCsvLine(string line, char delimiter)
+    {
+        var result = new List<string>();
+        var current = new StringBuilder();
+        var inQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+
+            if (c == '"' && !inQuotes)
+            {
+                inQuotes = true;
+            }
+            else if (c == '"' && inQuotes)
+            {
+                if (i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    // Escaped quote
+                    current.Append('"');
+                    i++; // Skip next quote
+                }
+                else
+                {
+                    inQuotes = false;
+                }
+            }
+            else if (c == delimiter && !inQuotes)
+            {
+                result.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+
+        result.Add(current.ToString());
+        return result.ToArray();
     }
 }
