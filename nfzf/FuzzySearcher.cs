@@ -10,6 +10,7 @@ public class Pattern
 {
     public List<TermSet> TermSets { get; } = new();
     public bool OnlyInv { get; set; }
+    public string RawText { get; set; } = string.Empty;
 }
 
 public class TermSet
@@ -105,7 +106,10 @@ public static class FuzzySearcher
 
     public static Pattern ParsePattern(CaseMode caseMode, string pattern, bool fuzzy)
     {
-        Pattern patObj = new();
+        Pattern patObj = new()
+        {
+            RawText = pattern ?? string.Empty
+        };
 
         if (string.IsNullOrEmpty(pattern))
         {

@@ -273,7 +273,10 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         var ct = CancellationToken.None;
         
         var globalList = new List<Entry>(MaxItems);
-        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, currentSearchString, true);
+
+        // Apply pre-parse function if defined
+        var searchStringForPattern = _definition.PreParseFunc?.Invoke(currentSearchString) ?? currentSearchString;
+        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, searchStringForPattern, true);
         var numberOfItemsWithScores = 0;
         Parallel.ForEach(completeChunks.Select((chunk, index) => (chunk, chunkNumber: index)), parallelOptions, 
             GetLocalResultFromPool, 
@@ -287,7 +290,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     }
                     var line = chunkWithIndex.chunk.Items[i];
                         
-                    var score = _definition.ScoreFunc(line, pattern, localData.Slab);
+                    var score = _definition.ScoreFuncWithOriginalText?.Invoke(line, pattern, localData.Slab, currentSearchString)
+                                ?? _definition.ScoreFunc(line, pattern, localData.Slab);
                     if (score.Item2 > _definition.MinScore)
                     {
                         Interlocked.Increment(ref numberOfItemsWithScores);

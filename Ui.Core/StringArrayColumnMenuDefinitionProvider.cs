@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Threading.Channels;
+using System.Text.RegularExpressions;
 using nfzf;
 
 namespace nfm.Ui.Core;
@@ -88,21 +89,103 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             QuitOnEscape = true,
             ScoreFunc = (sObj, pattern, slab) =>
             {
+                // Fallback for when ScoreFuncWithOriginalText is not used
                 if (sObj is StringArrayRow row)
                 {
-                    var searchText = row.GetSearchableText();
-                    var score = FuzzySearcher.GetScore(searchText, pattern, slab);
-                    return (searchText.Length, score);
+                    var normalSearchText = row.GetSearchableText();
+                    var normalScore = FuzzySearcher.GetScore(normalSearchText, pattern, slab);
+                    return (normalSearchText.Length, normalScore);
+                }
+                return (0, 0);
+            },
+            ScoreFuncWithOriginalText = (sObj, pattern, slab, originalSearchText) =>
+            {
+                if (sObj is StringArrayRow row)
+                {
+                    var columnFilters = ColumnFilterParser.ParseColumnFilters(originalSearchText);
+
+                    if (columnFilters.Count > 0)
+                    {
+                        var allHeaders = row.GetAllColumnHeaders();
+                        if (allHeaders != null)
+                        {
+                            var allData = row.GetAllData();
+                            bool allFiltersMatch = true;
+
+                            foreach (var filter in columnFilters)
+                            {
+                                var columnIndex = Array.FindIndex(allHeaders, h =>
+                                    string.Equals(h, filter.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                                if (columnIndex >= 0 && columnIndex < allData.Length)
+                                {
+                                    var cellValue = allData[columnIndex] ?? string.Empty;
+                                    bool filterMatches = filter.Operator switch
+                                    {
+                                        "=" => string.Equals(cellValue, filter.Value, StringComparison.OrdinalIgnoreCase),
+                                        "==" => string.Equals(cellValue, filter.Value, StringComparison.OrdinalIgnoreCase),
+                                        "!=" => !string.Equals(cellValue, filter.Value, StringComparison.OrdinalIgnoreCase),
+                                        "=~" => IsRegexMatch(cellValue, filter.Value),
+                                        "!~" => !IsRegexMatch(cellValue, filter.Value),
+                                        _ => string.Equals(cellValue, filter.Value, StringComparison.OrdinalIgnoreCase) // fallback to default
+                                    };
+
+                                    if (!filterMatches)
+                                    {
+                                        allFiltersMatch = false;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    allFiltersMatch = false;
+                                    break;
+                                }
+                            }
+
+                            if (!allFiltersMatch)
+                            {
+                                // Column filters don't match, exclude this row
+                                return (0, -1);
+                            }
+
+                            // Column filters match, now do fuzzy search with processed pattern
+                            var fuzzySearchText = row.GetSearchableText();
+                            var fuzzyScore = FuzzySearcher.GetScore(fuzzySearchText, pattern, slab);
+
+                            // Boost score since column filters matched
+                            return (fuzzySearchText.Length, fuzzyScore > 0 ? fuzzyScore + 500 : 500);
+                        }
+                    }
+
+                    // Fall back to normal fuzzy search (no column filters)
+                    var normalSearchText = row.GetSearchableText();
+                    var normalScore = FuzzySearcher.GetScore(normalSearchText, pattern, slab);
+                    return (normalSearchText.Length, normalScore);
                 }
                 return (0, 0);
             },
             ShowGap = false,
             Wrap = false,
             SearchString = string.Empty,
+            PreParseFunc = ColumnFilterParser.PreParseSearchString,
         };
     }
 
     public MenuDefinition Get() => _menuDefinition;
+
+    private static bool IsRegexMatch(string text, string pattern)
+    {
+        try
+        {
+            return Regex.IsMatch(text, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+        catch (ArgumentException)
+        {
+            // Invalid regex pattern, fall back to literal string comparison
+            return string.Equals(text, pattern, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     private static Dictionary<int, int> CalculateColumnWidths(string[][] data, int[] columnIndices, string[]? columnHeaders)
     {
