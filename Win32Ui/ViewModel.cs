@@ -785,4 +785,9 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         
         View.Show(_definition.HasPreview);
     }
+
+    public MenuDefinition? GetMenuDefinition()
+    {
+        return _definition;
+    }
 }

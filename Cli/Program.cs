@@ -20,6 +20,7 @@ class StdInOptions
     public bool WrapLines { get; set; }
     public string? SearchString { get; set; }
     public bool NoLengthSort { get; set; }
+    public bool ExcludeTopmost { get; set; } = false;
 }
 
 class FileSystemOptions
@@ -35,6 +36,7 @@ class FileSystemOptions
     public bool WrapLines { get; set; }
     public bool ShowGap { get; set; }
     public bool ShowPreview { get; set; }
+    public bool ExcludeTopmost { get; set; } = false;
 }
 
 class CommandOptions
@@ -50,6 +52,7 @@ class CsvOptions
     public bool HasHeader { get; set; } = true;
     public char Delimiter { get; set; } = ',';
     public bool DisablePreview { get; set; } = false;
+    public bool ExcludeTopmost { get; set; } = false;
 }
 
 [SupportedOSPlatform("windows")]
@@ -85,7 +88,7 @@ class Program
                                 {
                                     await viewModel.RunDefinitionAsync(csvProvider.Get());
                                 });
-                            });
+                            }, csvOptions.ExcludeTopmost);
                             window.Run();
                             return;
                         }
@@ -115,7 +118,7 @@ class Program
                                 {
                                     await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get());
                                 });
-                            });
+                            }, stdInOptions.ExcludeTopmost);
                             window.Run();
                             return;
                         }
@@ -157,9 +160,9 @@ class Program
                 {
                     Task.Run(async () =>
                     {
-                        await viewModel.RunDefinitionAsync(definitionProvider.Get()); 
+                        await viewModel.RunDefinitionAsync(definitionProvider.Get());
                     });
-                });
+                }, fileSystemOptions.ExcludeTopmost);
                 window.Run();
             }
             else if (args[0] == "command")
@@ -243,6 +246,10 @@ class Program
 
                 i++;
             }
+            else if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
+            {
+                options.ExcludeTopmost = true;
+            }
             else
             {
                 Console.Error.WriteLine($"Unknown argument: {args[i]}");
@@ -316,6 +323,10 @@ class Program
                     options.Delimiter = args[i + 1][0];
                 }
                 i++;
+            }
+            else if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
+            {
+                options.ExcludeTopmost = true;
             }
             else
             {
@@ -412,6 +423,10 @@ class Program
             else if (args[i] == "--disable-preview")
             {
                 options.DisablePreview = true;
+            }
+            else if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
+            {
+                options.ExcludeTopmost = true;
             }
             else
             {

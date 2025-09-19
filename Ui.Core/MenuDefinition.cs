@@ -52,4 +52,5 @@ public class MenuDefinition
     public IPreviewHandler? PreviewHandler { get; init; } = null;
     public Func<object, string, Task<Result>>? EditAction { get; init; } = null;
     public Func<string, string>? PreParseFunc { get; init; } = null;
+    public Func<string, int, List<string>>? AutoCompleteProvider { get; init; } = null;
 }

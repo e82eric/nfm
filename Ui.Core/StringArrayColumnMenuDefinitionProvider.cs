@@ -8,6 +8,7 @@ namespace nfm.Ui.Core;
 public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 {
     private readonly MenuDefinition _menuDefinition;
+    private readonly Func<string[][]> _dataProvider;
 
     public StringArrayColumnMenuDefinitionProvider(
         Func<string[][]> dataProvider,
@@ -19,6 +20,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
         string[]? allColumnHeaders = null,
         string[]? displayColumns = null)
     {
+        _dataProvider = dataProvider;
         var data = dataProvider();
 
         // If display columns are specified by name, resolve them to indices
@@ -169,6 +171,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             Wrap = false,
             SearchString = string.Empty,
             PreParseFunc = ColumnFilterParser.PreParseSearchString,
+            AutoCompleteProvider = GetColumnAutoComplete(allColumnHeaders),
         };
     }
 
@@ -185,6 +188,69 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             // Invalid regex pattern, fall back to literal string comparison
             return string.Equals(text, pattern, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    private Func<string, int, List<string>> GetColumnAutoComplete(string[]? columnHeaders)
+    {
+        return (searchText, cursorPosition) =>
+        {
+            if (columnHeaders == null || columnHeaders.Length == 0)
+                return new List<string>();
+
+            // Find if we're in a column filter context at the cursor position
+            var beforeCursor = searchText.Substring(0, Math.Min(cursorPosition, searchText.Length));
+
+            // Look for the last occurrence of /: before the cursor
+            var lastColonSlashIndex = beforeCursor.LastIndexOf("/:");
+            if (lastColonSlashIndex == -1)
+                return new List<string>();
+
+            // Extract the partial column name after /:
+            var afterColonSlash = beforeCursor.Substring(lastColonSlashIndex + 2);
+
+            // Check if there's an operator in the current filter
+            var operatorMatch = Regex.Match(afterColonSlash, @"^(\w+)(==|!=|!~|=~|=)(.*)$");
+
+            if (operatorMatch.Success)
+            {
+                // We're after an operator, suggest column values
+                var columnName = operatorMatch.Groups[1].Value;
+                var @operator = operatorMatch.Groups[2].Value;
+                var partialValue = operatorMatch.Groups[3].Value;
+
+                // Find the column index
+                var columnIndex = Array.FindIndex(columnHeaders, h =>
+                    string.Equals(h, columnName, StringComparison.OrdinalIgnoreCase));
+
+                if (columnIndex >= 0)
+                {
+                    // Get all unique values from this column in the dataset
+                    var data = _dataProvider();
+                    var uniqueValues = data
+                        .Where(row => columnIndex < row.Length && !string.IsNullOrEmpty(row[columnIndex]))
+                        .Select(row => row[columnIndex])
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Where(value => value.StartsWith(partialValue, StringComparison.OrdinalIgnoreCase))
+                        .OrderBy(value => value)
+                        .ToList();
+
+                    return uniqueValues;
+                }
+
+                return new List<string>();
+            }
+            else
+            {
+                // We're still typing the column name, suggest column headers
+                var partialName = afterColonSlash.Trim();
+                var matchingColumns = columnHeaders
+                    .Where(header => !string.IsNullOrEmpty(header) &&
+                                   header.StartsWith(partialName, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                return matchingColumns;
+            }
+        };
     }
 
     private static Dictionary<int, int> CalculateColumnWidths(string[][] data, int[] columnIndices, string[]? columnHeaders)

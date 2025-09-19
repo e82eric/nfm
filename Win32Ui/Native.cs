@@ -8,6 +8,7 @@ internal static class Native
     [DllImport("user32.dll")]
     internal static extern IntPtr MonitorFromRect(ref RECT lprc, uint dwFlags);
     internal const uint MONITOR_DEFAULTTONEAREST = 2;
+    internal static readonly IntPtr HWND_TOP = new IntPtr(0);
     
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -97,6 +98,9 @@ internal static class Native
     [DllImport("gdi32.dll")]
     internal static extern bool LineTo(IntPtr hdc, int nXEnd, int nYEnd);
 
+    [DllImport("gdi32.dll")]
+    internal static extern bool Rectangle(IntPtr hdc, int nLeftRect, int nTopRect, int nRightRect, int nBottomRect);
+
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     internal static extern bool SetWindowText(IntPtr hWnd, string lpString);
 
@@ -149,6 +153,15 @@ internal static class Native
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetParent(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    internal static extern bool ScreenToClient(IntPtr hWnd, ref RECT lpRect);
 
     [DllImport("gdi32.dll", CharSet = CharSet.Auto)]
     internal static extern bool GetTextMetrics(IntPtr hdc, out TEXTMETRIC lptm);
@@ -251,6 +264,7 @@ internal static class Native
     internal const int VK_UP = 0x26;
     internal const ushort VK_RETURN = 0x0D;
     internal const ushort VK_ESCAPE = 0x1B;
+    internal const ushort VK_TAB = 0x09;
     internal const int EM_GETSEL = 0x00B0;
     internal const int EM_SETSEL = 0x00B1;
     internal const int VK_BACK = 0x08;

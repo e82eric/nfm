@@ -718,4 +718,147 @@ public class ColumnFilterParserTests
         var excludedRows = results.Where(r => r.Score.Item2 == -1).ToArray();
         Assert.That(excludedRows.Length, Is.EqualTo(4), "Four .exe processes should be excluded");
     }
+
+    [Test]
+    public void AutoComplete_WithColonSlash_ReturnsMatchingColumns()
+    {
+        var testData = new string[][]
+        {
+            new[] { "process1", "running", "1234" },
+            new[] { "process2", "stopped", "5678" }
+        };
+
+        var mockResultHandler = new MockResultHandler();
+        var provider = new StringArrayColumnMenuDefinitionProvider(
+            () => testData,
+            new int[] { 0, 1, 2 },
+            new[] { "Name", "Status", "PID" },
+            mockResultHandler,
+            false,
+            null,
+            new[] { "Name", "Status", "PID" }
+        );
+
+        var menuDef = provider.Get();
+        var autoCompleteProvider = menuDef.AutoCompleteProvider;
+
+        Assert.That(autoCompleteProvider, Is.Not.Null, "AutoCompleteProvider should be available");
+
+        // Test basic column suggestion
+        var suggestions1 = autoCompleteProvider!("/:St", 4);
+        Assert.That(suggestions1.Count, Is.EqualTo(1), "Should find one column starting with 'St'");
+        Assert.That(suggestions1[0], Is.EqualTo("Status"), "Should suggest 'Status' column");
+
+        // Test no matches
+        var suggestions2 = autoCompleteProvider("/:Xyz", 5);
+        Assert.That(suggestions2.Count, Is.EqualTo(0), "Should find no columns starting with 'Xyz'");
+
+        // Test all columns when no partial name
+        var suggestions3 = autoCompleteProvider("/:", 2);
+        Assert.That(suggestions3.Count, Is.EqualTo(3), "Should return all available columns");
+        Assert.That(suggestions3, Contains.Item("Name"));
+        Assert.That(suggestions3, Contains.Item("Status"));
+        Assert.That(suggestions3, Contains.Item("PID"));
+
+        // Test case insensitive matching
+        var suggestions4 = autoCompleteProvider("/:name", 6);
+        Assert.That(suggestions4.Count, Is.EqualTo(1), "Should find 'Name' case-insensitively");
+        Assert.That(suggestions4[0], Is.EqualTo("Name"));
+    }
+
+    [Test]
+    public void AutoComplete_WithOperators_ReturnsColumnValues()
+    {
+        var testData = new string[][]
+        {
+            new[] { "process1", "running", "1234" },
+            new[] { "process2", "stopped", "5678" },
+            new[] { "notepad", "running", "9999" }
+        };
+
+        var mockResultHandler = new MockResultHandler();
+        var provider = new StringArrayColumnMenuDefinitionProvider(
+            () => testData,
+            new int[] { 0, 1, 2 },
+            new[] { "Name", "Status", "PID" },
+            mockResultHandler,
+            false,
+            null,
+            new[] { "Name", "Status", "PID" }
+        );
+
+        var menuDef = provider.Get();
+        var autoCompleteProvider = menuDef.AutoCompleteProvider!;
+
+        // Test column value suggestions when operator is present
+        var suggestions1 = autoCompleteProvider("/:Status=", 9);
+        Assert.That(suggestions1.Count, Is.EqualTo(2), "Should suggest column values when = operator is present");
+        Assert.That(suggestions1, Contains.Item("running"));
+        Assert.That(suggestions1, Contains.Item("stopped"));
+
+        var suggestions2 = autoCompleteProvider("/:Name!=", 8);
+        Assert.That(suggestions2.Count, Is.EqualTo(3), "Should suggest column values when != operator is present");
+        Assert.That(suggestions2, Contains.Item("process1"));
+        Assert.That(suggestions2, Contains.Item("process2"));
+        Assert.That(suggestions2, Contains.Item("notepad"));
+
+        var suggestions3 = autoCompleteProvider("/:PID=~", 7);
+        Assert.That(suggestions3.Count, Is.EqualTo(3), "Should suggest column values when =~ operator is present");
+        Assert.That(suggestions3, Contains.Item("1234"));
+        Assert.That(suggestions3, Contains.Item("5678"));
+        Assert.That(suggestions3, Contains.Item("9999"));
+
+        var suggestions4 = autoCompleteProvider("/:Status!~", 10);
+        Assert.That(suggestions4.Count, Is.EqualTo(2), "Should suggest column values when !~ operator is present");
+        Assert.That(suggestions4, Contains.Item("running"));
+        Assert.That(suggestions4, Contains.Item("stopped"));
+
+        // Test partial value matching
+        var suggestions5 = autoCompleteProvider("/:Status=run", 12);
+        Assert.That(suggestions5.Count, Is.EqualTo(1), "Should suggest column values matching partial input");
+        Assert.That(suggestions5[0], Is.EqualTo("running"));
+
+        var suggestions6 = autoCompleteProvider("/:Name=proc", 11);
+        Assert.That(suggestions6.Count, Is.EqualTo(2), "Should suggest column values matching partial input");
+        Assert.That(suggestions6, Contains.Item("process1"));
+        Assert.That(suggestions6, Contains.Item("process2"));
+    }
+
+    [Test]
+    public void AutoComplete_ComplexSearch_ReturnsCorrectSuggestions()
+    {
+        var testData = new string[][]
+        {
+            new[] { "process1", "running", "1234" }
+        };
+
+        var mockResultHandler = new MockResultHandler();
+        var provider = new StringArrayColumnMenuDefinitionProvider(
+            () => testData,
+            new int[] { 0, 1, 2 },
+            new[] { "Name", "Status", "ProcessID", "Priority" },
+            mockResultHandler,
+            false,
+            null,
+            new[] { "Name", "Status", "ProcessID", "Priority" }
+        );
+
+        var menuDef = provider.Get();
+        var autoCompleteProvider = menuDef.AutoCompleteProvider!;
+
+        // Test with existing complete filter and new partial filter
+        var suggestions1 = autoCompleteProvider("/:Status=running /:P", 20);
+        Assert.That(suggestions1.Count, Is.EqualTo(2), "Should find columns starting with 'P'");
+        Assert.That(suggestions1, Contains.Item("ProcessID"));
+        Assert.That(suggestions1, Contains.Item("Priority"));
+
+        // Test cursor position in middle of search
+        var suggestions2 = autoCompleteProvider("/:St /:Name=test", 4);
+        Assert.That(suggestions2.Count, Is.EqualTo(1), "Should find 'Status' when cursor is after /:St");
+        Assert.That(suggestions2[0], Is.EqualTo("Status"));
+
+        // Test no suggestions when not in column context
+        var suggestions3 = autoCompleteProvider("some search text", 8);
+        Assert.That(suggestions3.Count, Is.EqualTo(0), "Should not suggest columns when not in /: context");
+    }
 }
