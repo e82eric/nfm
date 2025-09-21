@@ -38,6 +38,25 @@ internal static class Native
         SWP_DEFERERASE = 0x2000,
         SWP_ASYNCWINDOWPOS = 0x4000,
     }
+    
+    // P/Invokes
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr BeginDeferWindowPos(int nNumWindows);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr DeferWindowPos(
+        IntPtr hWinPosInfo,     // HDWP from BeginDeferWindowPos
+        IntPtr hWnd,            // window to move/size
+        IntPtr hWndInsertAfter, // Z-order target (e.g., HWND_TOP)
+        int x,
+        int y,
+        int cx,
+        int cy,
+        SetWindowPosFlags uFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EndDeferWindowPos(IntPtr hWinPosInfo);
 
     [DllImport("user32.dll")]
     internal static extern short GetAsyncKeyState(int vKey);

@@ -20,12 +20,14 @@ public class Win32Window
     private readonly SubclassProc _textBoxPanelControlProc;
     private readonly SubclassProc _editControlProc;
     private readonly SubclassProc _autocompleteControlProc;
+    private readonly SubclassProc _autocompletePanelControlProc;
 
     private int _spinnerCtr = 0;
     private const int PS_SOLID = 0;
     private const int BORDER_THICKNESS = 2;
     private const int BORDER_COLOR = 0x00888545; //0x00bbggrr
     private const int BACKGROUND_COLOR = 0x00282828; //0x00bbggrr
+    private const int AUTOCOMPLETE_BACKGROUND_COLOR = 0x00302f32;
     private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
     private const int SELECTED_BACKGROUND_COLOR_2 = 0x00545c66; //0x00665c54
     private const int TEXT_COLOR = 0x008499a8; //0x00a88499
@@ -493,6 +495,55 @@ public class Win32Window
         }
     }
 
+    private static IntPtr PaintSquarePanelBorder(IntPtr hWnd)
+    {
+        var hdc = BeginPaint(hWnd, out var ps);
+
+        // Get the actual client rectangle of the window
+        GetClientRect(hWnd, out RECT clientRect);
+
+        var hBufferedPaint = BeginBufferedPaint(
+            hdc,
+            ref clientRect,
+            BPBF_COMPATIBLEBITMAP,
+            IntPtr.Zero,
+            out var hNewDc);
+        if (hBufferedPaint == IntPtr.Zero || hNewDc == IntPtr.Zero)
+        {
+            return IntPtr.Zero;
+        }
+
+        var blackBrush = CreateSolidBrush(BACKGROUND_COLOR);
+        FillRect(hNewDc, ref clientRect, blackBrush);
+        using (Graphics g = Graphics.FromHdc(hNewDc))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle rect = new Rectangle(
+                clientRect.left + BORDER_THICKNESS,
+                clientRect.top + BORDER_THICKNESS,
+                clientRect.right - clientRect.left - (BORDER_THICKNESS * 2),
+                clientRect.bottom - clientRect.top - (BORDER_THICKNESS * 2)
+            );
+
+            using (GraphicsPath path = GetRoundedRect(rect, CORNER_RADIUS))
+            {
+                using (SolidBrush brush = new SolidBrush(ColorTranslator.FromWin32(BACKGROUND_COLOR)))
+                {
+                    g.FillPath(brush, path);
+                }
+
+                using (Pen pen = new Pen(ColorTranslator.FromWin32(BORDER_COLOR), BORDER_THICKNESS))
+                {
+                    g.DrawPath(pen, path);
+                }
+            }
+        }
+
+        EndBufferedPaint(hBufferedPaint, true);
+        EndPaint(hWnd, ref ps);
+        return IntPtr.Zero;
+    }
+
     private static IntPtr PaintPanelBorder(IntPtr hWnd)
     {
         var hdc = BeginPaint(hWnd, out var ps);
@@ -558,7 +609,6 @@ public class Win32Window
                     GetWindowText(_textBoxHwnd, text, text.Capacity);
                     var searchText = text.ToString();
 
-                    // Handle autocomplete
                     HandleAutocompleteUpdate(searchText);
 
                     Task.Run(() => _viewModel.SetSearchString(searchText));
@@ -862,7 +912,22 @@ public class Win32Window
         }
     }
 
-    private IntPtr AutocompleteControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private static IntPtr AutocompletePanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    {
+        switch (uMsg)
+        {
+            case WM_PAINT:
+            {
+                return PaintSquarePanelBorder(hWnd);
+            }
+            case WM_ERASEBKGND:
+                return 1;
+            default:
+                return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        }
+    }
+
+    private IntPtr AutocompleteControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefDatk)
     {
         switch (uMsg)
         {
@@ -870,8 +935,7 @@ public class Win32Window
                 if (!_autocompleteVisible || _autocompleteSuggestions.Count == 0)
                 {
                     var hdc = BeginPaint(hWnd, out var ps);
-                    // Clear the window content when autocomplete is not visible
-                    FillRect(hdc, ref ps.rcPaint, _backgroundBrush);
+                    FillRect(hdc, ref ps.rcPaint, _autoCompleteBackgroundBrush);
                     EndPaint(hWnd, ref ps);
                     return 0;
                 }
@@ -890,43 +954,37 @@ public class Win32Window
                     return IntPtr.Zero;
                 }
 
-                GetTextMetrics(hNewDc, out var tm);
-                int textHeight = tm.tmHeight;
-
                 // Fill background
-                FillRect(hNewDc, ref paintStruct.rcPaint, _backgroundBrush);
+                FillRect(hNewDc, ref paintStruct.rcPaint, _autoCompleteBackgroundBrush);
 
-                // Draw border
-                SelectObject(hNewDc, _borderPen);
-                Rectangle(hNewDc, paintStruct.rcPaint.left, paintStruct.rcPaint.top,
-                         paintStruct.rcPaint.right, paintStruct.rcPaint.bottom);
-
-                // Draw suggestions
+                // Draw autocomplete items
+                GetTextMetrics(hNewDc, out var tm);
                 SelectObject(hNewDc, _font);
                 SetBkMode(hNewDc, TRANSPARENT);
 
-                int padding = 2; // Border padding
+                int padding = 2;
 
                 for (int i = 0; i < _autocompleteSuggestions.Count; i++)
                 {
                     var suggestion = _autocompleteSuggestions[i];
-                    var y = padding + (i * textHeight);
-                    var rect = new RECT
+                    var y = i * _listBoxItemHeight + padding;
+                    var itemRect = new RECT
                     {
-                        left = padding,
+                        left = paintStruct.rcPaint.left + padding,
                         top = y,
                         right = paintStruct.rcPaint.right - padding,
-                        bottom = y + textHeight
+                        bottom = y + _listBoxItemHeight
                     };
 
-                    // Highlight selected item
                     if (i == _autocompleteSelectedIndex)
                     {
-                        FillRect(hNewDc, ref rect, _selectedBackgroundBrush);
-                        SetTextColor(hNewDc, 0x00FFFFFF); // White text for selected
+                        SetBkColor(hNewDc, SELECTED_BACKGROUND_COLOR);
+                        FillRect(hNewDc, ref itemRect, _selectedBackgroundBrush);
+                        SetTextColor(hNewDc, TEXT_COLOR);
                     }
                     else
                     {
+                        SetBkColor(hNewDc, AUTOCOMPLETE_BACKGROUND_COLOR);
                         SetTextColor(hNewDc, TEXT_COLOR);
                     }
 
@@ -951,28 +1009,29 @@ public class Win32Window
         _autocompleteSelectedIndex = suggestions.Count > 0 ? 0 : -1;
         _autocompleteVisible = true;
 
-        // Calculate proper height based on number of suggestions
-        var hdc = GetDC(_textBoxHwnd);
-        GetTextMetrics(hdc, out var tm);
-        ReleaseDC(_textBoxHwnd, hdc);
+        int maxItems = Math.Min(suggestions.Count, 7);
+        int contentHeight = maxItems * _listBoxItemHeight;
+        int padding = BORDER_THICKNESS + 10;
+        int panelHeight = contentHeight + (padding * 2);
 
-        int dropdownHeight = suggestions.Count * tm.tmHeight + 4; // Add padding for border
-
-        // Get textbox position relative to root window
         GetWindowRect(_textBoxHwnd, out var textBoxRect);
         GetWindowRect(_rootHwnd, out var rootRect);
 
-        // Convert to client coordinates of root window
         var textBoxLeft = textBoxRect.left - rootRect.left;
         var textBoxBottom = textBoxRect.bottom - rootRect.top;
         var textBoxWidth = textBoxRect.right - textBoxRect.left;
 
-        // Position autocomplete below the textbox, overlaying other content
-        SetWindowPos(_autocompleteHwnd, HWND_TOP,
+        SetWindowPos(_autocompletePanelHwnd, HWND_TOP,
             textBoxLeft, textBoxBottom,
-            textBoxWidth, dropdownHeight,
+            textBoxWidth, panelHeight,
             SetWindowPosFlags.SWP_SHOWWINDOW);
-
+        
+        SetWindowPos(_autocompleteHwnd, HWND_TOP,
+            padding, padding,
+            textBoxWidth - (padding * 2), contentHeight,
+            SetWindowPosFlags.SWP_SHOWWINDOW);
+        
+        InvalidateRect(_autocompletePanelHwnd, IntPtr.Zero, true);
         InvalidateRect(_autocompleteHwnd, IntPtr.Zero, true);
     }
 
@@ -981,8 +1040,7 @@ public class Win32Window
         _autocompleteVisible = false;
         _autocompleteSuggestions.Clear();
         _autocompleteSelectedIndex = -1;
-        // Invalidate to force a repaint that will clear the content
-        InvalidateRect(_autocompleteHwnd, IntPtr.Zero, true);
+        ShowWindow(_autocompletePanelHwnd, SW_HIDE);
         ShowWindow(_autocompleteHwnd, SW_HIDE);
     }
 
@@ -1004,78 +1062,37 @@ public class Win32Window
     private void ApplyAutocompleteSelection()
     {
         if (!_autocompleteVisible || _autocompleteSelectedIndex < 0 || _autocompleteSelectedIndex >= _autocompleteSuggestions.Count)
+        {
             return;
+        }
 
         var selectedSuggestion = _autocompleteSuggestions[_autocompleteSelectedIndex];
-
-        // Get current text and cursor position
+        
+        // Get current text using Win32 API
         var length = GetWindowTextLength(_textBoxHwnd);
         var sb = new StringBuilder(length + 1);
         GetWindowText(_textBoxHwnd, sb, sb.Capacity);
-        var text = sb.ToString();
+        var currentText = sb.ToString();
+        
+        // Get current cursor position using Win32 API
+        var startPos = 0;
+        var endPos = 0;
+        SendMessage(_textBoxHwnd, EM_GETSEL, ref startPos, ref endPos);
+        var currentCursorPosition = endPos;
+        
+        var result = AutocompleteService.ApplySelection(currentText, currentCursorPosition, selectedSuggestion);
 
-        var startPosSel = 0;
-        var endPosSel = 0;
-        SendMessage(_textBoxHwnd, EM_GETSEL, ref startPosSel, ref endPosSel);
-        var cursorPos = endPosSel;
-
-        // Find the /: pattern before cursor
-        var beforeCursor = text.Substring(0, Math.Min(cursorPos, text.Length));
-        var lastColonSlashIndex = beforeCursor.LastIndexOf("/:");
-
-        if (lastColonSlashIndex >= 0)
+        if (result.Success)
         {
-            // Extract the content after /:
-            var afterColonSlash = beforeCursor.Substring(lastColonSlashIndex + 2);
-
-            // Check if we're completing a value (after an operator) or a column name
-            var operatorMatch = System.Text.RegularExpressions.Regex.Match(afterColonSlash, @"^(\w+)(==|!=|!~|=~|=)(.*)$");
-
-            string newText;
-            int newCursorPos;
-
-            if (operatorMatch.Success)
+            // Update the text box with the new text and cursor position using Win32 API
+            SetWindowText(_textBoxHwnd, result.NewText);
+            SendMessage(_textBoxHwnd, EM_SETSEL, (IntPtr)result.NewCursorPosition, (IntPtr)result.NewCursorPosition);
+            
+            // Handle column completion vs value completion
+            if (result.CompletedColumn)
             {
-                // We're completing a value after an operator
-                var columnName = operatorMatch.Groups[1].Value;
-                var operatorStr = operatorMatch.Groups[2].Value;
-
-                // Replace only the value part, preserving the column name and operator
-                var replaceStart = lastColonSlashIndex + 2 + columnName.Length + operatorStr.Length;
-                newText = text.Substring(0, replaceStart) + selectedSuggestion + text.Substring(cursorPos);
-                newCursorPos = replaceStart + selectedSuggestion.Length;
-            }
-            else
-            {
-                // We're completing a column name
-                newText = text.Substring(0, lastColonSlashIndex + 2) + selectedSuggestion + text.Substring(cursorPos);
-                newCursorPos = lastColonSlashIndex + 2 + selectedSuggestion.Length;
-            }
-
-            SetWindowText(_textBoxHwnd, newText);
-            SendMessage(_textBoxHwnd, EM_SETSEL, (IntPtr)newCursorPos, (IntPtr)newCursorPos);
-        }
-
-        HideAutocomplete();
-    }
-
-    private void HandleAutocompleteUpdate(string searchText)
-    {
-        // Get current cursor position
-        var startPosSel = 0;
-        var endPosSel = 0;
-        SendMessage(_textBoxHwnd, EM_GETSEL, ref startPosSel, ref endPosSel);
-        var cursorPos = endPosSel;
-
-        // Get autocomplete suggestions from the view model
-        var menuDefinition = _viewModel.GetMenuDefinition();
-        if (menuDefinition?.AutoCompleteProvider != null)
-        {
-            var suggestions = menuDefinition.AutoCompleteProvider(searchText, cursorPos);
-
-            if (suggestions.Count > 0)
-            {
-                ShowAutocomplete(suggestions);
+                HideAutocomplete();
+                HandleAutocompleteUpdate(result.NewText);
             }
             else
             {
@@ -1086,6 +1103,28 @@ public class Win32Window
         {
             HideAutocomplete();
         }
+    }
+
+    private void HandleAutocompleteUpdate(string searchText)
+    {
+        var incompleteFilterInfo = ColumnFilterParser.GetIncompleteFilterInfo(searchText);
+        if (incompleteFilterInfo.HasIncompleteFilter && incompleteFilterInfo.Type != IncompleteFilterType.Slash)
+        {
+            var menuDefinition = _viewModel.GetMenuDefinition();
+            if (menuDefinition?.AutoCompleteProvider != null)
+            {
+                var suggestions = menuDefinition.AutoCompleteProvider(incompleteFilterInfo);
+
+                if (suggestions.Count > 0)
+                {
+                    ShowAutocomplete(suggestions);
+                }
+            }
+
+            return;
+        }
+        
+        HideAutocomplete();
     }
 
     private struct ScreenLocation
@@ -1267,7 +1306,9 @@ public class Win32Window
     private IntPtr _listBoxHwnd;
     private IntPtr _listBoxPanelHwnd;
     private IntPtr _autocompleteHwnd;
+    private IntPtr _autocompletePanelHwnd;
     private IntPtr _backgroundBrush;
+    private IntPtr _autoCompleteBackgroundBrush;
     private IntPtr _gapPen;
     private IntPtr _borderPen;
     private IntPtr _selectedBackgroundBrush;
@@ -1304,6 +1345,7 @@ public class Win32Window
         _textBoxPanelControlProc = TextBoxPanelControlProc;
         _editControlProc = EditControlProc;
         _autocompleteControlProc = AutocompleteControlProc;
+        _autocompletePanelControlProc = AutocompletePanelControlProc;
         _viewModel = viewModel;
         _onInit = onInit;
         _viewModel.SetView(this);
@@ -1325,6 +1367,7 @@ public class Win32Window
                 _borderPen = CreatePen(PS_SOLID, 1, BORDER_COLOR);
                 _gapPen = CreatePen(PS_SOLID, 1, GAP_COLOR);
                 _backgroundBrush = CreateSolidBrush(BACKGROUND_COLOR);
+                _autoCompleteBackgroundBrush = CreateSolidBrush(BACKGROUND_COLOR);
                 _selectedBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR);
                 _selectedBackgroundBrush2 = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
                 _highlightBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
@@ -1358,6 +1401,10 @@ public class Win32Window
                 _viewModel.SetPreviewHeight(controlHeight);
                 _viewModel.SetNumberOfRows(_maxListboxItems);
                 _viewModel.SetPreviewNumberOfRow(previewItems);
+                
+                const int WS_CLIPCHILDREN = 0x02000000;
+                int rootStyle = GetWindowLong(_rootHwnd, GWL_STYLE);
+                SetWindowLong(_rootHwnd, GWL_STYLE, rootStyle | WS_CLIPCHILDREN);
                 
                 _previewPanelHwnd = CreateWindowEx(
                     0,
@@ -1437,19 +1484,35 @@ public class Win32Window
                     IntPtr.Zero);
                 SetWindowSubclass(_staticTextHwnd, _summaryTextControlProc, 0, IntPtr.Zero);
 
-                // Create autocomplete dropdown (initially hidden) as child of root window for overlay
+                // Create autocomplete panel (initially hidden) as child of root window for overlay
                 var autocompleteExtendedStyle = _excludeTopmost ? 0u : WS_EX_TOPMOST;
-                _autocompleteHwnd = CreateWindowEx(
+                _autocompletePanelHwnd = CreateWindowEx(
                     autocompleteExtendedStyle,
                     "static",
                     "",
-                    WS_CHILD | SS_OWNERDRAW | WS_CLIPSIBLINGS,
+                    WS_CHILD | SS_OWNERDRAW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
                     0, // Will be positioned in ShowAutocomplete
                     0,
                     searchInputWidth,
                     1, // Will be sized dynamically in ShowAutocomplete
-                    hWnd, // Parent is root window instead of textbox panel
+                    hWnd, // Parent is root window
                     8,
+                    _instance,
+                    IntPtr.Zero);
+                SetWindowSubclass(_autocompletePanelHwnd, _autocompletePanelControlProc, 0, IntPtr.Zero);
+
+                // Create autocomplete content window as child of the panel
+                _autocompleteHwnd = CreateWindowEx(
+                    0,
+                    "static",
+                    "",
+                    WS_CHILD | SS_OWNERDRAW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+                    padding, // Inside the panel border
+                    padding,
+                    searchInputWidth - (padding * 2),
+                    1, // Will be sized dynamically in ShowAutocomplete
+                    _autocompletePanelHwnd, // Parent is the panel
+                    9,
                     _instance,
                     IntPtr.Zero);
                 SetWindowSubclass(_autocompleteHwnd, _autocompleteControlProc, 0, IntPtr.Zero);

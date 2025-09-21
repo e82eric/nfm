@@ -210,7 +210,9 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         {
             currentSearchString = _searchString;
         }
-        if (string.IsNullOrEmpty(currentSearchString))
+        
+        var parsedSearchString = _definition.PreParseFunc?.Invoke(currentSearchString) ?? currentSearchString;
+        if (string.IsNullOrEmpty(parsedSearchString))
         {
             lock (_snapshotLock)
             {
@@ -223,6 +225,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                         if (item == null || itemsAdded >= MaxItems)
                         {
                             break;
+                        }
+
+                        if (_definition.PreFilter != null && !_definition.PreFilter.Invoke(item, currentSearchString))
+                        {
+                            continue;
                         }
                 
                         if (item is TerminalEscapedLine escapedLine)
@@ -275,8 +282,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         var globalList = new List<Entry>(MaxItems);
 
         // Apply pre-parse function if defined
-        var searchStringForPattern = _definition.PreParseFunc?.Invoke(currentSearchString) ?? currentSearchString;
-        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, searchStringForPattern, true);
+        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, parsedSearchString, true);
         var numberOfItemsWithScores = 0;
         Parallel.ForEach(completeChunks.Select((chunk, index) => (chunk, chunkNumber: index)), parallelOptions, 
             GetLocalResultFromPool, 
@@ -289,9 +295,13 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                         return localData;
                     }
                     var line = chunkWithIndex.chunk.Items[i];
+
+                    if (_definition.PreFilter != null && !_definition.PreFilter.Invoke(line, currentSearchString))
+                    {
+                        continue;
+                    }
                         
-                    var score = _definition.ScoreFuncWithOriginalText?.Invoke(line, pattern, localData.Slab, currentSearchString)
-                                ?? _definition.ScoreFunc(line, pattern, localData.Slab);
+                    var score = _definition.ScoreFunc(line, pattern, localData.Slab);
                     if (score.Item2 > _definition.MinScore)
                     {
                         Interlocked.Increment(ref numberOfItemsWithScores);

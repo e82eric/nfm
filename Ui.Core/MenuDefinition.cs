@@ -12,7 +12,7 @@ public class MenuDefinition
     public required IResultHandler ResultHandler { get; init; }
     public Dictionary<(ModifierKeys, int), Func<object, Task>> KeyBindings { get; } = new();
     public required Func<object, Pattern, Slab, (int, int)> ScoreFunc { get; init; }
-    public Func<object, Pattern, Slab, string, (int, int)>? ScoreFuncWithOriginalText { get; init; }
+    public Func<object, string, bool>? PreFilter { get; init; }
     public string? Header { get; init; } = null;
     public bool QuitOnEscape { get; init; } = false;
     public bool HasPreview { get; init; } = false;
@@ -52,5 +52,5 @@ public class MenuDefinition
     public IPreviewHandler? PreviewHandler { get; init; } = null;
     public Func<object, string, Task<Result>>? EditAction { get; init; } = null;
     public Func<string, string>? PreParseFunc { get; init; } = null;
-    public Func<string, int, List<string>>? AutoCompleteProvider { get; init; } = null;
+    public Func<IncompleteFilterInfo, List<string>>? AutoCompleteProvider { get; init; } = null;
 }
