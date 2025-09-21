@@ -197,6 +197,73 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                 return new List<string>();
             },
         };
+
+        // Add Ctrl+Shift+Enter key binding to output all rows as CSV to stdout
+        _menuDefinition.KeyBindings.Add((ModifierKeys.LCtl ,VirtualKeyCodes.VK_RETURN), async _ =>
+        {
+            if (viewModel != null)
+            {
+                var currentSearchResults = viewModel.GetAllCurrentSearchResults();
+
+                if (currentSearchResults.Count > 0)
+                {
+                    // Extract the underlying data from StringArrayRow objects
+                    var filteredData = new List<string[]>();
+                    int maxColumns = 0;
+
+                    foreach (var item in currentSearchResults)
+                    {
+                        if (item is StringArrayRow arrayRow)
+                        {
+                            var rowData = arrayRow.GetAllData();
+                            filteredData.Add(rowData);
+                            maxColumns = Math.Max(maxColumns, rowData.Length);
+                        }
+                    }
+
+                    if (filteredData.Count > 0)
+                    {
+                        var csvHeaders = new List<string>();
+
+                        // Use all column headers if available
+                        if (allColumnHeaders != null && allColumnHeaders.Length > 0)
+                        {
+                            csvHeaders.AddRange(allColumnHeaders.Take(maxColumns).Select(EscapeCsvField));
+                            // Add generic headers for any extra columns
+                            for (int i = allColumnHeaders.Length; i < maxColumns; i++)
+                            {
+                                csvHeaders.Add(EscapeCsvField($"Column{i + 1}"));
+                            }
+                        }
+                        else
+                        {
+                            // Generate generic column headers
+                            for (int i = 0; i < maxColumns; i++)
+                            {
+                                csvHeaders.Add(EscapeCsvField($"Column{i + 1}"));
+                            }
+                        }
+
+                        // Output CSV header
+                        Console.WriteLine(string.Join(",", csvHeaders));
+
+                        // Output filtered data rows as CSV with all columns
+                        foreach (var row in filteredData)
+                        {
+                            var csvRow = new List<string>();
+                            for (int i = 0; i < maxColumns; i++)
+                            {
+                                var value = i < row.Length ? (row[i] ?? string.Empty) : string.Empty;
+                                csvRow.Add(EscapeCsvField(value));
+                            }
+                            Console.WriteLine(string.Join(",", csvRow));
+                        }
+                    }
+                }
+
+                await viewModel.Close(true);
+            }
+        });
     }
 
     public MenuDefinition Get() => _menuDefinition;
@@ -212,6 +279,22 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             // Invalid regex pattern, fall back to literal string comparison
             return string.Equals(text, pattern, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    private static string EscapeCsvField(string field)
+    {
+        if (string.IsNullOrEmpty(field))
+        {
+            return string.Empty;
+        }
+
+        // If the field contains comma, quote, or newline, wrap it in quotes and escape internal quotes
+        if (field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
+        {
+            return $"\"{field.Replace("\"", "\"\"")}\"";
+        }
+
+        return field;
     }
 
     private static Dictionary<int, int> CalculateColumnWidths(string[][] data, int[] columnIndices, string[]? columnHeaders)

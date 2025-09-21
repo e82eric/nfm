@@ -7,4 +7,5 @@ public interface IMainViewModel
     Task ShowToast(string message, int duration = 3000);
     Task Clear();
     Task Close(bool quit);
+    List<object> GetAllCurrentSearchResults();
 }

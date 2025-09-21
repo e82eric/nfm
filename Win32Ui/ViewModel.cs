@@ -800,4 +800,12 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     {
         return _definition;
     }
+
+    public List<object> GetAllCurrentSearchResults()
+    {
+        lock (_snapshotLock)
+        {
+            return Items.Select(item => item.Item1).ToList();
+        }
+    }
 }
