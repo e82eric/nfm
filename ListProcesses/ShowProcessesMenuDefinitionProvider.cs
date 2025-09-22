@@ -6,109 +6,200 @@ using nfzf;
 
 namespace nfm.ListProcesses;
 
-public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, Action? onClosed) : IMenuDefinitionProvider
+public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, Action? onClosed, IResultHandler? resultHandler = null) : IMenuDefinitionProvider
 {
+    private static readonly string[] ColumnHeaders = ["Name", "PID", "WorkingSet", "PrivateBytes", "CPU"];
+    private static readonly int[] ColumnIndices = [0, 1, 2, 3, 4];
+
     public MenuDefinition Get()
     {
-        var header = string.Format("{0,-75} {1,8} {2,20} {3,20} {4,10}",
-            "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)");
-        var definition = CreateDefinition(ProcessLister.RunSortedByWorkingSet2, header ,Comparers.ScoreLengthAndValue);
-        definition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_K), async lineObj =>
+        var provider = new StringArrayColumnMenuDefinitionProvider(
+            () => ProcessLister.GetProcessesAsStringArray(true, ProcessLister.CompareProcessWorkingSet),
+            ColumnIndices,
+            ColumnHeaders,
+            resultHandler ?? new ProcessResultHandler(),
+            enablePreview: true,
+            viewModel: mainViewModel,
+            allColumnHeaders: ColumnHeaders
+        );
+
+        var definition = provider.Get();
+
+        // Create a new definition with OnClosed callback
+        var newDefinition = new MenuDefinition
         {
-            var line = (string)lineObj;
-            var match = Regex.Match(line, @"\s+([0-9]+)\s+");
-            if (!match.Success)
-            {
-                return;
-            }
-
-            var pidString = match.Groups[1].Value;
-
-            var pid = Convert.ToInt32(pidString);
-            
-            await mainViewModel.ShowToast($"Killed process {pid}", 500);
-            await ProcessLister.KillProcessById(line, pid);
-        });
-        definition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_M), async lineObj =>
-        {
-            var line = (string)lineObj;
-            var match = Regex.Match(line, @"\s+([0-9]+)\s+");
-            if (!match.Success)
-            {
-                await mainViewModel.ShowToast("Failed to parse process ID from input.");
-                return;
-            }
-
-            if (!int.TryParse(match.Groups[1].Value, out var pid))
-            {
-                await mainViewModel.ShowToast("Invalid process ID format.");
-                return;
-            }
-
-            await Task.Run(async () =>
-            {
-                try
-                {
-                    var process = Process.GetProcessById(pid);
-                    var dumpFilePath = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                        $"{process.ProcessName}_{DateTimeOffset.Now:yyyyMMddHHmmss}.dmp");
-
-                    MemoryDumpTaker.TakeMemoryDump(pid, dumpFilePath);
-                    await mainViewModel.ShowToast($"Memory dump of {process.ProcessName} saved to: {dumpFilePath}");
-                }
-                catch (Exception e)
-                {
-                    await mainViewModel.ShowToast($"Memory dump of {pid} failed: {e.Message}");
-                }
-            });
-        });
-
-        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByCpu2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F1));
-        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByPid2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F2));
-        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByPrivateBytes2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F3));
-        AddResultKeyBinding(definition.KeyBindings, header, ProcessLister.RunSortedByWorkingSet2, (ModifierKeys.LCtl, VirtualKeyCodes.VK_F4));
-
-        return definition;
-    }
-
-    private void AddResultKeyBinding(
-        Dictionary<(ModifierKeys, int), Func<object, Task>> keyBindings,
-        string header,
-        Func<ChannelWriter<object>, CancellationToken, Task> asyncFunc,
-        (ModifierKeys Control, int D4) keys)
-    {
-        keyBindings.Add(keys, async _ =>
-        {
-            var definition = CreateDefinition(asyncFunc, header, Comparer);
-            await mainViewModel.Clear();
-            await mainViewModel.RunDefinitionAsync(definition);
-        });
-    }
-
-    private MenuDefinition CreateDefinition(
-        Func<ChannelWriter<object>, CancellationToken, Task> resultFunc,
-        string? header,
-        IComparer<Entry> comparer)
-    {
-        var definition = new MenuDefinition
-        {
-            AsyncFunction = resultFunc,
-            Header = header,
-            MinScore = 0,
-            ResultHandler = new StdOutResultHandler(mainViewModel),
-            Comparer = comparer,
-            FinalComparer = comparer,
-            OnClosed = onClosed,
-            ScoreFunc = (sObj, pattern, slab) =>
-            {
-                var s = (string)sObj;
-                var result = FuzzySearcher.GetScore(s, pattern, slab);
-                return (s.Length, result);
-            },
+            AsyncFunction = definition.AsyncFunction,
+            Header = definition.Header,
+            HasPreview = definition.HasPreview,
+            PreviewHandler = definition.PreviewHandler,
+            ResultHandler = definition.ResultHandler,
+            MinScore = definition.MinScore,
+            QuitOnEscape = definition.QuitOnEscape,
+            ScoreFunc = definition.ScoreFunc,
+            PreFilter = definition.PreFilter,
+            ShowGap = definition.ShowGap,
+            Wrap = definition.Wrap,
+            SearchString = definition.SearchString,
+            PreParseFunc = definition.PreParseFunc,
+            AutoCompleteProvider = definition.AutoCompleteProvider,
+            OnClosed = onClosed
         };
-        return definition;
+
+        // Copy existing key bindings
+        foreach (var binding in definition.KeyBindings)
+        {
+            newDefinition.KeyBindings[binding.Key] = binding.Value;
+        }
+
+        // Add process-specific key bindings
+        newDefinition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_K), async lineObj =>
+        {
+            if (lineObj is StringArrayRow row)
+            {
+                var pidStr = row.GetAllData()[1]; // PID is in column 1
+                if (int.TryParse(pidStr, out var pid))
+                {
+                    await mainViewModel.ShowToast($"Killed process {pid}", 500);
+                    await ProcessLister.KillProcessById("", pid);
+                }
+            }
+        });
+
+        newDefinition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_M), async lineObj =>
+        {
+            if (lineObj is StringArrayRow row)
+            {
+                var pidStr = row.GetAllData()[1]; // PID is in column 1
+                if (!int.TryParse(pidStr, out var pid))
+                {
+                    await mainViewModel.ShowToast("Invalid process ID format.");
+                    return;
+                }
+
+                await Task.Run(async () =>
+                {
+                    try
+                    {
+                        var process = Process.GetProcessById(pid);
+                        var dumpFilePath = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                            $"{process.ProcessName}_{DateTimeOffset.Now:yyyyMMddHHmmss}.dmp");
+
+                        MemoryDumpTaker.TakeMemoryDump(pid, dumpFilePath);
+                        await mainViewModel.ShowToast($"Memory dump of {process.ProcessName} saved to: {dumpFilePath}");
+                    }
+                    catch (Exception e)
+                    {
+                        await mainViewModel.ShowToast($"Memory dump of {pid} failed: {e.Message}");
+                    }
+                });
+            }
+        });
+
+        // Add sort key bindings
+        newDefinition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_F1), async _ =>
+        {
+            var newProvider = new StringArrayColumnMenuDefinitionProvider(
+                () => ProcessLister.GetProcessesAsStringArray(true, ProcessLister.CompareProcessCpu),
+                ColumnIndices, ColumnHeaders, resultHandler ?? new ProcessResultHandler(), true, mainViewModel, ColumnHeaders);
+            var sortDefinition = newProvider.Get();
+            var finalDefinition = CopyKeyBindings(newDefinition, sortDefinition);
+            await mainViewModel.Clear();
+            await mainViewModel.RunDefinitionAsync(finalDefinition);
+        });
+
+        newDefinition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_F2), async _ =>
+        {
+            var newProvider = new StringArrayColumnMenuDefinitionProvider(
+                () => ProcessLister.GetProcessesAsStringArray(true, ProcessLister.CompareProcessPid),
+                ColumnIndices, ColumnHeaders, resultHandler ?? new ProcessResultHandler(), true, mainViewModel, ColumnHeaders);
+            var sortDefinition = newProvider.Get();
+            var finalDefinition = CopyKeyBindings(newDefinition, sortDefinition);
+            await mainViewModel.Clear();
+            await mainViewModel.RunDefinitionAsync(finalDefinition);
+        });
+
+        newDefinition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_F3), async _ =>
+        {
+            var newProvider = new StringArrayColumnMenuDefinitionProvider(
+                () => ProcessLister.GetProcessesAsStringArray(true, ProcessLister.CompareProcessPrivateBytes),
+                ColumnIndices, ColumnHeaders, resultHandler ?? new ProcessResultHandler(), true, mainViewModel, ColumnHeaders);
+            var sortDefinition = newProvider.Get();
+            var finalDefinition = CopyKeyBindings(newDefinition, sortDefinition);
+            await mainViewModel.Clear();
+            await mainViewModel.RunDefinitionAsync(finalDefinition);
+        });
+
+        newDefinition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_F4), async _ =>
+        {
+            var newProvider = new StringArrayColumnMenuDefinitionProvider(
+                () => ProcessLister.GetProcessesAsStringArray(true, ProcessLister.CompareProcessWorkingSet),
+                ColumnIndices, ColumnHeaders, resultHandler ?? new ProcessResultHandler(), true, mainViewModel, ColumnHeaders);
+            var sortDefinition = newProvider.Get();
+            var finalDefinition = CopyKeyBindings(newDefinition, sortDefinition);
+            await mainViewModel.Clear();
+            await mainViewModel.RunDefinitionAsync(finalDefinition);
+        });
+
+        return newDefinition;
     }
 
-    private static readonly IComparer<Entry> Comparer = Comparer<Entry>.Create((x, y) => y.Score.CompareTo(x.Score));
+    private static MenuDefinition CopyKeyBindings(MenuDefinition source, MenuDefinition target)
+    {
+        // Create a new definition with OnClosed callback
+        var newDefinition = new MenuDefinition
+        {
+            AsyncFunction = target.AsyncFunction,
+            Header = target.Header,
+            HasPreview = target.HasPreview,
+            PreviewHandler = target.PreviewHandler,
+            ResultHandler = target.ResultHandler,
+            MinScore = target.MinScore,
+            QuitOnEscape = target.QuitOnEscape,
+            ScoreFunc = target.ScoreFunc,
+            PreFilter = target.PreFilter,
+            ShowGap = target.ShowGap,
+            Wrap = target.Wrap,
+            SearchString = target.SearchString,
+            PreParseFunc = target.PreParseFunc,
+            AutoCompleteProvider = target.AutoCompleteProvider,
+            OnClosed = source.OnClosed
+        };
+
+        // Copy existing key bindings from target
+        foreach (var binding in target.KeyBindings)
+        {
+            newDefinition.KeyBindings[binding.Key] = binding.Value;
+        }
+
+        // Copy the process-specific key bindings from source
+        foreach (var binding in source.KeyBindings)
+        {
+            if (binding.Key.Item1 == ModifierKeys.LCtl &&
+                (binding.Key.Item2 == VirtualKeyCodes.VK_K || binding.Key.Item2 == VirtualKeyCodes.VK_M))
+            {
+                newDefinition.KeyBindings[binding.Key] = binding.Value;
+            }
+        }
+
+        return newDefinition;
+    }
+}
+
+public class ProcessResultHandler : IResultHandler
+{
+    public Task HandleAsync(object objOutput)
+    {
+        if (objOutput is StringArrayRow row)
+        {
+            var processName = row.GetAllData()[0];
+            var pid = row.GetAllData()[1];
+            Console.WriteLine($"{processName} (PID: {pid})");
+        }
+        else
+        {
+            Console.WriteLine(objOutput?.ToString() ?? string.Empty);
+        }
+        return Task.CompletedTask;
+    }
 }

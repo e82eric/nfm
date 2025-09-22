@@ -38,8 +38,8 @@ public class IncompleteFilterInfo
 
 public static class ColumnFilterParser
 {
-    private static readonly Regex CompleteFilterRegex = new(@"/:(\w+)(==|!=|!~|=~)(""[^""]*""|[^\s""]+)|/:(\w+)(=)(?![=~])(""[^""]*""|[^\s""]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex IncompleteFilterRegex = new(@"/:(\w*)(?:(==|!=|!~|=~|=|!)\s*$|(==|!=|!~|=~|=|!)\s+|$|\s+)|/:$|/$|^\s*/\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CompleteFilterRegex = new(@"/:(\w+)(>=|<=|==|!=|!~|=~|>|<)(""[^""]*""|[^\s""]+)|/:(\w+)(=)(?![=~])(""[^""]*""|[^\s""]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex IncompleteFilterRegex = new(@"/:(\w*)(?:(>=|<=|==|!=|!~|=~|>|<|=|!)\s*$|(>=|<=|==|!=|!~|=~|>|<|=|!)\s+|$|\s+)|/:$|/$|^\s*/\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public static List<ColumnFilter> ParseColumnFilters(string searchText)
     {
@@ -137,7 +137,7 @@ public static class ColumnFilterParser
         var hasSingleEqualsWithoutSpace = false;
         if (!searchText.EndsWith(" "))
         {
-            var singleEqualsRegex = new Regex(@"/:(\w+)(=)(?![=~])([^\s]+)$", RegexOptions.IgnoreCase);
+            var singleEqualsRegex = new Regex(@"/:(\w+)(=)(?![=~<>])([^\s]+)$", RegexOptions.IgnoreCase);
             hasSingleEqualsWithoutSpace = singleEqualsRegex.IsMatch(searchText);
         }
 
@@ -222,7 +222,7 @@ public static class ColumnFilterParser
         var trimmedAfter = afterLastColonSlash.TrimEnd();
         
         // Check for different patterns
-        var operatorMatch = System.Text.RegularExpressions.Regex.Match(trimmedAfter, @"^(\w+)(==|!=|!~|=~|=)(.*)$");
+        var operatorMatch = System.Text.RegularExpressions.Regex.Match(trimmedAfter, @"^(\w+)(>=|<=|==|!=|!~|=~|>|<|=)(.*)$");
         
         if (operatorMatch.Success)
         {

@@ -127,6 +127,10 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                                         "!=" => !string.Equals(cellValue, filter.Value, StringComparison.OrdinalIgnoreCase),
                                         "=~" => IsRegexMatch(cellValue, filter.Value),
                                         "!~" => !IsRegexMatch(cellValue, filter.Value),
+                                        ">" => CompareValues(cellValue, filter.Value) > 0,
+                                        "<" => CompareValues(cellValue, filter.Value) < 0,
+                                        ">=" => CompareValues(cellValue, filter.Value) >= 0,
+                                        "<=" => CompareValues(cellValue, filter.Value) <= 0,
                                         _ => string.Equals(cellValue, filter.Value, StringComparison.OrdinalIgnoreCase) // fallback to default
                                     };
 
@@ -279,6 +283,24 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             // Invalid regex pattern, fall back to literal string comparison
             return string.Equals(text, pattern, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    private static int CompareValues(string value1, string value2)
+    {
+        // Try numeric comparison first
+        if (double.TryParse(value1, out var num1) && double.TryParse(value2, out var num2))
+        {
+            return num1.CompareTo(num2);
+        }
+
+        // Try DateTime comparison
+        if (DateTime.TryParse(value1, out var date1) && DateTime.TryParse(value2, out var date2))
+        {
+            return date1.CompareTo(date2);
+        }
+
+        // Fall back to string comparison
+        return string.Compare(value1, value2, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string EscapeCsvField(string field)

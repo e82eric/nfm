@@ -238,7 +238,10 @@ public static class NativeBridge
         delegate* unmanaged<void> onClosed,
         void* state)
     {
-        var command = new ShowProcessesMenuDefinitionProvider(ViewModel, () => onClosed());
+        var command = new ShowProcessesMenuDefinitionProvider(
+            ViewModel,
+            () => onClosed(),
+            new NativeResultHandler(onSelect, state));
         RunDefinition(command.Get());
     }
     

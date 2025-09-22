@@ -97,7 +97,7 @@ public class ProcessLister
         return (long)((high << 32) | low);
     }
 
-    class ProcessInfo
+    public class ProcessInfo
     {
         public uint Pid;
         public ulong WorkingSet;
@@ -146,22 +146,22 @@ public class ProcessLister
         }
     }
 
-    static int CompareProcessPrivateBytes(ProcessInfo a, ProcessInfo b)
+    public static int CompareProcessPrivateBytes(ProcessInfo a, ProcessInfo b)
     {
         return b.PrivateBytes.CompareTo(a.PrivateBytes);
     }
 
-    static int CompareProcessCpu(ProcessInfo a, ProcessInfo b)
+    public static int CompareProcessCpu(ProcessInfo a, ProcessInfo b)
     {
         return b.Cpu.CompareTo(a.Cpu);
     }
 
-    static int CompareProcessWorkingSet(ProcessInfo a, ProcessInfo b)
+    public static int CompareProcessWorkingSet(ProcessInfo a, ProcessInfo b)
     {
         return b.WorkingSet.CompareTo(a.WorkingSet);
     }
 
-    static int CompareProcessPid(ProcessInfo a, ProcessInfo b)
+    public static int CompareProcessPid(ProcessInfo a, ProcessInfo b)
     {
         return b.Pid.CompareTo(a.Pid);
     }
@@ -326,6 +326,56 @@ public class ProcessLister
         var process = Process.GetProcessById(pid);
         process.Kill();
         return Task.CompletedTask;
+    }
+
+    public static string[][] GetProcessesAsStringArray(bool sort = true, Comparison<ProcessInfo>? sortFunc = null)
+    {
+        var processes = new List<ProcessInfo>();
+
+        using (SafeSnapshotHandle hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0))
+        {
+            if (!hSnapshot.IsInvalid)
+            {
+                PROCESSENTRY32 pEntry = new PROCESSENTRY32();
+                pEntry.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32));
+
+                if (Process32First(hSnapshot, ref pEntry))
+                {
+                    do
+                    {
+                        ProcessInfo processInfo = new ProcessInfo
+                        {
+                            Pid = pEntry.th32ProcessID,
+                            FileName = pEntry.szExeFile
+                        };
+                        FillProcessStats(processInfo);
+                        processes.Add(processInfo);
+
+                    } while (Process32Next(hSnapshot, ref pEntry));
+                }
+            }
+        }
+
+        if (sort && sortFunc != null)
+        {
+            processes.Sort(sortFunc);
+        }
+
+        var result = new string[processes.Count][];
+        for (int i = 0; i < processes.Count; i++)
+        {
+            var process = processes[i];
+            result[i] = new string[]
+            {
+                process.FileName ?? string.Empty,
+                process.Pid.ToString(),
+                process.WorkingSet.ToString("N0"),
+                process.PrivateBytes.ToString("N0"),
+                process.Cpu.ToString("N0")
+            };
+        }
+
+        return result;
     }
 }
 public static class MemoryDumpTaker
