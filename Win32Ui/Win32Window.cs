@@ -562,7 +562,7 @@ public class Win32Window
             return IntPtr.Zero;
         }
 
-        var blackBrush = CreateSolidBrush(BACKGROUND_COLOR + 10);
+        var blackBrush = CreateSolidBrush(BACKGROUND_COLOR);
         FillRect(hNewDc, ref clientRect, blackBrush);
         using (Graphics g = Graphics.FromHdc(hNewDc))
         {
@@ -1174,6 +1174,87 @@ public class Win32Window
         return true;
     }
 
+    private ScreenLocation CalculateOptimalWindowSize(bool includePreview)
+    {
+        const int BORDER_MARGIN = 10; // 10 pixels larger than content
+        const int PANEL_MARGIN = 11; // panelX from original code
+        const int PANEL_GAP = 7;
+        const int PADDING = 15;
+
+        // Calculate basic component dimensions
+        var searchInputHeight = _listBoxItemHeight + PADDING + PADDING; // tm.tmHeight + padding * 2
+        var listBoxHeight = _maxListboxItems * _listBoxItemHeight + (PADDING * 2);
+        var previewHeight = includePreview ? listBoxHeight : 0;
+
+        // Get monitor info first to calculate width
+        var hwnd = GetForegroundWindow();
+        int contentWidth = 1200; // Fallback default width
+
+        if (hwnd != IntPtr.Zero)
+        {
+            IntPtr hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if (hmon != IntPtr.Zero)
+            {
+                var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+                if (GetMonitorInfo(hmon, ref mi))
+                {
+                    RECT work = mi.rcWork;
+                    int monW = work.right - work.left;
+
+                    // Calculate width as 2/3 of monitor width, minus margins and border
+                    contentWidth = (int)((monW * 2.0 / 3.0) - (PANEL_MARGIN * 2) - BORDER_MARGIN);
+                }
+            }
+        }
+
+        // Calculate total window dimensions
+        var totalWidth = contentWidth + (PANEL_MARGIN * 2) + BORDER_MARGIN;
+
+        // Start with top and bottom margins, plus search input and listbox
+        var totalHeight = (PANEL_MARGIN * 2) + searchInputHeight + PANEL_GAP + listBoxHeight + BORDER_MARGIN;
+        if (includePreview)
+        {
+            totalHeight += previewHeight + PANEL_GAP;
+        }
+
+        // Get monitor info for centering (reuse if already obtained)
+        if (hwnd != IntPtr.Zero)
+        {
+            IntPtr hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if (hmon != IntPtr.Zero)
+            {
+                var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+                if (GetMonitorInfo(hmon, ref mi))
+                {
+                    RECT work = mi.rcWork;
+                    int monW = work.right - work.left;
+                    int monH = work.bottom - work.top;
+
+                    // Center the window
+                    int x = work.left + (monW - totalWidth) / 2;
+                    int y = work.top + (monH - totalHeight) / 2;
+
+                    return new ScreenLocation
+                    {
+                        x = x,
+                        y = y,
+                        width = totalWidth,
+                        height = totalHeight
+                    };
+                }
+            }
+        }
+
+        // Fallback to screen center
+        return new ScreenLocation
+        {
+            x = 100,
+            y = 100,
+            width = totalWidth,
+            height = totalHeight
+        };
+    }
+
     private static void MoveWindowToCenterOfActiveMonitor(IntPtr hwnd)
     {
         if (TryGetCenterOfActiveMonitorLocation(out var screenLocation))
@@ -1188,11 +1269,64 @@ public class Win32Window
                 SetWindowPosFlags.SWP_NOREDRAW);
         }
     }
+
+    private void ResizeWindowForPreview(bool includePreview)
+    {
+        var screenLocation = CalculateOptimalWindowSize(includePreview);
+        SetWindowPos(
+            _rootHwnd,
+            IntPtr.Zero,
+            screenLocation.x,
+            screenLocation.y,
+            screenLocation.width,
+            screenLocation.height,
+            SetWindowPosFlags.SWP_NOREDRAW | SetWindowPosFlags.SWP_NOZORDER);
+
+        // Reposition components based on preview visibility
+        RepositionComponentsForPreview(includePreview);
+    }
+
+    private void RepositionComponentsForPreview(bool includePreview)
+    {
+        const int PANEL_GAP = 7;
+        const int PANEL_MARGIN = 11;
+        const int PADDING = 15;
+
+        // Calculate component positions
+        GetWindowRect(_rootHwnd, out RECT windowRect);
+        int windowWidth = windowRect.right - windowRect.left;
+        int panelWidth = windowWidth - (PANEL_MARGIN * 2);
+        int panelHeight = _maxListboxItems * _listBoxItemHeight + (PADDING * 2);
+        int searchInputHeight = _listBoxItemHeight + PADDING + PADDING;
+
+        // Start with top margin to match left/right margins
+        int currentY = PANEL_MARGIN;
+
+        // Position preview panel (always at top when visible)
+        if (includePreview)
+        {
+            SetWindowPos(_previewPanelHwnd, IntPtr.Zero,
+                PANEL_MARGIN, currentY, panelWidth, panelHeight,
+                SetWindowPosFlags.SWP_NOZORDER);
+            currentY += panelHeight + PANEL_GAP;
+        }
+
+        // Position search input panel
+        SetWindowPos(_textBoxPanelHwnd, IntPtr.Zero,
+            PANEL_MARGIN, currentY, panelWidth, searchInputHeight,
+            SetWindowPosFlags.SWP_NOZORDER);
+        currentY += searchInputHeight + PANEL_GAP;
+
+        // Position listbox panel
+        SetWindowPos(_listBoxPanelHwnd, IntPtr.Zero,
+            PANEL_MARGIN, currentY, panelWidth, panelHeight,
+            SetWindowPosFlags.SWP_NOZORDER);
+    }
         
     public void Run()
     {
-        TryGetCenterOfActiveMonitorLocation(out var screenLocation);
-        var tmpBrush = CreateSolidBrush(BACKGROUND_COLOR + 10);
+        var screenLocation = CalculateOptimalWindowSize(false); // Start without preview
+        var tmpBrush = CreateSolidBrush(BACKGROUND_COLOR);
         WNDCLASSEX wind_class = new WNDCLASSEX();
         wind_class.cbSize = (int)Marshal.SizeOf<WNDCLASSEX>();
         wind_class.style = (int)(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS );
@@ -1379,21 +1513,11 @@ public class Win32Window
                 var padding = 15;
                 var panelX = 11;
                 
-                int panelWidth;
-                int controlWidth;
-                
-                if (!GetWindowRect(hWnd, out RECT windowRect))
-                {
-                    // Fallback to hardcoded value if GetWindowRect fails
-                    panelWidth = 1226;
-                }
-                else
-                {
-                    int windowWidth = windowRect.right - windowRect.left;
-                    panelWidth = windowWidth - (panelX * 2); // Leave margins on both sides
-                }
-                
-                controlWidth = panelWidth - (padding * 2);
+                // Calculate panel width based on window dimensions
+                GetWindowRect(hWnd, out RECT windowRect);
+                int windowWidth = windowRect.right - windowRect.left;
+                int panelWidth = windowWidth - (panelX * 2); // Leave margins on both sides
+                int controlWidth = panelWidth - (padding * 2);
                 var panelHeight = controlHeight + (padding * 2);
                 var searchInputHeight = tm.tmHeight + padding + padding;
                 var panelGap = 7;
@@ -1654,7 +1778,7 @@ public class Win32Window
         {
             PostMessage(_rootHwnd, WM_TOGGLE_PREVIEW, 0, 0);
         }
-        MoveWindowToCenterOfActiveMonitor(_rootHwnd);
+        ResizeWindowForPreview(Convert.ToBoolean(showPreview));
         _timer?.Change(0, 70);
 
         if (_rootHwnd != IntPtr.Zero)
@@ -1717,6 +1841,7 @@ public class Win32Window
     {
         Interlocked.Exchange(ref _showPreview, visible);
         Interlocked.Exchange(ref _lastPreviewVersion, 0);
+        ResizeWindowForPreview(visible);
         PostMessage(_rootHwnd, WM_TOGGLE_PREVIEW, IntPtr.Zero, IntPtr.Zero);
     }
 
