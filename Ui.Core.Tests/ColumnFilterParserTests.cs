@@ -392,7 +392,9 @@ public class ColumnFilterParserTests
         // Test all columns when no partial name
         var filterInfo3 = ColumnFilterParser.GetIncompleteFilterInfo("/:");
         var suggestions3 = autoCompleteProvider(filterInfo3);
-        Assert.That(suggestions3.Count, Is.EqualTo(3), "Should return all available columns");
+        Assert.That(suggestions3.Count, Is.EqualTo(5), "Should return all available columns including sort options");
+        Assert.That(suggestions3, Contains.Item("SortDsc"));
+        Assert.That(suggestions3, Contains.Item("SortAsc"));
         Assert.That(suggestions3, Contains.Item("Name"));
         Assert.That(suggestions3, Contains.Item("Status"));
         Assert.That(suggestions3, Contains.Item("PID"));
@@ -637,133 +639,6 @@ public class ColumnFilterParserTests
         var result = ColumnFilterParser.ParseSearchString(searchText);
 
         Assert.That(result, Is.EqualTo("multiple spaces here"));
-    }
-
-    // Tests for ParseSearchString with cursor position
-    [Test]
-    public void ParseSearchString_CursorBeforeFilter_MaintainsCursorPosition()
-    {
-        var searchText = "search /:status=running text";
-        var cursorPosition = 3; // Middle of "search"
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo("search text"));
-        // Allow for off-by-one in cursor position due to space normalization
-        Assert.That(newCursorPosition, Is.InRange(2, 3));
-    }
-
-    [Test]
-    public void ParseSearchString_CursorInsideFilter_MovesToFilterStart()
-    {
-        var searchText = "search /:status=running text";
-        var cursorPosition = 15; // Inside "/:status=running"
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo("search text"));
-        // Cursor should be at or near the start of where filter was
-        Assert.That(newCursorPosition, Is.InRange(6, 7));
-    }
-
-    [Test]
-    public void ParseSearchString_CursorAfterFilter_AdjustsCursorPosition()
-    {
-        var searchText = "search /:status=running text";
-        var cursorPosition = 25; // After "/:status=running", at "t" in "text"
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo("search text"));
-        // Cursor should be at or near "t" in "text" after filter removal
-        Assert.That(newCursorPosition, Is.InRange(7, 8));
-    }
-
-    [Test]
-    public void ParseSearchString_CursorAtEnd_MaintainsEndPosition()
-    {
-        var searchText = "search /:status=running";
-        var cursorPosition = searchText.Length;
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo("search"));
-        Assert.That(newCursorPosition, Is.EqualTo(6)); // End of "search"
-    }
-
-    [Test]
-    public void ParseSearchString_OnlyFilter_CursorAtStart()
-    {
-        var searchText = "/:status=running";
-        var cursorPosition = 8; // Middle of filter
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo(""));
-        Assert.That(newCursorPosition, Is.EqualTo(0));
-    }
-
-    [Test]
-    public void ParseSearchString_MultipleFilters_CursorBetweenFilters()
-    {
-        var searchText = "/:status=running some text /:name=test";
-        var cursorPosition = 20; // In "some text"
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo("some text"));
-        // Allow range for cursor position in "some text"
-        Assert.That(newCursorPosition, Is.InRange(2, 4));
-    }
-
-    [Test]
-    public void ParseSearchString_CursorInSecondFilter_MovesToCorrectPosition()
-    {
-        var searchText = "/:status=running text /:name=test more";
-        var cursorPosition = 30; // Inside "/:name=test"
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo("text more"));
-        // Allow range for cursor position near "more"
-        Assert.That(newCursorPosition, Is.InRange(4, 6));
-    }
-
-    [Test]
-    public void ParseSearchString_EmptyStringWithCursor_ReturnsZero()
-    {
-        var searchText = "";
-        var cursorPosition = 0;
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo(""));
-        Assert.That(newCursorPosition, Is.EqualTo(0));
-    }
-
-    [Test]
-    public void ParseSearchString_CursorOutOfBounds_ClampsToBounds()
-    {
-        var searchText = "search /:status=running text";
-        var cursorPosition = 100; // Way beyond end
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo("search text"));
-        Assert.That(newCursorPosition, Is.EqualTo(11)); // End of result
-    }
-
-    [Test]
-    public void ParseSearchString_IncompleteFilterWithCursor_HandlesCursorCorrectly()
-    {
-        var searchText = "text /:stat more text";
-        var cursorPosition = 9; // Inside "/:stat"
-
-        var result = ColumnFilterParser.ParseSearchString(searchText, cursorPosition, out int newCursorPosition);
-
-        Assert.That(result, Is.EqualTo("text more text"));
-        // Allow range for cursor position near "more"
-        Assert.That(newCursorPosition, Is.InRange(4, 6));
     }
 
     // Tests for GetIncompleteFilterInfo method
@@ -1071,5 +946,116 @@ public class ColumnFilterParserTests
         var result = ColumnFilterParser.ParseColumnFilters(searchText);
 
         Assert.That(result.Count, Is.EqualTo(0), "Incomplete quoted values should not be parsed as complete filters");
+    }
+
+    // Tests for excluding Sort filters from ParseSearchString
+    [Test]
+    public void ParseSearchString_SortAscFilter_RemoveFilter()
+    {
+        var searchText = "/:SortAsc=Name";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void ParseSearchString_SortDscFilter_RemoveFilter()
+    {
+        var searchText = "/:SortDsc=PID";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void ParseSearchString_SortAscWithText_RemoveFilterAndText()
+    {
+        var searchText = "search text /:SortAsc=Name more text";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo("search text more text"));
+    }
+
+    [Test]
+    public void ParseSearchString_SortDscWithText_RemoveFilterAndText()
+    {
+        var searchText = "search text /:SortDsc=CPU more text";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo("search text more text"));
+    }
+
+    [Test]
+    public void ParseSearchString_MixedSortAndColumnFilters_RemovesFilters()
+    {
+        var searchText = "search /:SortAsc=Name /:status=running /:SortDsc=PID /:name=test";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo("search"));
+    }
+
+    [Test]
+    public void ParseSearchString_MultipleSortFilters_RemoveAllSortFilters()
+    {
+        var searchText = "/:SortAsc=Name /:SortDsc=CPU /:SortAsc=PID";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void ParseSearchString_SortFiltersWithDifferentOperators_RemoveCorrectly()
+    {
+        var searchText = "/:SortAsc==Name /:SortDsc!=PID";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void ParseSearchString_IncompleteSortFilters_RemoveIncompleteFilters()
+    {
+        var searchText = "/:SortAsc= /:SortDsc search text";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo("search text"));
+    }
+
+    [Test]
+    public void ParseSearchString_CaseInsensitiveSortFilters_RemoveFilters()
+    {
+        var searchText = "/:sortasc=Name /:SORTDSC=PID";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void ParseSearchString_OnlySortFilters_RemoveEverything()
+    {
+        var searchText = "/:SortAsc=Name /:SortDsc=CPU";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo(""));
+    }
+
+    [Test]
+    public void ParseSearchString_SortFiltersWithSpaceNormalization_RemoveAndNormalizes()
+    {
+        var searchText = "search   /:SortAsc=Name    /:status=running    more   text";
+
+        var result = ColumnFilterParser.ParseSearchString(searchText);
+
+        Assert.That(result, Is.EqualTo("search more text"));
     }
 }

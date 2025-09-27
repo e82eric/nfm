@@ -7,6 +7,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 {
     private readonly MenuDefinition _menuDefinition;
     private readonly Func<string[][]> _dataProvider;
+    private volatile string _currentSearchString = string.Empty;
 
     public StringArrayColumnMenuDefinitionProvider(
         Func<string[][]> dataProvider,
@@ -63,17 +64,15 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                 {
                     try
                     {
-                        foreach (var row in data)
+                        var rows = data.Select(row => new StringArrayRow(row, resolvedColumnIndices, maxWidths, resolvedColumnHeaders, allColumnHeaders)).ToList();
+                        foreach (var arrayRow in rows)
                         {
                             if (cancellationToken.IsCancellationRequested) break;
-
-                            var arrayRow = new StringArrayRow(row, resolvedColumnIndices, maxWidths, resolvedColumnHeaders, allColumnHeaders);
                             writer.WriteAsync(arrayRow, cancellationToken);
                         }
                     }
                     catch (OperationCanceledException)
                     {
-                        // Expected when cancellation is requested
                     }
                     finally
                     {
@@ -89,7 +88,6 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             QuitOnEscape = true,
             ScoreFunc = (sObj, pattern, slab) =>
             {
-                // Fallback for when ScoreFuncWithOriginalText is not used
                 if (sObj is StringArrayRow row)
                 {
                     var normalSearchText = row.GetSearchableText();
@@ -159,7 +157,55 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             ShowGap = false,
             Wrap = false,
             SearchString = string.Empty,
-            PreParseFunc = ColumnFilterParser.ParseSearchString,
+            PostProcess = (searchString, items) =>
+            {
+                var sortFilters = ColumnFilterParser.ParseSortColumnFilters(searchString);
+                if (sortFilters.Count == 0)
+                {
+                    return;
+                }
+                
+                items.Sort(Comparer<Entry>.Create((entry, entry1) =>
+                {
+                    var arrayRow1 = entry.Item as StringArrayRow;
+                    var arrayRow2 = entry1.Item as StringArrayRow;
+
+                    if (arrayRow1 is null || arrayRow2 is null)
+                    {
+                        return 0;
+                    }
+
+                    // Apply sorts in reverse order so the first sort filter has highest priority
+                    for (int i = sortFilters.Count - 1; i >= 0; i--)
+                    {
+                        var sortFilter = sortFilters[i];
+                        var columnIndex = Array.FindIndex(allColumnHeaders, h =>
+                            string.Equals(h, sortFilter.Value, StringComparison.OrdinalIgnoreCase));
+
+                        if (columnIndex < 0)
+                        {
+                            continue;
+                        }
+                
+                        var value1 = arrayRow1.GetAllData()[columnIndex] ?? string.Empty;
+                        var value2 = arrayRow2.GetAllData()[columnIndex] ?? string.Empty;
+
+                        var comparison = CompareValues(value1, value2);
+                        if (comparison != 0)
+                        {
+                            var isAscending = string.Equals(sortFilter.ColumnName, "SortAsc", StringComparison.OrdinalIgnoreCase);
+                            return isAscending ? comparison : -comparison;
+                        }
+                    }
+                
+                    return 0;
+                }));
+            },
+            PreParseFunc = searchText =>
+            {
+                _currentSearchString = searchText ?? string.Empty;
+                return ColumnFilterParser.ParseSearchString(searchText);
+            },
             AutoCompleteProvider = incompleteFilterInfo =>
             {
                 if (allColumnHeaders == null || allColumnHeaders.Length == 0)
@@ -170,14 +216,36 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                 switch (incompleteFilterInfo.Context)
                 {
                     case IncompleteFilterContext.Column:
+                        var suggestions = new List<string>();
+
+                        // Add hardcoded options
+                        suggestions.Add("SortDsc");
+                        suggestions.Add("SortAsc");
+
+                        // Add column headers
+                        suggestions.AddRange(allColumnHeaders);
+
                         if (!string.IsNullOrEmpty(incompleteFilterInfo.ColumnPrefix))
                         {
-                            return allColumnHeaders
-                                .Where(header => header.StartsWith(incompleteFilterInfo.ColumnPrefix, StringComparison.OrdinalIgnoreCase))
+                            return suggestions
+                                .Where(suggestion => suggestion.StartsWith(incompleteFilterInfo.ColumnPrefix, StringComparison.OrdinalIgnoreCase))
                                 .ToList();
                         }
-                        return allColumnHeaders.ToList();
+                        return suggestions;
                     case IncompleteFilterContext.Value:
+                        // Special handling for SortAsc and SortDesc - suggest column names instead of values
+                        if (string.Equals(incompleteFilterInfo.ColumnPrefix, "SortAsc", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(incompleteFilterInfo.ColumnPrefix, "SortDsc", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!string.IsNullOrEmpty(incompleteFilterInfo.ValuePrefix))
+                            {
+                                return allColumnHeaders
+                                    .Where(header => header.StartsWith(incompleteFilterInfo.ValuePrefix, StringComparison.OrdinalIgnoreCase))
+                                    .ToList();
+                            }
+                            return allColumnHeaders.ToList();
+                        }
+
                         var data1 = _dataProvider();
 
                         var columnIndex1 = Array.FindIndex(allColumnHeaders, h =>

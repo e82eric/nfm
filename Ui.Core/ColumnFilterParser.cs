@@ -81,16 +81,25 @@ public static class ColumnFilterParser
             if (match.Groups[1].Success && match.Groups[2].Success && match.Groups[3].Success)
             {
                 // First alternation: compound operators (==, !=, =~)
+                var columnName = match.Groups[1].Value;
+
+                // Skip sort filters
+                if (string.Equals(columnName, "SortAsc", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(columnName, "SortDsc", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var value = match.Groups[3].Value;
                 // Remove quotes if present
                 if (value.StartsWith("\"") && value.EndsWith("\"") && value.Length >= 2)
                 {
                     value = value.Substring(1, value.Length - 2);
                 }
-                
+
                 filters.Add(new ColumnFilter
                 {
-                    ColumnName = match.Groups[1].Value,
+                    ColumnName = columnName,
                     Operator = match.Groups[2].Value,
                     Value = value
                 });
@@ -98,16 +107,25 @@ public static class ColumnFilterParser
             else if (match.Groups[4].Success && match.Groups[5].Success && match.Groups[6].Success)
             {
                 // Second alternation: single equals operator
+                var columnName = match.Groups[4].Value;
+
+                // Skip sort filters
+                if (string.Equals(columnName, "SortAsc", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(columnName, "SortDsc", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var value = match.Groups[6].Value;
                 // Remove quotes if present
                 if (value.StartsWith("\"") && value.EndsWith("\"") && value.Length >= 2)
                 {
                     value = value.Substring(1, value.Length - 2);
                 }
-                
+
                 filters.Add(new ColumnFilter
                 {
-                    ColumnName = match.Groups[4].Value,
+                    ColumnName = columnName,
                     Operator = match.Groups[5].Value,
                     Value = value
                 });
@@ -116,7 +134,101 @@ public static class ColumnFilterParser
 
         return filters;
     }
-    
+
+    public static List<ColumnFilter> ParseSortColumnFilters(string searchText)
+    {
+        var filters = new List<ColumnFilter>();
+
+        if (string.IsNullOrEmpty(searchText))
+        {
+            return filters;
+        }
+
+        var matches = CompleteFilterRegex.Matches(searchText);
+
+        foreach (Match match in matches)
+        {
+            // Check if this filter is at the end of the string without trailing whitespace
+            // Only single '=' operators are considered incomplete when at end without space
+            bool isAtEndWithoutSpace = (match.Index + match.Length) == searchText.Length && !searchText.EndsWith(" ");
+
+            if (isAtEndWithoutSpace)
+            {
+                // Determine the operator for this match
+                string currentOperator = "";
+                if (match.Groups[2].Success)
+                {
+                    currentOperator = match.Groups[2].Value; // First alternation operators
+                }
+                else if (match.Groups[5].Success)
+                {
+                    currentOperator = match.Groups[5].Value; // Second alternation operators
+                }
+
+                // Only skip single '=' operators at the end without trailing space
+                if (currentOperator == "=")
+                {
+                    continue;
+                }
+            }
+
+            if (match.Groups[1].Success && match.Groups[2].Success && match.Groups[3].Success)
+            {
+                // First alternation: compound operators (==, !=, =~)
+                var columnName = match.Groups[1].Value;
+
+                // Only include sort filters
+                if (!string.Equals(columnName, "SortAsc", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(columnName, "SortDsc", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var value = match.Groups[3].Value;
+                // Remove quotes if present
+                if (value.StartsWith("\"") && value.EndsWith("\"") && value.Length >= 2)
+                {
+                    value = value.Substring(1, value.Length - 2);
+                }
+
+                filters.Add(new ColumnFilter
+                {
+                    ColumnName = columnName,
+                    Operator = match.Groups[2].Value,
+                    Value = value
+                });
+            }
+            else if (match.Groups[4].Success && match.Groups[5].Success && match.Groups[6].Success)
+            {
+                // Second alternation: single equals operator
+                var columnName = match.Groups[4].Value;
+
+                // Only include sort filters
+                if (!string.Equals(columnName, "SortAsc", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(columnName, "SortDsc", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var value = match.Groups[6].Value;
+                // Remove quotes if present
+                if (value.StartsWith("\"") && value.EndsWith("\"") && value.Length >= 2)
+                {
+                    value = value.Substring(1, value.Length - 2);
+                }
+
+                filters.Add(new ColumnFilter
+                {
+                    ColumnName = columnName,
+                    Operator = match.Groups[5].Value,
+                    Value = value
+                });
+            }
+        }
+
+        return filters;
+    }
+
     public static IncompleteFilterInfo GetIncompleteFilterInfo(string searchText)
     {
         var result = new IncompleteFilterInfo();
@@ -273,14 +385,14 @@ public static class ColumnFilterParser
             return searchText;
         }
 
-        // Collect all filter matches (both complete and incomplete)
+        // Collect all filter matches (both complete and incomplete), excluding sort filters
         var allMatches = new List<(int Start, int End)>();
-        
+
         foreach (Match match in CompleteFilterRegex.Matches(searchText))
         {
             allMatches.Add((match.Index, match.Index + match.Length));
         }
-        
+
         foreach (Match match in IncompleteFilterRegex.Matches(searchText))
         {
             allMatches.Add((match.Index, match.Index + match.Length));
@@ -349,114 +461,6 @@ public static class ColumnFilterParser
         var beforeNormalization = result.ToString();
         var normalized = System.Text.RegularExpressions.Regex.Replace(beforeNormalization, @"\s+", " ").Trim();
 
-        return normalized;
-    }
-
-    public static string ParseSearchString(string searchText, int cursorPosition, out int newCursorPosition)
-    {
-        newCursorPosition = 0;
-
-        if (string.IsNullOrEmpty(searchText))
-        {
-            return searchText;
-        }
-
-        // Collect all filter matches (both complete and incomplete)
-        var allMatches = new List<(int Start, int End)>();
-        
-        foreach (Match match in CompleteFilterRegex.Matches(searchText))
-        {
-            allMatches.Add((match.Index, match.Index + match.Length));
-        }
-        
-        foreach (Match match in IncompleteFilterRegex.Matches(searchText))
-        {
-            allMatches.Add((match.Index, match.Index + match.Length));
-        }
-
-        // Sort matches by start position and merge overlapping ranges
-        allMatches.Sort((a, b) => a.Start.CompareTo(b.Start));
-        var mergedMatches = new List<(int Start, int End)>();
-        
-        foreach (var match in allMatches)
-        {
-            if (mergedMatches.Count == 0 || mergedMatches[mergedMatches.Count - 1].End < match.Start)
-            {
-                mergedMatches.Add(match);
-            }
-            else
-            {
-                // Merge overlapping matches
-                var last = mergedMatches[mergedMatches.Count - 1];
-                mergedMatches[mergedMatches.Count - 1] = (last.Start, Math.Max(last.End, match.End));
-            }
-        }
-
-        // Build result and track cursor position
-        var result = new StringBuilder();
-        var originalPos = 0;
-        var newPos = 0;
-        var cursorMapped = false;
-
-        foreach (var match in mergedMatches)
-        {
-            // Add text before this filter
-            if (originalPos < match.Start)
-            {
-                var beforeFilter = searchText.Substring(originalPos, match.Start - originalPos);
-                if (cursorPosition >= originalPos && cursorPosition <= match.Start && !cursorMapped)
-                {
-                    newCursorPosition = newPos + (cursorPosition - originalPos);
-                    cursorMapped = true;
-                }
-                result.Append(beforeFilter);
-                newPos += beforeFilter.Length;
-            }
-
-            // Skip the filter (don't add it to result)
-            if (cursorPosition >= match.Start && cursorPosition < match.End && !cursorMapped)
-            {
-                // Cursor was inside a filter, place it at the start of where the filter was
-                newCursorPosition = newPos;
-                cursorMapped = true;
-            }
-
-            originalPos = match.End;
-        }
-
-        // Add remaining text after last filter
-        if (originalPos < searchText.Length)
-        {
-            var remaining = searchText.Substring(originalPos);
-            if (cursorPosition >= originalPos && !cursorMapped)
-            {
-                newCursorPosition = newPos + (cursorPosition - originalPos);
-                cursorMapped = true;
-            }
-            result.Append(remaining);
-        }
-
-        // If cursor was at end and not mapped yet
-        if (!cursorMapped && cursorPosition >= searchText.Length)
-        {
-            newCursorPosition = result.Length;
-        }
-
-        // Normalize spaces and adjust cursor position
-        var beforeNormalization = result.ToString();
-        var normalized = System.Text.RegularExpressions.Regex.Replace(beforeNormalization, @"\s+", " ").Trim();
-
-        // Adjust cursor position for space normalization and trimming
-        if (beforeNormalization != normalized)
-        {
-            var leadingSpaces = beforeNormalization.Length - beforeNormalization.TrimStart().Length;
-            var ratio = (double)normalized.Length / Math.Max(1, beforeNormalization.Trim().Length);
-            
-            newCursorPosition = Math.Max(0, newCursorPosition - leadingSpaces);
-            newCursorPosition = Math.Min((int)(newCursorPosition * ratio), normalized.Length);
-        }
-
-        newCursorPosition = Math.Max(0, Math.Min(newCursorPosition, normalized.Length));
         return normalized;
     }
 }

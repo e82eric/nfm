@@ -32,6 +32,8 @@ public class Snapshot
 [SupportedOSPlatform("windows")]
 public class ViewModel : IMainViewModel, IPreviewRenderer
 {
+    public IList<ColumnFilter> SortFilters { get; private set; }
+    
     private class ThreadLocalData(Slab slab)
     {
         public List<Entry> Entries = new(MaxItems);
@@ -210,7 +212,9 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         {
             currentSearchString = _searchString;
         }
-        
+
+        var globalList = new List<Entry>(MaxItems);
+        SortFilters = ColumnFilterParser.ParseSortColumnFilters(currentSearchString);
         var parsedSearchString = _definition.PreParseFunc?.Invoke(currentSearchString) ?? currentSearchString;
         if (string.IsNullOrEmpty(parsedSearchString))
         {
@@ -232,6 +236,19 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                             continue;
                         }
                 
+                        globalList.Add(new Entry(item, item.ToString().Length, 0,  itemsAdded));
+                
+                        itemsAdded++;
+                    }
+
+                    if (_definition.PostProcess != null)
+                    {
+                        _definition.PostProcess(currentSearchString, globalList);
+                    }
+
+                    foreach (var entry in globalList)
+                    {
+                        var item = entry.Item;
                         if (item is TerminalEscapedLine escapedLine)
                         {
                             escapedLine.SetPos(EmptyPos);
@@ -250,8 +267,6 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                                 Items.Add((item, terminalEscapedLine));
                             }
                         }
-                
-                        itemsAdded++;
                     }
                 
                     if (itemsAdded >= MaxItems)
@@ -278,8 +293,6 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         };
 
         var ct = CancellationToken.None;
-        
-        var globalList = new List<Entry>(MaxItems);
 
         // Apply pre-parse function if defined
         var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, parsedSearchString, true);
@@ -330,8 +343,16 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             globalList.AddRange(localData.Entries);
             localData.Entries.Clear();
         }
+        
+        if (_definition.PostProcess != null)
+        {
+            _definition.PostProcess(currentSearchString, globalList);
+        }
+        else
+        {
+            globalList.Sort(_definition.FinalComparer);
+        }
 
-        globalList.Sort(_definition.FinalComparer);
         var topEntries = globalList.Take(MaxItems).ToList();
 
         lock (_snapshotLock)
