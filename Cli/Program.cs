@@ -3,6 +3,7 @@ using System.Text;
 using nfm.FileSystem;
 using nfm.Ui.Core;
 using nfm.Win32Ui;
+using nfm.ListProcesses;
 
 namespace nfm.Cli;
 
@@ -53,6 +54,15 @@ class CsvOptions
     public char Delimiter { get; set; } = ',';
     public bool DisablePreview { get; set; } = false;
     public bool ExcludeTopmost { get; set; } = false;
+}
+
+class ProcessOptions
+{
+    public bool ExcludeTopmost { get; set; } = false;
+    public bool SortByCpu { get; set; } = false;
+    public bool SortByPrivateBytes { get; set; } = false;
+    public bool SortByWorkingSet { get; set; } = false;
+    public bool SortByPid { get; set; } = false;
 }
 
 [SupportedOSPlatform("windows")]
@@ -173,6 +183,22 @@ class Program
                     //BuildCommandApp(string.Join(" ", commandOptions.Command))
                     //    .Start((application, strings) => Run(application, false), args);
                     return;
+                }
+            }
+            else if (args[0] == "processes")
+            {
+                var processOptions = ParseProcessOptions(args);
+                if (processOptions != null)
+                {
+                    var processProvider = CreateProcessStringArrayColumnProvider(viewModel, processOptions);
+                    var window = new Win32Window(viewModel, () =>
+                    {
+                        Task.Run(async () =>
+                        {
+                            await viewModel.RunDefinitionAsync(processProvider.Get());
+                        });
+                    }, processOptions.ExcludeTopmost);
+                    window.Run();
                 }
             }
         }
@@ -437,6 +463,40 @@ class Program
         return options;
     }
 
+    private static ProcessOptions? ParseProcessOptions(string[] args)
+    {
+        var options = new ProcessOptions();
+        for (int i = 1; i < args.Length; i++) // Start from 1 to skip "processes"
+        {
+            if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
+            {
+                options.ExcludeTopmost = true;
+            }
+            else if (args[i] == "--sort-cpu")
+            {
+                options.SortByCpu = true;
+            }
+            else if (args[i] == "--sort-private-bytes")
+            {
+                options.SortByPrivateBytes = true;
+            }
+            else if (args[i] == "--sort-working-set")
+            {
+                options.SortByWorkingSet = true;
+            }
+            else if (args[i] == "--sort-pid")
+            {
+                options.SortByPid = true;
+            }
+            else
+            {
+                Console.Error.WriteLine($"Unknown processes argument: {args[i]}");
+                return null;
+            }
+        }
+        return options;
+    }
+
     private static StringArrayColumnMenuDefinitionProvider CreateCsvStringArrayColumnProvider(IMainViewModel viewModel, CsvOptions options)
     {
         // Read CSV input once
@@ -576,5 +636,39 @@ class Program
 
         result.Add(current.ToString());
         return result.ToArray();
+    }
+
+    private static StringArrayColumnMenuDefinitionProvider CreateProcessStringArrayColumnProvider(IMainViewModel viewModel, ProcessOptions options)
+    {
+        // Determine sort function based on options
+        Comparison<ProcessLister.ProcessInfo>? sortFunc = null;
+        if (options.SortByCpu)
+            sortFunc = ProcessLister.CompareProcessCpu;
+        else if (options.SortByPrivateBytes)
+            sortFunc = ProcessLister.CompareProcessPrivateBytes;
+        else if (options.SortByWorkingSet)
+            sortFunc = ProcessLister.CompareProcessWorkingSet;
+        else if (options.SortByPid)
+            sortFunc = ProcessLister.CompareProcessPid;
+
+        // Create data provider that gets process data
+        Func<string[][]> processDataProvider = () => ProcessLister.GetProcessesAsStringArray(
+            sort: sortFunc != null,
+            sortFunc: sortFunc);
+
+        // Define column headers for processes
+        var columnHeaders = new[] { "Name", "PID", "WorkingSet(kb)", "PrivateBytes(kb)", "CPU(s)" };
+        var columnIndices = new[] { 0, 1, 2, 3, 4 }; // All columns
+
+        return new StringArrayColumnMenuDefinitionProvider(
+            processDataProvider,
+            columnIndices,
+            columnHeaders,
+            new StdOutResultHandler(viewModel),
+            enablePreview: true,
+            viewModel: viewModel,
+            allColumnHeaders: columnHeaders,
+            displayColumns: null
+        );
     }
 }

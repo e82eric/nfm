@@ -17,7 +17,9 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
         bool enablePreview = true,
         IMainViewModel? viewModel = null,
         string[]? allColumnHeaders = null,
-        string[]? displayColumns = null)
+        string[]? displayColumns = null,
+        bool quitOnEscape = true,
+        Action? onClosed = null)
     {
         _dataProvider = dataProvider;
         var data = dataProvider();
@@ -58,6 +60,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 
         _menuDefinition = new MenuDefinition
         {
+            OnClosed = onClosed,
             AsyncFunction = async (writer, cancellationToken) =>
             {
                 await Task.Run(() =>
@@ -85,7 +88,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             PreviewHandler = enablePreview ? new StringArrayPreviewHandler() : null,
             ResultHandler = resultHandler ?? new StdOutResultHandler(viewModel ?? throw new ArgumentNullException(nameof(viewModel))),
             MinScore = 0,
-            QuitOnEscape = true,
+            QuitOnEscape = quitOnEscape,
             ScoreFunc = (sObj, pattern, slab) =>
             {
                 if (sObj is StringArrayRow row)

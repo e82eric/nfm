@@ -22,6 +22,7 @@
       <ProjectReference Include="..\FileWalker\FileWalker.csproj" />
       <ProjectReference Include="..\nfzf\nfzf.csproj" />
       <ProjectReference Include="..\Win32Ui\Win32Ui.csproj" />
+      <ProjectReference Include="..\ListProcesses\ListProcesses.csproj" />
     </ItemGroup>
 
     <ItemGroup>

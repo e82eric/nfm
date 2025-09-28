@@ -420,6 +420,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public async Task RunDefinitionAsync(MenuDefinition definition)
     {
+        RenderText(new List<List<TextSegment>>(), 0);
         _showPreview = definition.HasPreview;
         View.Show(definition.HasPreview);
         _chunks.Clear();

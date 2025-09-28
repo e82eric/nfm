@@ -666,7 +666,10 @@ public class Win32Window
                 
                 if (_lines == null || _lastPreviewVersion == _previewVersion)
                 {
-                    return 1;
+                    PAINTSTRUCT ps2; var hdc2 = BeginPaint(hWnd, out ps2);
+                    FillRect(hdc2, ref ps2.rcPaint, _backgroundBrush);
+                    EndPaint(hWnd, ref ps2);
+                    return 0;
                 }
 
                 Interlocked.Exchange(ref _lastPreviewVersion, _previewVersion);
@@ -1732,6 +1735,8 @@ public class Win32Window
             
             case WM_TOGGLE_PREVIEW:
                 ShowWindow(_previewPanelHwnd, _showPreview ? 1 : 0);
+                UpdateWindow(_listBoxPanelHwnd);
+                UpdateWindow(_textBoxPanelHwnd);
                 break;
             
             case WM_SHOW_ROOT:
