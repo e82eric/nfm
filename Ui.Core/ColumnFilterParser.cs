@@ -245,12 +245,12 @@ public static class ColumnFilterParser
         var textWithoutCompleteFilters = CompleteFilterRegex.Replace(searchText, "");
         var hasIncompletePatterns = IncompleteFilterRegex.IsMatch(textWithoutCompleteFilters);
         
-        // Check for single = filters without trailing space (original behavior)
-        var hasSingleEqualsWithoutSpace = false;
+        // Check for any operator filters without trailing space (original behavior + fix for compound operators)
+        var hasOperatorWithoutSpace = false;
         if (!searchText.EndsWith(" "))
         {
-            var singleEqualsRegex = new Regex(@"/:(\w+)(=)(?![=~<>])([^\s]+)$", RegexOptions.IgnoreCase);
-            hasSingleEqualsWithoutSpace = singleEqualsRegex.IsMatch(searchText);
+            var operatorWithoutSpaceRegex = new Regex(@"/:(\w+)(>=|<=|==|!=|!~|=~|>|<|=)([^\s]+)$", RegexOptions.IgnoreCase);
+            hasOperatorWithoutSpace = operatorWithoutSpaceRegex.IsMatch(searchText);
         }
 
         // Original logic for determining if incomplete
@@ -279,7 +279,7 @@ public static class ColumnFilterParser
                 isIncomplete = true;
             }
         }
-        else if (hasSingleEqualsWithoutSpace)
+        else if (hasOperatorWithoutSpace)
         {
             isIncomplete = true;
         }

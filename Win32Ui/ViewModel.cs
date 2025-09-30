@@ -513,6 +513,10 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         {
             View.ShowSuggestions(suggestions);
         }
+        else
+        {
+            View.HideSuggestions();
+        }
 
         Interlocked.Increment(ref _searchVersion);
         _restartSearchSignal.Set();

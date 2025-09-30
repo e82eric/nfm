@@ -734,7 +734,7 @@ public class ColumnFilterParserTests
     [Test]
     public void GetIncompleteFilterInfo_ColumnWithPartialValueAndNotEqual_ReturnsValuePrefix()
     {
-        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status==runn");
+        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status!=runn");
 
         Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.ValuePrefix));
         Assert.That(result.Context, Is.EqualTo(IncompleteFilterContext.Value));
@@ -747,7 +747,7 @@ public class ColumnFilterParserTests
     [Test]
     public void GetIncompleteFilterInfo_ColumnWithPartialValueAndRegEx_ReturnsValuePrefix()
     {
-        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status==runn");
+        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status=~runn");
 
         Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.ValuePrefix));
         Assert.That(result.Context, Is.EqualTo(IncompleteFilterContext.Value));

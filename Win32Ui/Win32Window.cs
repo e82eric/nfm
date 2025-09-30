@@ -48,6 +48,7 @@ public class Win32Window
     private const UInt32 WM_FOCUS_PREVIEW = WM_USER + 8;
     private const UInt32 WM_FOCUS_SEARCH = WM_USER + 9;
     private const UInt32 WM_SHOW_SUGGESTIONS = WM_USER + 10;
+    private const UInt32 WM_HIDE_SUGGESTIONS = WM_USER + 11;
     private const UInt32 WS_VISIBLE = 0x10000000;
     
     private const int RDW_INVALIDATE = 0x0001;
@@ -92,7 +93,6 @@ public class Win32Window
         _hasHeader = false;
         _headerText = null;
 
-        // Hide autocomplete
         HideAutocomplete();
 
         if (_rootHwnd != IntPtr.Zero)
@@ -1085,11 +1085,10 @@ public class Win32Window
         var currentCursorPosition = endPos;
         
         var result = AutocompleteService.ApplySelection(currentText, currentCursorPosition, selectedSuggestion);
-        HideAutocomplete();
+        //HideAutocomplete();
 
         if (result.Success)
         {
-            
             SetWindowText(_textBoxHwnd, result.NewText);
             SendMessage(_textBoxHwnd, EM_SETSEL, (IntPtr)result.NewCursorPosition, (IntPtr)result.NewCursorPosition);
         }
@@ -1686,6 +1685,10 @@ public class Win32Window
                 ShowAutocomplete();
                 break;
             
+            case WM_HIDE_SUGGESTIONS:
+                HideAutocomplete();
+                break;
+            
             case WM_HIDE_ROOT:
                 ClearUI();
                 ShowWindow(_rootHwnd, 0);
@@ -1825,6 +1828,11 @@ public class Win32Window
     {
         _autocompleteSuggestions = suggestions;
         PostMessage(_rootHwnd, WM_SHOW_SUGGESTIONS, 0, 0);
+    }
+    
+    public void HideSuggestions()
+    {
+        PostMessage(_rootHwnd, WM_HIDE_SUGGESTIONS, 0, 0);
     }
 
     public (object Item, TerminalEscapedLine Text)? GetSelectedItem()
