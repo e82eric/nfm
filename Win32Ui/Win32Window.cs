@@ -47,6 +47,7 @@ public class Win32Window
     private const UInt32 WM_SET_SEARCH_STRING = WM_USER + 7;
     private const UInt32 WM_FOCUS_PREVIEW = WM_USER + 8;
     private const UInt32 WM_FOCUS_SEARCH = WM_USER + 9;
+    private const UInt32 WM_SHOW_SUGGESTIONS = WM_USER + 10;
     private const UInt32 WS_VISIBLE = 0x10000000;
     
     private const int RDW_INVALIDATE = 0x0001;
@@ -609,8 +610,6 @@ public class Win32Window
                     GetWindowText(_textBoxHwnd, text, text.Capacity);
                     var searchText = text.ToString();
 
-                    HandleAutocompleteUpdate(searchText);
-
                     Task.Run(() => _viewModel.SetSearchString(searchText));
                 }
                 return 0;
@@ -957,10 +956,8 @@ public class Win32Window
                     return IntPtr.Zero;
                 }
 
-                // Fill background
                 FillRect(hNewDc, ref paintStruct.rcPaint, _autoCompleteBackgroundBrush);
 
-                // Draw autocomplete items
                 GetTextMetrics(hNewDc, out var tm);
                 SelectObject(hNewDc, _font);
                 SetBkMode(hNewDc, TRANSPARENT);
@@ -1006,9 +1003,9 @@ public class Win32Window
         }
     }
 
-    private void ShowAutocomplete(List<string> suggestions)
+    private void ShowAutocomplete()
     {
-        _autocompleteSuggestions = suggestions;
+        var suggestions = _autocompleteSuggestions;
         _autocompleteSelectedIndex = suggestions.Count > 0 ? 0 : -1;
         _autocompleteVisible = true;
 
@@ -1050,14 +1047,20 @@ public class Win32Window
     private void UpdateAutocompleteSelection(int direction)
     {
         if (!_autocompleteVisible || _autocompleteSuggestions.Count == 0)
+        {
             return;
+        }
 
         _autocompleteSelectedIndex += direction;
 
         if (_autocompleteSelectedIndex < 0)
+        {
             _autocompleteSelectedIndex = _autocompleteSuggestions.Count - 1;
+        }
         else if (_autocompleteSelectedIndex >= _autocompleteSuggestions.Count)
+        {
             _autocompleteSelectedIndex = 0;
+        }
 
         InvalidateRect(_autocompleteHwnd, IntPtr.Zero, true);
     }
@@ -1071,63 +1074,25 @@ public class Win32Window
 
         var selectedSuggestion = _autocompleteSuggestions[_autocompleteSelectedIndex];
         
-        // Get current text using Win32 API
         var length = GetWindowTextLength(_textBoxHwnd);
         var sb = new StringBuilder(length + 1);
         GetWindowText(_textBoxHwnd, sb, sb.Capacity);
         var currentText = sb.ToString();
         
-        // Get current cursor position using Win32 API
         var startPos = 0;
         var endPos = 0;
         SendMessage(_textBoxHwnd, EM_GETSEL, ref startPos, ref endPos);
         var currentCursorPosition = endPos;
         
         var result = AutocompleteService.ApplySelection(currentText, currentCursorPosition, selectedSuggestion);
+        HideAutocomplete();
 
         if (result.Success)
         {
-            // Update the text box with the new text and cursor position using Win32 API
+            
             SetWindowText(_textBoxHwnd, result.NewText);
             SendMessage(_textBoxHwnd, EM_SETSEL, (IntPtr)result.NewCursorPosition, (IntPtr)result.NewCursorPosition);
-            
-            // Handle column completion vs value completion
-            if (result.CompletedColumn)
-            {
-                HideAutocomplete();
-                HandleAutocompleteUpdate(result.NewText);
-            }
-            else
-            {
-                HideAutocomplete();
-            }
         }
-        else
-        {
-            HideAutocomplete();
-        }
-    }
-
-    private void HandleAutocompleteUpdate(string searchText)
-    {
-        var incompleteFilterInfo = ColumnFilterParser.GetIncompleteFilterInfo(searchText);
-        if (incompleteFilterInfo.HasIncompleteFilter && incompleteFilterInfo.Type != IncompleteFilterType.Slash)
-        {
-            var menuDefinition = _viewModel.GetMenuDefinition();
-            if (menuDefinition?.AutoCompleteProvider != null)
-            {
-                var suggestions = menuDefinition.AutoCompleteProvider(incompleteFilterInfo);
-
-                if (suggestions.Count > 0)
-                {
-                    ShowAutocomplete(suggestions);
-                }
-            }
-
-            return;
-        }
-        
-        HideAutocomplete();
     }
 
     private struct ScreenLocation
@@ -1140,42 +1105,6 @@ public class Win32Window
     
     [DllImport("user32.dll", SetLastError = false)]
     internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
-    
-    private static bool TryGetCenterOfActiveMonitorLocation(out ScreenLocation result)
-    {
-        result = new ScreenLocation();
-
-        var hwnd = GetForegroundWindow();
-        if (hwnd == IntPtr.Zero) return false;
-
-        // Prefer MonitorFromWindow when you have an HWND
-        IntPtr hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-        if (hmon == IntPtr.Zero) return false;
-
-        var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-        if (!GetMonitorInfo(hmon, ref mi)) return false;
-
-        // Use work area so you center within the usable space (respects taskbar)
-        RECT work = mi.rcWork;
-        int monW = work.right - work.left;
-        int monH = work.bottom - work.top;
-
-        // Your desired fractions of the monitor (e.g. 0.6f, 0.6f)
-        const float WINDOW_WIDTH_RATIO = 0.6f;
-        const float WINDOW_HEIGHT_RATIO = 0.9f;
-
-        int winW = (int)Math.Round(monW * WINDOW_WIDTH_RATIO);
-        int winH = (int)Math.Round(monH * WINDOW_HEIGHT_RATIO);
-
-        int x = work.left + (monW - winW) / 2;
-        int y = work.top  + (monH - winH) / 2;
-
-        result.x = x;
-        result.y = y;
-        result.width = winW;
-        result.height = winH;
-        return true;
-    }
 
     private ScreenLocation CalculateOptimalWindowSize(bool includePreview)
     {
@@ -1256,21 +1185,6 @@ public class Win32Window
             width = totalWidth,
             height = totalHeight
         };
-    }
-
-    private static void MoveWindowToCenterOfActiveMonitor(IntPtr hwnd)
-    {
-        if (TryGetCenterOfActiveMonitorLocation(out var screenLocation))
-        {
-            SetWindowPos(
-                hwnd,
-                IntPtr.Zero,
-                screenLocation.x,
-                screenLocation.y,
-                screenLocation.width,
-                screenLocation.height,
-                SetWindowPosFlags.SWP_NOREDRAW);
-        }
     }
 
     private void ResizeWindowForPreview(bool includePreview)
@@ -1431,7 +1345,7 @@ public class Win32Window
     private readonly Lock _itemsLock = new();
     private IntPtr _font;
 
-    private List<string> _autocompleteSuggestions = new List<string>();
+    private List<string> _autocompleteSuggestions = [];
     private int _autocompleteSelectedIndex = -1;
     private bool _autocompleteVisible = false;
     private IntPtr _rootHwnd;
@@ -1768,6 +1682,10 @@ public class Win32Window
                 SetFocus(_textBoxHwnd);
                 break;
             
+            case WM_SHOW_SUGGESTIONS:
+                ShowAutocomplete();
+                break;
+            
             case WM_HIDE_ROOT:
                 ClearUI();
                 ShowWindow(_rootHwnd, 0);
@@ -1901,6 +1819,12 @@ public class Win32Window
     public void FocusSearch()
     {
         PostMessage(_rootHwnd, WM_FOCUS_SEARCH, 0, 0);
+    }
+
+    public void ShowSuggestions(List<string> suggestions)
+    {
+        _autocompleteSuggestions = suggestions;
+        PostMessage(_rootHwnd, WM_SHOW_SUGGESTIONS, 0, 0);
     }
 
     public (object Item, TerminalEscapedLine Text)? GetSelectedItem()

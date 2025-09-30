@@ -2,7 +2,6 @@
 
 public interface IMainViewModel
 {
-    public IList<ColumnFilter> SortFilters { get; }
     public void TogglePreview();
     Task RunDefinitionAsync(MenuDefinition definition);
     Task ShowToast(string message, int duration = 3000);

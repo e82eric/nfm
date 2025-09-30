@@ -32,8 +32,6 @@ public class Snapshot
 [SupportedOSPlatform("windows")]
 public class ViewModel : IMainViewModel, IPreviewRenderer
 {
-    public IList<ColumnFilter> SortFilters { get; private set; }
-    
     private class ThreadLocalData(Slab slab)
     {
         public List<Entry> Entries = new(MaxItems);
@@ -51,6 +49,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount / 2;
     private readonly IList<Chunk> _chunks;
     private string _searchString;
+    private object? _searchStringState;
     private readonly AsyncAutoResetEvent _restartSearchSignal;
     private readonly AsyncAutoResetEvent _previewSignal;
     private readonly UnboundedChannelOptions _channelOptions;
@@ -114,6 +113,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             return;
         }
         
+        //Shouldn't this be in the lock?
         snapshot.Items.Clear();
         if (!Items.Any())
         {
@@ -196,6 +196,33 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         _localResultsPool.Add(threadLocalData);
     }
 
+    private void AppendEntryToItems(Entry entry, IList<int>? pos = null)
+    {
+        var item = entry.Item;
+        if (item is TerminalEscapedLine escapedLine)
+        {
+            escapedLine.SetPos(EmptyPos);
+            Items.Add((item, escapedLine));
+        }
+        else
+        {
+            var fullFilePath = item.ToString();
+            if (fullFilePath != null)
+            {
+                var segment = new TextSegment { State = new AnsiState(), Text = fullFilePath };
+                var segments = new List<TextSegment> { segment };
+                var line = new EscapedLine(segments);
+                var terminalEscapedLine = new TerminalEscapedLine();
+                terminalEscapedLine.Lines.Add(line);
+                if (pos != null)
+                {
+                    terminalEscapedLine.SetPos(pos);
+                }
+                Items.Add((item, terminalEscapedLine));
+            }
+        }
+    }
+
     private void Search()
     {
         if (_definition == null || _lastSearchVersion == _searchVersion)
@@ -208,15 +235,15 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         var completeChunks = _chunks.ToList();
 
         String currentSearchString;
+        object? currentSearchStringState;
         lock (_searchStringLock)
         {
             currentSearchString = _searchString;
+            currentSearchStringState = _searchStringState;
         }
 
         var globalList = new List<Entry>(MaxItems);
-        SortFilters = ColumnFilterParser.ParseSortColumnFilters(currentSearchString);
-        var parsedSearchString = _definition.PreParseFunc?.Invoke(currentSearchString) ?? currentSearchString;
-        if (string.IsNullOrEmpty(parsedSearchString))
+        if (string.IsNullOrEmpty(currentSearchString))
         {
             lock (_snapshotLock)
             {
@@ -231,42 +258,28 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                             break;
                         }
 
-                        if (_definition.PreFilter != null && !_definition.PreFilter.Invoke(item, currentSearchString))
+                        if (_definition.PreFilter != null && !_definition.PreFilter.Invoke(currentSearchStringState, item, currentSearchString))
                         {
                             continue;
                         }
-                
-                        globalList.Add(new Entry(item, item.ToString().Length, 0,  itemsAdded));
+
+                        var itemStr = item.ToString();
+                        if (itemStr != null)
+                        {
+                            globalList.Add(new Entry(item, itemStr.Length, 0,  itemsAdded));
+                        }
                 
                         itemsAdded++;
                     }
 
                     if (_definition.PostProcess != null)
                     {
-                        _definition.PostProcess(currentSearchString, globalList);
+                        _definition.PostProcess(currentSearchStringState, globalList);
                     }
 
                     foreach (var entry in globalList)
                     {
-                        var item = entry.Item;
-                        if (item is TerminalEscapedLine escapedLine)
-                        {
-                            escapedLine.SetPos(EmptyPos);
-                            Items.Add((item, escapedLine));
-                        }
-                        else
-                        {
-                            var fullFilePath = item.ToString();
-                            if (fullFilePath != null)
-                            {
-                                var segment = new TextSegment { State = new AnsiState(), Text = fullFilePath };
-                                var segments = new List<TextSegment> { segment };
-                                var line = new EscapedLine(segments);
-                                var terminalEscapedLine = new TerminalEscapedLine();
-                                terminalEscapedLine.Lines.Add(line);
-                                Items.Add((item, terminalEscapedLine));
-                            }
-                        }
+                        AppendEntryToItems(entry);
                     }
                 
                     if (itemsAdded >= MaxItems)
@@ -294,8 +307,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
         var ct = CancellationToken.None;
 
-        // Apply pre-parse function if defined
-        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, parsedSearchString, true);
+        var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, currentSearchString, true);
         var numberOfItemsWithScores = 0;
         Parallel.ForEach(completeChunks.Select((chunk, index) => (chunk, chunkNumber: index)), parallelOptions, 
             GetLocalResultFromPool, 
@@ -309,7 +321,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     }
                     var line = chunkWithIndex.chunk.Items[i];
 
-                    if (_definition.PreFilter != null && !_definition.PreFilter.Invoke(line, currentSearchString))
+                    if (_definition.PreFilter != null && !_definition.PreFilter.Invoke(currentSearchStringState, line, currentSearchString))
                     {
                         continue;
                     }
@@ -346,7 +358,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         
         if (_definition.PostProcess != null)
         {
-            _definition.PostProcess(currentSearchString, globalList);
+            _definition.PostProcess(currentSearchStringState, globalList);
         }
         else
         {
@@ -367,24 +379,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     var pos = FuzzySearcher.GetPositions(fullFilePath, pattern, _positionsSlab);
                     _positionsSlab.Reset();
                     
-                    if (item.Item is TerminalEscapedLine escapedLine)
-                    {
-                        escapedLine.SetPos(pos);
-                        Items.Add((item.Item, escapedLine));
-                    }
-                    else
-                    {
-                        if (fullFilePath != null)
-                        {
-                            var segment = new TextSegment { State = new AnsiState(), Text = fullFilePath };
-                            var segments = new List<TextSegment> { segment };
-                            var line = new EscapedLine(segments);
-                            var terminalEscapedLine = new TerminalEscapedLine();
-                            terminalEscapedLine.Lines.Add(line);
-                            terminalEscapedLine.SetPos(pos);
-                            Items.Add((item.Item, terminalEscapedLine));
-                        }
-                    }
+                    AppendEntryToItems(item, pos);
                 }
             }
 
@@ -506,9 +501,17 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     
     public void SetSearchString(string message)
     {
+        var parseResult = _definition?.ParseFunc?.Invoke(message) ?? (message, null);
         lock (_searchStringLock)
         {
-            _searchString = message;
+            _searchString = parseResult.parsedSearchString;
+            _searchStringState = parseResult.state;
+        }
+
+        var suggestions = _definition?.AutoCompleteSuggestionsFunc?.Invoke(parseResult.state);
+        if (suggestions != null && suggestions.Count > 0)
+        {
+            View.ShowSuggestions(suggestions);
         }
 
         Interlocked.Increment(ref _searchVersion);
@@ -816,11 +819,6 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         }
         
         View.Show(_definition.HasPreview);
-    }
-
-    public MenuDefinition? GetMenuDefinition()
-    {
-        return _definition;
     }
 
     public List<object> GetAllCurrentSearchResults()

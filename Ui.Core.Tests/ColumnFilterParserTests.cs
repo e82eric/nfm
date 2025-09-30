@@ -717,11 +717,77 @@ public class ColumnFilterParserTests
         Assert.That(result.ValuePrefix, Is.EqualTo("runn"));
         Assert.That(result.HasIncompleteFilter, Is.True);
     }
+    
+    [Test]
+    public void GetIncompleteFilterInfo_ColumnWithPartialValueAndDoubleEquals_ReturnsValuePrefix()
+    {
+        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status==runn");
+
+        Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.ValuePrefix));
+        Assert.That(result.Context, Is.EqualTo(IncompleteFilterContext.Value));
+        Assert.That(result.ColumnPrefix, Is.EqualTo("status"));
+        Assert.That(result.Operator, Is.EqualTo("=="));
+        Assert.That(result.ValuePrefix, Is.EqualTo("runn"));
+        Assert.That(result.HasIncompleteFilter, Is.True);
+    }
+    
+    [Test]
+    public void GetIncompleteFilterInfo_ColumnWithPartialValueAndNotEqual_ReturnsValuePrefix()
+    {
+        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status==runn");
+
+        Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.ValuePrefix));
+        Assert.That(result.Context, Is.EqualTo(IncompleteFilterContext.Value));
+        Assert.That(result.ColumnPrefix, Is.EqualTo("status"));
+        Assert.That(result.Operator, Is.EqualTo("!="));
+        Assert.That(result.ValuePrefix, Is.EqualTo("runn"));
+        Assert.That(result.HasIncompleteFilter, Is.True);
+    }
+    
+    [Test]
+    public void GetIncompleteFilterInfo_ColumnWithPartialValueAndRegEx_ReturnsValuePrefix()
+    {
+        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status==runn");
+
+        Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.ValuePrefix));
+        Assert.That(result.Context, Is.EqualTo(IncompleteFilterContext.Value));
+        Assert.That(result.ColumnPrefix, Is.EqualTo("status"));
+        Assert.That(result.Operator, Is.EqualTo("=~"));
+        Assert.That(result.ValuePrefix, Is.EqualTo("runn"));
+        Assert.That(result.HasIncompleteFilter, Is.True);
+    }
 
     [Test]
     public void GetIncompleteFilterInfo_CompleteFilterWithSpace_ReturnsNone()
     {
         var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status=running ");
+
+        Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.None));
+        Assert.That(result.HasIncompleteFilter, Is.False);
+    }
+    
+    [Test]
+    public void GetIncompleteFilterInfo_CompleteFilterWithSpace_AndDoubleEquals_ReturnsNone()
+    {
+        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status==running ");
+
+        Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.None));
+        Assert.That(result.HasIncompleteFilter, Is.False);
+    }
+    
+    [Test]
+    public void GetIncompleteFilterInfo_CompleteFilterWithSpace_AndNotEquals_ReturnsNone()
+    {
+        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status=!running ");
+
+        Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.None));
+        Assert.That(result.HasIncompleteFilter, Is.False);
+    }
+    
+    [Test]
+    public void GetIncompleteFilterInfo_CompleteFilterWithSpace_AndRegex_ReturnsNone()
+    {
+        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status=~running ");
 
         Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.None));
         Assert.That(result.HasIncompleteFilter, Is.False);
@@ -738,15 +804,6 @@ public class ColumnFilterParserTests
         Assert.That(result.Operator, Is.EqualTo("=="));
         Assert.That(result.ValuePrefix, Is.EqualTo(""));
         Assert.That(result.HasIncompleteFilter, Is.True);
-    }
-
-    [Test]
-    public void GetIncompleteFilterInfo_CompoundOperatorWithValue_ReturnsNone()
-    {
-        var result = ColumnFilterParser.GetIncompleteFilterInfo("/:status==running");
-
-        Assert.That(result.Type, Is.EqualTo(IncompleteFilterType.None));
-        Assert.That(result.HasIncompleteFilter, Is.False);
     }
 
     [Test]

@@ -3,11 +3,21 @@ using nfzf;
 
 namespace nfm.Ui.Core;
 
+
 public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 {
+    class ParseResult(
+        List<ColumnFilter> sortFilters,
+        IncompleteFilterInfo incompleteFilters,
+        List<ColumnFilter> columnFilters)
+    {
+        public List<ColumnFilter> SortFilters { get; private set; } = sortFilters;
+        public IncompleteFilterInfo IncompleteFilters { get; private set; } = incompleteFilters;
+        public List<ColumnFilter> ColumnFilters { get; private set; } = columnFilters;
+    }
+    
     private readonly MenuDefinition _menuDefinition;
     private readonly Func<string[][]> _dataProvider;
-    private volatile string _currentSearchString = string.Empty;
 
     public StringArrayColumnMenuDefinitionProvider(
         Func<string[][]> dataProvider,
@@ -70,7 +80,11 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                         var rows = data.Select(row => new StringArrayRow(row, resolvedColumnIndices, maxWidths, resolvedColumnHeaders, allColumnHeaders)).ToList();
                         foreach (var arrayRow in rows)
                         {
-                            if (cancellationToken.IsCancellationRequested) break;
+                            if (cancellationToken.IsCancellationRequested)
+                            {
+                                break;
+                            }
+
                             writer.WriteAsync(arrayRow, cancellationToken);
                         }
                     }
@@ -99,11 +113,11 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                 }
                 return (0, 0);
             },
-            PreFilter = (sObj, searchString) =>
+            PreFilter = (stateObj, sObj, searchString) =>
             {
-                if (sObj is StringArrayRow row)
+                if (sObj is StringArrayRow row && stateObj is ParseResult parseResult)
                 {
-                    var columnFilters = ColumnFilterParser.ParseColumnFilters(searchString);
+                    var columnFilters = parseResult.ColumnFilters;
 
                     if (columnFilters.Count > 0)
                     {
@@ -160,9 +174,15 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             ShowGap = false,
             Wrap = false,
             SearchString = string.Empty,
-            PostProcess = (searchString, items) =>
+            PostProcess = (stateObject, items) =>
             {
-                var sortFilters = ColumnFilterParser.ParseSortColumnFilters(searchString);
+                var parseResult = stateObject as ParseResult;
+                if (parseResult is null || allColumnHeaders is null)
+                {
+                    return;
+                }
+
+                var sortFilters = parseResult.SortFilters;
                 if (sortFilters.Count == 0)
                 {
                     return;
@@ -204,10 +224,35 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                     return 0;
                 }));
             },
-            PreParseFunc = searchText =>
+            ParseFunc = searchString =>
             {
-                _currentSearchString = searchText ?? string.Empty;
-                return ColumnFilterParser.ParseSearchString(searchText);
+                string parsedSearchString = ColumnFilterParser.ParseSearchString(searchString);
+                List<ColumnFilter> sortFilters = ColumnFilterParser.ParseSortColumnFilters(searchString);
+                IncompleteFilterInfo incompleteFilters = ColumnFilterParser.GetIncompleteFilterInfo(searchString);
+                List<ColumnFilter> columnFilters = ColumnFilterParser.ParseColumnFilters(searchString);
+                return (parsedSearchString, new ParseResult(sortFilters, incompleteFilters, columnFilters));
+            },
+            AutoCompleteSuggestionsFunc = state =>
+            {
+                if (state is ParseResult parseResult)
+                {
+                    var incompleteFilterInfo = parseResult.IncompleteFilters;
+                    if (incompleteFilterInfo.HasIncompleteFilter && incompleteFilterInfo.Type != IncompleteFilterType.Slash)
+                    {
+                        var menuDefinition = _menuDefinition;
+                        if (menuDefinition?.AutoCompleteProvider != null)
+                        {
+                            var suggestions = menuDefinition.AutoCompleteProvider(incompleteFilterInfo);
+
+                            if (suggestions.Count > 0)
+                            {
+                                return suggestions;
+                            }
+                        }
+                    }
+                }
+
+                return [];
             },
             AutoCompleteProvider = incompleteFilterInfo =>
             {
@@ -221,11 +266,9 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                     case IncompleteFilterContext.Column:
                         var suggestions = new List<string>();
 
-                        // Add hardcoded options
                         suggestions.Add("SortDsc");
                         suggestions.Add("SortAsc");
 
-                        // Add column headers
                         suggestions.AddRange(allColumnHeaders);
 
                         if (!string.IsNullOrEmpty(incompleteFilterInfo.ColumnPrefix))
@@ -236,7 +279,6 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                         }
                         return suggestions;
                     case IncompleteFilterContext.Value:
-                        // Special handling for SortAsc and SortDesc - suggest column names instead of values
                         if (string.Equals(incompleteFilterInfo.ColumnPrefix, "SortAsc", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(incompleteFilterInfo.ColumnPrefix, "SortDsc", StringComparison.OrdinalIgnoreCase))
                         {
@@ -273,7 +315,6 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             },
         };
 
-        // Add Ctrl+Shift+Enter key binding to output all rows as CSV to stdout
         _menuDefinition.KeyBindings.Add((ModifierKeys.LCtl ,VirtualKeyCodes.VK_RETURN), async _ =>
         {
             if (viewModel != null)
@@ -282,7 +323,6 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 
                 if (currentSearchResults.Count > 0)
                 {
-                    // Extract the underlying data from StringArrayRow objects
                     var filteredData = new List<string[]>();
                     int maxColumns = 0;
 

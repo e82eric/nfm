@@ -12,8 +12,8 @@ public class MenuDefinition
     public required IResultHandler ResultHandler { get; init; }
     public Dictionary<(ModifierKeys, int), Func<object, Task>> KeyBindings { get; } = new();
     public required Func<object, Pattern, Slab, (int, int)> ScoreFunc { get; init; }
-    public Func<object, string, bool>? PreFilter { get; init; }
-    public Action<string, List<Entry>>? PostProcess { get; set; }
+    public Func<object?, object, string, bool>? PreFilter { get; init; }
+    public Action<object?, List<Entry>>? PostProcess { get; set; }
     public string? Header { get; init; } = null;
     public bool QuitOnEscape { get; init; } = false;
     public bool HasPreview { get; init; } = false;
@@ -53,5 +53,7 @@ public class MenuDefinition
     public IPreviewHandler? PreviewHandler { get; init; } = null;
     public Func<object, string, Task<Result>>? EditAction { get; init; } = null;
     public Func<string, string>? PreParseFunc { get; init; } = null;
+    public Func<string, (string parsedSearchString, object? state)>? ParseFunc { get; init; } = null;
+    public Func<object?, List<string>>? AutoCompleteSuggestionsFunc { get; init; }
     public Func<IncompleteFilterInfo, List<string>>? AutoCompleteProvider { get; init; } = null;
 }
