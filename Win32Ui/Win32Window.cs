@@ -1085,7 +1085,6 @@ public class Win32Window
         var currentCursorPosition = endPos;
         
         var result = AutocompleteService.ApplySelection(currentText, currentCursorPosition, selectedSuggestion);
-        //HideAutocomplete();
 
         if (result.Success)
         {
@@ -1692,6 +1691,10 @@ public class Win32Window
             case WM_HIDE_ROOT:
                 ClearUI();
                 ShowWindow(_rootHwnd, 0);
+                break;
+
+            case WM_SETFOCUS:
+                SetFocus(_textBoxHwnd);
                 break;
         }
         return DefWindowProc(hWnd, msg, wParam, lParam);

@@ -274,6 +274,7 @@ internal static class Native
     internal const int BPBF_COMPATIBLEBITMAP = 0;
     internal const int WS_CLIPSIBLINGS = 0x04000000;
     internal const int WM_KEYDOWN = 0x0100;
+    internal const int WM_SETFOCUS = 0x0007;
     internal const int SS_RIGHT = 0x00000002;
     internal const int SS_OWNERDRAW = 0x0000000D;
 

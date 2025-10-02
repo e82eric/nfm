@@ -3,21 +3,124 @@ using nfzf;
 
 namespace nfm.Ui.Core;
 
+public class DisplayColumnsProvider
+{
+    private Dictionary<int, int> _resolvedColumnsAndWidths;
+    public string[]? AllColumnHeaders { get; }
+    private readonly Dictionary<int, int> _maxWidths;
+
+    public DisplayColumnsProvider(int[] columnIndices, string[]? allColumnHeaders, Dictionary<int, int> maxWidths)
+    {
+        _maxWidths = maxWidths;
+        AllColumnHeaders = allColumnHeaders;
+        SetResolvedColumnsAndWidths(columnIndices);
+    }
+
+    public void SetDisplayColumns(string[] displayColumns)
+    {
+        if (AllColumnHeaders == null)
+        {
+            return;
+        }
+
+        var indices = new List<int>();
+            
+        foreach (var displayColumn in displayColumns)
+        {
+            var index = Array.FindIndex(AllColumnHeaders, h => string.Equals(h, displayColumn, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+            {
+                indices.Add(index);
+            }
+        }
+            
+        SetResolvedColumnsAndWidths(indices);
+    }
+        
+    private void SetResolvedColumnsAndWidths(IEnumerable<int> displayIndices)
+    {
+        var result = new Dictionary<int, int>();
+
+        foreach (var index in displayIndices)
+        {
+            if (_maxWidths.TryGetValue(index, out var width))
+            {
+                result.Add(index, width);
+            }
+            else
+            {
+                result.Add(index, 99);
+            }
+        }
+
+        _resolvedColumnsAndWidths = result;
+    }
+
+    public Dictionary<int, int> GetDisplayColumnsAndWidths()
+    {
+        return _resolvedColumnsAndWidths;
+    }
+
+    public string GetHeader()
+    {
+        var displayColumnsAndWidths = GetDisplayColumnsAndWidths();
+        var resolvedColumnHeaders = new List<string>();
+        var maxWidths = new Dictionary<int, int>();
+        var i = 0;
+        foreach (var displayColumnsAndWidth in displayColumnsAndWidths)
+        {
+            resolvedColumnHeaders.Add(AllColumnHeaders[displayColumnsAndWidth.Key]);
+            maxWidths.Add(i, displayColumnsAndWidth.Value);
+            i++;
+        }
+        var headerString = resolvedColumnHeaders != null && resolvedColumnHeaders.Count > 0
+            ? CreateHeaderString(resolvedColumnHeaders.ToArray(), maxWidths)
+            : null;
+        return headerString;
+    }
+    
+    private static string CreateHeaderString(string[] columnHeaders, Dictionary<int, int> maxWidths)
+    {
+        var parts = new List<string>();
+
+        for (int i = 0; i < columnHeaders.Length; i++)
+        {
+            var header = columnHeaders[i] ?? string.Empty;
+            var width = maxWidths.GetValueOrDefault(i, 0);
+
+            if (i == columnHeaders.Length - 1)
+            {
+                // Last column - don't pad
+                parts.Add(header);
+            }
+            else
+            {
+                // Pad other columns
+                parts.Add(header.PadRight(width));
+            }
+        }
+
+        return string.Join("  ", parts);
+    }
+}
 
 public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 {
     class ParseResult(
         List<ColumnFilter> sortFilters,
         IncompleteFilterInfo incompleteFilters,
-        List<ColumnFilter> columnFilters)
+        List<ColumnFilter> columnFilters,
+        List<String> displayColumns)
     {
         public List<ColumnFilter> SortFilters { get; private set; } = sortFilters;
         public IncompleteFilterInfo IncompleteFilters { get; private set; } = incompleteFilters;
         public List<ColumnFilter> ColumnFilters { get; private set; } = columnFilters;
+        public List<String> DisplayColumns { get; private set; } = displayColumns;
     }
     
     private readonly MenuDefinition _menuDefinition;
     private readonly Func<string[][]> _dataProvider;
+    private DisplayColumnsProvider _displayColumnProvider;
 
     public StringArrayColumnMenuDefinitionProvider(
         Func<string[][]> dataProvider,
@@ -61,12 +164,8 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             }
         }
 
-        var maxWidths = CalculateColumnWidths(data, resolvedColumnIndices, resolvedColumnHeaders);
-
-        // Create header string from resolved column headers if provided
-        var headerString = resolvedColumnHeaders != null && resolvedColumnHeaders.Length > 0
-            ? CreateHeaderString(resolvedColumnHeaders, maxWidths)
-            : null;
+        var maxWidths = CalculateColumnWidths(data);
+        _displayColumnProvider = new DisplayColumnsProvider(resolvedColumnIndices, allColumnHeaders, maxWidths);
 
         _menuDefinition = new MenuDefinition
         {
@@ -77,7 +176,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                 {
                     try
                     {
-                        var rows = data.Select(row => new StringArrayRow(row, resolvedColumnIndices, maxWidths, resolvedColumnHeaders, allColumnHeaders)).ToList();
+                        var rows = data.Select(row => new StringArrayRow(row, _displayColumnProvider)).ToList();
                         foreach (var arrayRow in rows)
                         {
                             if (cancellationToken.IsCancellationRequested)
@@ -97,7 +196,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                     }
                 });
             },
-            Header = headerString,
+            Header = _displayColumnProvider.GetHeader(),
             HasPreview = enablePreview,
             PreviewHandler = enablePreview ? new StringArrayPreviewHandler() : null,
             ResultHandler = resultHandler ?? new StdOutResultHandler(viewModel ?? throw new ArgumentNullException(nameof(viewModel))),
@@ -230,7 +329,14 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                 List<ColumnFilter> sortFilters = ColumnFilterParser.ParseSortColumnFilters(searchString);
                 IncompleteFilterInfo incompleteFilters = ColumnFilterParser.GetIncompleteFilterInfo(searchString);
                 List<ColumnFilter> columnFilters = ColumnFilterParser.ParseColumnFilters(searchString);
-                return (parsedSearchString, new ParseResult(sortFilters, incompleteFilters, columnFilters));
+                var displayColumns = ColumnFilterParser.ParseDisplayColumnsFilter(searchString);
+                if (displayColumns.Any())
+                {
+                    _displayColumnProvider.SetDisplayColumns(displayColumns.ToArray());
+                    _menuDefinition.Header = _displayColumnProvider.GetHeader();
+                    viewModel.UpdateHeader();
+                }
+                return (parsedSearchString, new ParseResult(sortFilters, incompleteFilters, columnFilters, []));
             },
             AutoCompleteSuggestionsFunc = state =>
             {
@@ -266,6 +372,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                     case IncompleteFilterContext.Column:
                         var suggestions = new List<string>();
 
+                        suggestions.Add("DisplayColumns");
                         suggestions.Add("SortDsc");
                         suggestions.Add("SortAsc");
 
@@ -289,6 +396,15 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                                     .ToList();
                             }
                             return allColumnHeaders.ToList();
+                        }
+
+                        if (string.Equals(incompleteFilterInfo.ColumnPrefix, "DisplayColumns",
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            
+                            return allColumnHeaders
+                                .Where(header => header.StartsWith(incompleteFilterInfo.ValuePrefix, StringComparison.OrdinalIgnoreCase))
+                                .ToList();
                         }
 
                         var data1 = _dataProvider();
@@ -429,6 +545,23 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 
         return field;
     }
+    
+    private static Dictionary<int, int> CalculateColumnWidths(string[][] data)
+    {
+        var maxWidths = new Dictionary<int, int>();
+
+        foreach (var row in data)
+        {
+            for (int i = 0; i < row.Length; i++)
+            {
+                var cellValue = row[i];
+                var currentMax = maxWidths.GetValueOrDefault(i, 0);
+                maxWidths[i] = Math.Max(currentMax, cellValue.Length);
+            }
+        }
+
+        return maxWidths;
+    }
 
     private static Dictionary<int, int> CalculateColumnWidths(string[][] data, int[] columnIndices, string[]? columnHeaders)
     {
@@ -489,26 +622,21 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 public class StringArrayRow
 {
     private readonly string[] _data;
-    private readonly int[] _columnIndices;
-    private readonly Dictionary<int, int> _columnWidths;
-    private readonly string[]? _columnHeaders;
-    private readonly string[]? _allColumnHeaders;
+    private readonly DisplayColumnsProvider _displayColumnsProvider;
 
-    public StringArrayRow(string[] data, int[] columnIndices, Dictionary<int, int> columnWidths, string[]? columnHeaders, string[]? allColumnHeaders = null)
+    public StringArrayRow(string[] data, DisplayColumnsProvider displayColumnsProvider)
     {
         _data = data;
-        _columnIndices = columnIndices;
-        _columnWidths = columnWidths;
-        _columnHeaders = columnHeaders;
-        _allColumnHeaders = allColumnHeaders;
+        _displayColumnsProvider = displayColumnsProvider;
     }
 
     public string GetSearchableText()
     {
         var searchableText = new List<string>();
-        for (int i = 0; i < _columnIndices.Length; i++)
+        var columnIndices = _displayColumnsProvider.GetDisplayColumnsAndWidths().Keys.ToList();
+        for (int i = 0; i < columnIndices.Count; i++)
         {
-            var columnIndex = _columnIndices[i];
+            var columnIndex = columnIndices[i];
             if (columnIndex < _data.Length)
             {
                 searchableText.Add(_data[columnIndex] ?? string.Empty);
@@ -521,22 +649,25 @@ public class StringArrayRow
     {
         var parts = new List<string>();
 
-        for (int i = 0; i < _columnIndices.Length; i++)
-        {
-            var columnIndex = _columnIndices[i];
-            var value = columnIndex < _data.Length ? (_data[columnIndex] ?? string.Empty) : string.Empty;
-            var width = _columnWidths.GetValueOrDefault(i, 0);
+        var displayColumnsAndWidths = _displayColumnsProvider.GetDisplayColumnsAndWidths();
 
-            if (i == _columnIndices.Length - 1)
+        var i = 0;
+        foreach (var displayColumnsAndWidth in displayColumnsAndWidths)
+        {
+            var columnIndex = displayColumnsAndWidth.Key;
+            var value = columnIndex < _data.Length ? (_data[columnIndex] ?? string.Empty) : string.Empty;
+            var width = displayColumnsAndWidth.Value;
+
+            if (i == displayColumnsAndWidths.Count - 1)
             {
-                // Last column - don't pad
                 parts.Add(value);
             }
             else
             {
-                // Pad other columns
                 parts.Add(value.PadRight(width));
             }
+
+            i++;
         }
 
         return string.Join("  ", parts);
@@ -544,9 +675,7 @@ public class StringArrayRow
 
     public string[] GetAllData() => _data;
 
-    public string[]? GetColumnHeaders() => _columnHeaders;
-
-    public string[]? GetAllColumnHeaders() => _allColumnHeaders;
+    public string[]? GetAllColumnHeaders() => _displayColumnsProvider.AllColumnHeaders;
 }
 
 public class StringArrayPreviewHandler : IPreviewHandler

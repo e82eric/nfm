@@ -14,7 +14,7 @@ public class MenuDefinition
     public required Func<object, Pattern, Slab, (int, int)> ScoreFunc { get; init; }
     public Func<object?, object, string, bool>? PreFilter { get; init; }
     public Action<object?, List<Entry>>? PostProcess { get; set; }
-    public string? Header { get; init; } = null;
+    public string? Header { get; set; } = null;
     public bool QuitOnEscape { get; init; } = false;
     public bool HasPreview { get; init; } = false;
     public char? PreviewDelimiter { get; set; }

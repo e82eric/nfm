@@ -32,17 +32,44 @@ public static class AutocompleteService
             // We're completing a value after an operator
             var columnName = operatorMatch.Groups[1].Value;
             var operatorStr = operatorMatch.Groups[2].Value;
+            var currentValue = operatorMatch.Groups[3].Value;
 
-            // Replace only the value part, preserving the column name and operator
-            var replaceStart = lastColonSlashIndex + 2 + columnName.Length + operatorStr.Length;
+            // Check if this is a DisplayColumns filter
+            bool isDisplayColumns = string.Equals(columnName, "DisplayColumns", StringComparison.OrdinalIgnoreCase);
+
+            // For DisplayColumns, find the last comma to determine what we're replacing
+            int replaceStart;
+            if (isDisplayColumns)
+            {
+                var lastCommaIndex = currentValue.LastIndexOf(',');
+                if (lastCommaIndex >= 0)
+                {
+                    // Replace only after the last comma
+                    replaceStart = lastColonSlashIndex + 2 + columnName.Length + operatorStr.Length + lastCommaIndex + 1;
+                }
+                else
+                {
+                    // No comma yet, replace the entire value
+                    replaceStart = lastColonSlashIndex + 2 + columnName.Length + operatorStr.Length;
+                }
+            }
+            else
+            {
+                // Replace only the value part, preserving the column name and operator
+                replaceStart = lastColonSlashIndex + 2 + columnName.Length + operatorStr.Length;
+            }
+
             var beforeReplacement = currentText.Substring(0, replaceStart);
             var afterReplacement = currentCursorPosition < currentText.Length ? currentText.Substring(currentCursorPosition) : string.Empty;
-            
+
             // Add quotes around value if it contains spaces
             var valueToInsert = selectedSuggestion.Contains(' ') ? $"\"{selectedSuggestion}\"" : selectedSuggestion;
-            
-            // Build new text with space after value
-            newText = beforeReplacement + valueToInsert + " " + afterReplacement;
+
+            // Use comma for DisplayColumns, space for other filters
+            var separator = isDisplayColumns ? "," : " ";
+
+            // Build new text with appropriate separator after value
+            newText = beforeReplacement + valueToInsert + separator + afterReplacement;
             newCursorPos = replaceStart + valueToInsert.Length + 1;
         }
         else

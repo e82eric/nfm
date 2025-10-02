@@ -8,6 +8,8 @@ public class ColumnFilter
     public string ColumnName { get; set; } = string.Empty;
     public string Operator { get; set; } = "=";
     public string Value { get; set; } = string.Empty;
+    public List<string> Values { get; set; } = new List<string>();
+    public bool IsMultiValue => Values.Count > 0;
 }
 
 public enum IncompleteFilterType
@@ -34,6 +36,8 @@ public class IncompleteFilterInfo
     public string Operator { get; set; } = string.Empty;
     public string ValuePrefix { get; set; } = string.Empty;
     public bool HasIncompleteFilter => Type != IncompleteFilterType.None;
+    public bool IsMultiValue { get; set; } = false;
+    public List<string> CompletedValues { get; set; } = new List<string>();
 }
 
 public static class ColumnFilterParser
@@ -97,12 +101,20 @@ public static class ColumnFilterParser
                     value = value.Substring(1, value.Length - 2);
                 }
 
-                filters.Add(new ColumnFilter
+                var filter = new ColumnFilter
                 {
                     ColumnName = columnName,
                     Operator = match.Groups[2].Value,
                     Value = value
-                });
+                };
+
+                // Handle DisplayColumns with comma-separated values
+                // if (string.Equals(columnName, "DisplayColumns", StringComparison.OrdinalIgnoreCase))
+                // {
+                //     filter.Values = value.Split(',').Select(v => v.Trim()).Where(v => !string.IsNullOrEmpty(v)).ToList();
+                // }
+
+                filters.Add(filter);
             }
             else if (match.Groups[4].Success && match.Groups[5].Success && match.Groups[6].Success)
             {
@@ -111,7 +123,8 @@ public static class ColumnFilterParser
 
                 // Skip sort filters
                 if (string.Equals(columnName, "SortAsc", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(columnName, "SortDsc", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(columnName, "SortDsc", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(columnName, "DisplayColumns", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -123,12 +136,14 @@ public static class ColumnFilterParser
                     value = value.Substring(1, value.Length - 2);
                 }
 
-                filters.Add(new ColumnFilter
+                var filter = new ColumnFilter
                 {
                     ColumnName = columnName,
                     Operator = match.Groups[5].Value,
                     Value = value
-                });
+                };
+
+                filters.Add(filter);
             }
         }
 
@@ -227,6 +242,43 @@ public static class ColumnFilterParser
         }
 
         return filters;
+    }
+
+    public static List<string> ParseDisplayColumnsFilter(string searchText)
+    {
+        if (string.IsNullOrEmpty(searchText))
+        {
+            return new List<string>();
+        }
+
+        // First try to get from complete filters
+        var filters = ParseColumnFilters(searchText);
+        var displayColumnsFilter = filters.FirstOrDefault(f =>
+            string.Equals(f.ColumnName, "DisplayColumns", StringComparison.OrdinalIgnoreCase));
+
+        if (displayColumnsFilter != null && displayColumnsFilter.IsMultiValue)
+        {
+            return displayColumnsFilter.Values;
+        }
+
+        // If not found in complete filters, check incomplete filter info
+        var incompleteInfo = GetIncompleteFilterInfo(searchText);
+        if (incompleteInfo.HasIncompleteFilter &&
+            incompleteInfo.IsMultiValue &&
+            string.Equals(incompleteInfo.ColumnPrefix, "DisplayColumns", StringComparison.OrdinalIgnoreCase))
+        {
+            var result = new List<string>(incompleteInfo.CompletedValues);
+
+            // Add the current value being typed if it's not empty
+            if (!string.IsNullOrWhiteSpace(incompleteInfo.ValuePrefix))
+            {
+                result.Add(incompleteInfo.ValuePrefix.Trim());
+            }
+
+            return result;
+        }
+
+        return new List<string>();
     }
 
     public static IncompleteFilterInfo GetIncompleteFilterInfo(string searchText)
@@ -341,7 +393,10 @@ public static class ColumnFilterParser
             var columnName = operatorMatch.Groups[1].Value;
             var operatorStr = operatorMatch.Groups[2].Value;
             var valueStr = operatorMatch.Groups[3].Value;
-            
+
+            // Check if this is a DisplayColumns filter with comma-separated values
+            bool isDisplayColumns = string.Equals(columnName, "DisplayColumns", StringComparison.OrdinalIgnoreCase);
+
             if (string.IsNullOrEmpty(valueStr))
             {
                 // Has operator but no value yet: "/:column=" or "/:column=="
@@ -350,6 +405,36 @@ public static class ColumnFilterParser
                 result.ColumnPrefix = columnName;
                 result.Operator = operatorStr;
                 result.ValuePrefix = "";
+                result.IsMultiValue = isDisplayColumns;
+            }
+            else if (isDisplayColumns)
+            {
+                // For DisplayColumns, parse comma-separated values
+                // Keep returning incomplete until there's a trailing space
+                var values = valueStr.Split(',');
+                var completedValues = new List<string>();
+                var currentValue = "";
+
+                // All values except the last are considered complete
+                for (int i = 0; i < values.Length - 1; i++)
+                {
+                    var trimmed = values[i].Trim();
+                    if (!string.IsNullOrEmpty(trimmed))
+                    {
+                        completedValues.Add(trimmed);
+                    }
+                }
+
+                // The last value is the one being typed
+                currentValue = values[values.Length - 1];
+
+                result.Type = IncompleteFilterType.ValuePrefix;
+                result.Context = IncompleteFilterContext.Value;
+                result.ColumnPrefix = columnName;
+                result.Operator = operatorStr;
+                result.ValuePrefix = currentValue;
+                result.IsMultiValue = true;
+                result.CompletedValues = completedValues;
             }
             else
             {

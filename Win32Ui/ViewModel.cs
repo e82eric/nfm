@@ -443,6 +443,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             await writerTask;
         }
     }
+
+    public void UpdateHeader()
+    {
+        View.SetHeader(_definition.Header);
+    }
     
     private async Task ReadFromSourceAsync(ChannelReader<object> channelReader, CancellationToken cancellationToken)
     {
