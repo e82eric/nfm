@@ -1,68 +1,141 @@
-﻿using nfm.Ui.Core;
+﻿using System.Diagnostics.CodeAnalysis;
+using nfm.Ui.Core;
 
 namespace nfm.Win32Ui;
 
 public class Viewport
 {
+    private readonly object _sync = new();
     private int _endRow;
     private List<(object Obj, TerminalEscapedLine Text)>? _items;
-    public int ViewportSelectedIndex;
-    public int StartLinesToClip { get; private set; }
+
+    public int ViewportSelectedIndex
+    {
+        get { lock(_sync) {return _viewportSelectedIndex;} }
+    }
+
+    public int StartLinesToClip
+    {
+        get { lock(_sync) {return _startLinesToClip;} }
+    }
 
     public Viewport(int viewportRows)
     {
         _viewportRows = viewportRows;
-        StartRow = 0;
+        _startRow = 0;
         _endRow = 0;
-        ViewportSelectedIndex = 0;
+        _viewportSelectedIndex = 0;
         _totalRows = 0;
     }
     
     private List<(object Obj, TerminalEscapedLine Text)> Items => _items ?? throw new InvalidOperationException("Lines cannot be null");
-    
-    public int SelectedIndex;
-    public int StartRow;
+
+    public int SelectedIndex
+    {
+        get { lock(_sync) {return _selectedIndex;} }
+    }
+
+    public int StartRow
+    {
+        get { lock(_sync) {return _startRow;} }
+    }
+
     private readonly int _viewportRows;
     private int _totalRows;
     private bool _wrap;
+    private int _viewportSelectedIndex;
+    private int _startLinesToClip;
+    private int _selectedIndex;
+    private int _startRow;
 
-    public int EndRow => _endRow;
+    public int EndRow
+    {
+        get { lock(_sync) {return _endRow;} }
+    }
+
+    public void Reset()
+    {
+        lock (_sync)
+        {
+            _selectedIndex = 0;
+            _startRow = 0;
+        }
+    }
 
     public void SetItems(List<(object Obj, TerminalEscapedLine Text)> items, bool wrap)
     {
-        var previousSelectedIndex = SelectedIndex;
-        var previousStartRow = StartRow;
-        
-        if (items.Count == 0)
+        lock (_sync)
         {
-            SelectedIndex = 0;
-            ViewportSelectedIndex = 0;
-            StartRow = 0;
-            _endRow = 0;
-            return;
+            var previousSelectedIndex = _selectedIndex;
+            var previousStartRow = _startRow;
+        
+            _items = items;
+            if (items.Count == 0)
+            {
+                _selectedIndex = 0;
+                _viewportSelectedIndex = 0;
+                _startRow = 0;
+                _endRow = 0;
+                return;
+            }
+        
+            _wrap = wrap;
+        
+            if (previousSelectedIndex < items.Count)
+            {
+                _selectedIndex = previousSelectedIndex;
+                _startRow = Math.Min(previousStartRow, Math.Max(0, items.Count - _viewportRows));
+            }
+            else
+            {
+                _selectedIndex = 0;
+                _viewportSelectedIndex = 0;
+                _startRow = 0;
+            }
+        
+            ReflowFromTop();
+        
+            _viewportSelectedIndex = _selectedIndex - _startRow;
+            if (_viewportSelectedIndex < 0)
+            {
+                _viewportSelectedIndex = 0;
+            }
         }
-        
-        _wrap = wrap;
-        _items = items;
-        
-        if (previousSelectedIndex < items.Count)
+    }
+    
+    public bool TryGetSelectedItem([NotNullWhen(true)]out object? result)
+    {
+        lock (_sync)
         {
-            SelectedIndex = previousSelectedIndex;
-            StartRow = Math.Min(previousStartRow, Math.Max(0, items.Count - _viewportRows));
+            result = null;
+
+            var target = _startRow + _viewportSelectedIndex;
+            if (target < 0 || target >= Items.Count)
+            {
+                return false;
+            }
+
+            result = Items[target].Obj;
+            return true;
         }
-        else
+    }
+
+    public List<TerminalEscapedLine> GetVisibleItems()
+    {
+        lock (_sync)
         {
-            SelectedIndex = 0;
-            ViewportSelectedIndex = 0;
-            StartRow = 0;
-        }
-        
-        ReflowFromTop();
-        
-        ViewportSelectedIndex = SelectedIndex - StartRow;
-        if (ViewportSelectedIndex < 0)
-        {
-            ViewportSelectedIndex = 0;
+            var items = new List<TerminalEscapedLine>();
+            for (var i = _startRow; i <= _endRow; i++)
+            {
+                var item = Items[i];
+                var itemStr = item.Obj.ToString();
+                if (itemStr != null)
+                {
+                    items.Add(item.Text);
+                }
+            }
+
+            return items;
         }
     }
     
@@ -78,35 +151,38 @@ public class Viewport
             i++;
         }
 
-        if (EndRow - i + 1 <= 0 && accumulatedLines < _viewportRows && !stop)
+        if (_endRow - i + 1 <= 0 && accumulatedLines < _viewportRows && !stop)
         {
-            StartRow = 0;
+            _startRow = 0;
             ReflowFromTop();
             return;
         }
                 
-        StartRow = Math.Max(0, EndRow - i + 1);
-        StartLinesToClip = Math.Max(0, accumulatedLines - _viewportRows);
+        _startRow = Math.Max(0, _endRow - i + 1);
+        _startLinesToClip = Math.Max(0, accumulatedLines - _viewportRows);
     }
 
     public void SelectNext()
     {
-        if (SelectedIndex + 1 < Items.Count())
+        lock (_sync)
         {
-            if (SelectedIndex + 1 <= EndRow)
+            if (_selectedIndex + 1 < Items.Count)
             {
-                ViewportSelectedIndex++;
-            }
-            else
-            {
-                if (_endRow <= Items.Count)
+                if (_selectedIndex + 1 <= _endRow)
                 {
-                    _endRow++;
-                    ReflowFromBottom(true);
-                    ViewportSelectedIndex = Math.Max(0, EndRow - StartRow);
+                    _viewportSelectedIndex++;
                 }
+                else
+                {
+                    if (_endRow <= Items.Count)
+                    {
+                        _endRow++;
+                        ReflowFromBottom(true);
+                        _viewportSelectedIndex = Math.Max(0, _endRow - _startRow);
+                    }
+                }
+                _selectedIndex++;
             }
-            SelectedIndex++;
         }
     }
     
@@ -114,91 +190,103 @@ public class Viewport
     {
         var accumulatedLines = 0;
         var i = 0;
-        while (accumulatedLines < _viewportRows && StartRow + i < Items.Count)
+        while (accumulatedLines < _viewportRows && _startRow + i < Items.Count)
         {
-            var item = Items[StartRow + i];
+            var item = Items[_startRow + i];
             accumulatedLines += _wrap ? item.Text.WrappedLines().Count : item.Text.Lines.Count;
             i++;
         }
 
-        if (StartRow + i >= Items.Count)
+        if (_startRow + i >= Items.Count)
         {
             _endRow = Items.Count - 1;
             ReflowFromBottom(true);
             return;
         }
                 
-        _endRow = Math.Min(Items.Count - 1, StartRow + i - 1);
-        StartLinesToClip = 0;
+        _endRow = Math.Min(Items.Count - 1, _startRow + i - 1);
+        _startLinesToClip = 0;
     }
 
     public void SelectPrevious()
     {
-        if (SelectedIndex > 0)
+        lock (_sync)
         {
-            SelectedIndex--;
+            if (_selectedIndex > 0)
+            {
+                _selectedIndex--;
 
-            if (ViewportSelectedIndex > 0)
-            {
-                ViewportSelectedIndex--;
+                if (_viewportSelectedIndex > 0)
+                {
+                    _viewportSelectedIndex--;
+                }
+                else if(_startRow > 0)
+                {
+                    _startRow--;
+                    ReflowFromTop();
+                    _viewportSelectedIndex = 0;
+                }
             }
-            else if(StartRow > 0)
+            else
             {
-                StartRow--;
                 ReflowFromTop();
-                ViewportSelectedIndex = 0;
             }
-        }
-        else
-        {
-            ReflowFromTop();
         }
     }
 
     public void PageDown()
     {
-        if (_endRow + 1 < Items.Count)
+        lock (_sync)
         {
-            StartRow = _endRow + 1;
-            ReflowFromTop();
-            SelectedIndex = StartRow + ViewportSelectedIndex;
-        }
-        else
-        {
-            SelectedIndex = Items.Count - 1;
-            ViewportSelectedIndex = _viewportRows - 1;
+            if (_endRow + 1 < Items.Count)
+            {
+                _startRow = _endRow + 1;
+                ReflowFromTop();
+                _selectedIndex = _startRow + _viewportSelectedIndex;
+            }
+            else
+            {
+                _selectedIndex = Items.Count - 1;
+                _viewportSelectedIndex = _viewportRows - 1;
+            }
         }
     }
 
     public void PageUp()
     {
-        if (StartRow > 0)
+        lock (_sync)
         {
-            _endRow = StartRow - 1;
-            ReflowFromBottom(false);
-            var numberOfRows = EndRow - StartRow;
-            if (ViewportSelectedIndex > numberOfRows)
+            if (_startRow > 0)
             {
-                ViewportSelectedIndex = numberOfRows;
+                _endRow = _startRow - 1;
+                ReflowFromBottom(false);
+                var numberOfRows = _endRow - _startRow;
+                if (_viewportSelectedIndex > numberOfRows)
+                {
+                    _viewportSelectedIndex = numberOfRows;
+                }
+                _selectedIndex = _startRow + _viewportSelectedIndex;
             }
-            SelectedIndex = StartRow + ViewportSelectedIndex;
-        }
-        else
-        {
-            SelectedIndex = 0;
-            ViewportSelectedIndex = 0;
-            ReflowFromTop();
+            else
+            {
+                _selectedIndex = 0;
+                _viewportSelectedIndex = 0;
+                ReflowFromTop();
+            }
         }
     }
 
     public void SetTotalRows(int itemsCount)
     {
-        _totalRows = itemsCount;
-        if (ViewportSelectedIndex > _totalRows)
+        lock (_sync)
         {
-            ViewportSelectedIndex = Math.Max(0, _totalRows - 1);
-            SelectedIndex = Math.Max(0, _totalRows - 1);
-            StartRow = 0;
+            _totalRows = itemsCount;
+            if (_viewportSelectedIndex > _totalRows)
+            {
+                _viewportSelectedIndex = Math.Max(0, _totalRows - 1);
+                _selectedIndex = Math.Max(0, _totalRows - 1);
+                _startRow = 0;
+            }
         }
     }
 }

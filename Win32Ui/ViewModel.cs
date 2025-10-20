@@ -32,6 +32,13 @@ public class Snapshot
 [SupportedOSPlatform("windows")]
 public class ViewModel : IMainViewModel, IPreviewRenderer
 {
+    public enum ViewModelFocus
+    {
+        SearchBox,
+        Preview,
+        Suggestions
+    }
+    
     private class ThreadLocalData(Slab slab)
     {
         public List<Entry> Entries = new(MaxItems);
@@ -49,6 +56,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private readonly int _maxDegreeOfParallelism = Environment.ProcessorCount / 2;
     private readonly IList<Chunk> _chunks;
     private string _searchString;
+    private string? _unParsedSearchString;
     private object? _searchStringState;
     private readonly AsyncAutoResetEvent _restartSearchSignal;
     private readonly AsyncAutoResetEvent _previewSignal;
@@ -62,8 +70,10 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private int _previewHeight;
     private List<(object Obj, TerminalEscapedLine Text)> Items { get; }
     private string _lastPreviewPath { get; set; } = string.Empty;
+    public ViewModelFocus FocusLocation { get; set; } = ViewModelFocus.SearchBox;
     private bool _showPreview { get; set; }
     private Viewport? _viewport;
+    private readonly Viewport _suggestionViewport;
     private PreviewViewport? _previewViewport;
     private Win32Window? _view;
     private int _searchVersion = 0;
@@ -71,7 +81,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private string _previewVimState = string.Empty;
     private DateTime _previewVimLastKeyPressTime;
     private readonly TimeSpan _previewVimTimeout = TimeSpan.FromSeconds(1);
-    
+    private List<TerminalEscapedLine>? _suggestions;
+
     public Dictionary<(ModifierKeys, int), Func<object, IMainViewModel, Task>> GlobalKeyBindings { get; } = new();
     
     private Win32Window View => _view ! ?? throw new InvalidOperationException("View has not been set.");
@@ -85,6 +96,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public ViewModel()
     {
+        _suggestionViewport = new Viewport(7);
         _searchString = string.Empty;
         for (var i = 0; i < _maxDegreeOfParallelism; i++)
         {
@@ -446,7 +458,10 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public void UpdateHeader()
     {
-        View.SetHeader(_definition.Header);
+        if (_definition != null && _definition.Header != null)
+        {
+            View.SetHeader(_definition.Header);
+        }
     }
     
     private async Task ReadFromSourceAsync(ChannelReader<object> channelReader, CancellationToken cancellationToken)
@@ -504,22 +519,34 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         _restartSearchSignal.Set();
     }
     
-    public void SetSearchString(string message)
+    public void SetSearchString(string message, int cursorPos)
     {
-        var parseResult = _definition?.ParseFunc?.Invoke(message) ?? (message, null);
+        var parseResult = _definition?.ParseFunc?.Invoke(message, cursorPos) ?? (message, null);
         lock (_searchStringLock)
         {
             _searchString = parseResult.parsedSearchString;
+            _unParsedSearchString = message;
             _searchStringState = parseResult.state;
         }
 
-        var suggestions = _definition?.AutoCompleteSuggestionsFunc?.Invoke(parseResult.state);
-        if (suggestions != null && suggestions.Count > 0)
+        _suggestions = _definition?.AutoCompleteSuggestionsFunc?.Invoke(parseResult.state);
+        if (_suggestions != null && _suggestions.Count > 0)
         {
-            View.ShowSuggestions(suggestions);
+            FocusLocation = ViewModelFocus.Suggestions;
+            
+            var items = new List<(object, TerminalEscapedLine)>();
+            foreach (var suggestion in _suggestions)
+            {
+                items.Add((suggestion, suggestion));
+            }
+            
+            _suggestionViewport.Reset();
+            _suggestionViewport.SetItems(items,false);
+            View.ShowSuggestions(_suggestionViewport.GetVisibleItems(), 0);
         }
         else
         {
+            FocusLocation = ViewModelFocus.SearchBox;
             View.HideSuggestions();
         }
 
@@ -571,7 +598,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                         else
                         {
                             View.FocusSearch();
-                            PreviewViewPort.Focused = false;
+                            FocusLocation = ViewModelFocus.SearchBox;
                         }
                         View.TriggerPreviewRender();
                         resetState = true;
@@ -644,7 +671,28 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     
     public async Task HandleKeyUp(object item, int eKey, ModifierKeys eKeyModifiers)
     {
-        if (eKeyModifiers == ModifierKeys.LCtl)
+        if (FocusLocation == ViewModelFocus.Suggestions)
+        {
+            switch (eKey)
+            {
+                case VirtualKeyCodes.VK_DOWN:
+                    _suggestionViewport.SelectNext();
+                    View.ShowSuggestions(_suggestionViewport.GetVisibleItems(), _suggestionViewport.ViewportSelectedIndex);
+                    break;
+                case VirtualKeyCodes.VK_UP:
+                    _suggestionViewport.SelectPrevious();
+                    View.ShowSuggestions(_suggestionViewport.GetVisibleItems(), _suggestionViewport.ViewportSelectedIndex);
+                    break;
+                case VirtualKeyCodes.VK_ESCAPE:
+                    FocusLocation = ViewModelFocus.SearchBox;
+                    View.HideSuggestions();
+                    break;
+                case VirtualKeyCodes.VK_RETURN:
+                    ApplyAutocompleteSelection();
+                    break;
+            }
+        }
+        else if (eKeyModifiers == ModifierKeys.LCtl)
         {
             if (eKey == VirtualKeyCodes.VK_E)
             {
@@ -661,7 +709,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             {
                 if (_showPreview)
                 {
-                    PreviewViewPort.Focused = !PreviewViewPort.Focused;
+                    FocusLocation = FocusLocation == ViewModelFocus.Preview ? ViewModelFocus.SearchBox : ViewModelFocus.Preview;
                     View.FocusPreview();
                     View.SetPreviewLines(PreviewViewPort.ViewportLines());
                 }
@@ -673,6 +721,46 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             else if (GlobalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
             {
                 await globalAction(item, this);
+            }
+        }
+        else
+        {
+            switch (eKey)
+            {
+                case VirtualKeyCodes.VK_DOWN:
+                    if (FocusLocation == ViewModelFocus.Preview)
+                    {
+                        PreviewViewPort.SelectNextLine();
+                        View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                    }
+                    else
+                    {
+                        SelectNext();
+                    }
+                    break;
+                case VirtualKeyCodes.VK_UP:
+                    if (FocusLocation == ViewModelFocus.Preview)
+                    {
+                        PreviewViewPort.SelectPreviousLine();
+                        View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                    }
+                    else
+                    {
+                        SelectPrevious();
+                    }
+                    break;
+                case VirtualKeyCodes.VK_NEXT:
+                    SelectPageDown();
+                    break;
+                case VirtualKeyCodes.VK_PRIOR:
+                    SelectPageUp();
+                    break;
+                case VirtualKeyCodes.VK_RETURN:
+                    await OnReturn();
+                    break;
+                case VirtualKeyCodes.VK_ESCAPE:
+                    OnEscape();
+                    break;
             }
         }
     }
@@ -737,7 +825,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         _previewViewport = new PreviewViewport(rows);
     }
 
-    public void SelectNext()
+    private void SelectNext()
     {
         lock (_snapshotLock)
         {
@@ -746,8 +834,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         View.SetListBoxItems();
         _previewSignal.Set();
     }
-    
-    public void SelectPageDown()
+
+    private void SelectPageDown()
     {
         lock (_snapshotLock)
         {
@@ -756,8 +844,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         View.SetListBoxItems();
         _previewSignal.Set();
     }
-    
-    public void SelectPageUp()
+
+    private void SelectPageUp()
     {
         lock (_snapshotLock)
         {
@@ -767,7 +855,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         _previewSignal.Set();
     }
 
-    public void SelectPrevious()
+    private void SelectPrevious()
     {
         lock (_snapshotLock)
         {
@@ -776,23 +864,60 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         View.SetListBoxItems();
         _previewSignal.Set();
     }
+    
+    private void ApplyAutocompleteSelection()
+    {
+        var currentText = _unParsedSearchString;
+        if(currentText == null || !_suggestionViewport.TryGetSelectedItem(out var selectedSuggestion))
+        {
+            return;
+        }
 
-    public async Task OnReturn(object item)
+        var newText = _definition.ApplySelectedSuggestion((currentText, selectedSuggestion.ToString()));
+        View.SetSearchString(newText);
+        
+        // var currentCursorPosition = currentText.Length;
+        //
+        // var selectedStr = selectedSuggestion.ToString();
+        // if (selectedStr == null)
+        // {
+        //     return;
+        // }
+        //
+        // var result = AutocompleteService.ApplySelection(currentText, currentCursorPosition, selectedStr);
+        //
+        // var newText = result.NewText;
+        //
+        // if (result.Success)
+        // {
+        //     View.SetSearchString(newText);
+        // }
+    }
+
+    private async Task OnReturn()
     {
         if (_definition is null)
         {
             return;
         }
-        
-        await _definition.ResultHandler.HandleAsync(item);
-    }
-    
-    public void OnEscape()
-    {
-        if (PreviewViewPort.Focused)
+
+        if (ViewPort.TryGetSelectedItem(out var item))
         {
-            PreviewViewPort.Focused = false;
+            await _definition.ResultHandler.HandleAsync(item);
+        }
+    }
+
+    private void OnEscape()
+    {
+        if (FocusLocation == ViewModelFocus.Preview)
+        {
+            FocusLocation = ViewModelFocus.SearchBox;
             View.SetPreviewLines(PreviewViewPort.ViewportLines());
+        }
+        else if (FocusLocation == ViewModelFocus.Suggestions)
+        {
+            FocusLocation = ViewModelFocus.SearchBox;
+            View.HideSuggestions();
         }
         else
         {

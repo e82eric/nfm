@@ -35,7 +35,8 @@ public static class AutocompleteService
             var currentValue = operatorMatch.Groups[3].Value;
 
             // Check if this is a DisplayColumns filter
-            bool isDisplayColumns = string.Equals(columnName, "DisplayColumns", StringComparison.OrdinalIgnoreCase);
+            //bool isDisplayColumns = string.Equals(columnName, "DisplayColumns", StringComparison.OrdinalIgnoreCase);
+            bool isDisplayColumns = true;
 
             // For DisplayColumns, find the last comma to determine what we're replacing
             int replaceStart;

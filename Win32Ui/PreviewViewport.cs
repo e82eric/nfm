@@ -22,7 +22,6 @@ public class PreviewViewport
     public int StartRow { get; private set; }
     private readonly int _viewportRows;
     private List<List<TextSegment>>? _lines;
-    private bool _focused;
     private List<List<TextSegment>> Lines => _lines ?? throw new InvalidOperationException("Lines cannot be null");
     public int SelectedLineStart { get; private set; }
     public int SelectedLineEnd { get; private set; }
@@ -32,19 +31,6 @@ public class PreviewViewport
     public int YankLineEnd { get; private set; }
     public bool YankInProgress;
     private Timer? _yankTimer;
-
-    public bool Focused
-    {
-        get => _focused;
-        set
-        {
-            _focused = value;
-            SelectedLineStart = StartRow;
-            SelectedLineEnd = StartRow;
-            SelectedLineFocused = StartRow;
-            Mode = PreviewMode.Normal;
-        }
-    }
 
     public PreviewMode Mode { get; private set; } 
 
@@ -158,43 +144,46 @@ public class PreviewViewport
     
     public void SelectHalfPageDown()
     {
-        if (Mode == PreviewMode.Normal)
-        {
-            var half = _viewportRows / 2;
-            var target = SelectedLineStart + half;
-            var endRow = Math.Min(target + _viewportRows, Lines.Count - 1);
-            if (target < Lines.Count && endRow < Lines.Count - 1)
-            {
-                SelectedLineStart = target;
-                SelectedLineEnd = SelectedLineStart;
-                SelectedLineFocused = SelectedLineStart;
-                StartRow = target;
-            }
-            else
-            {
-                StartRow = Lines.Count - 1 - _viewportRows;
-                SelectedLineStart = StartRow;
-                SelectedLineEnd = StartRow;
-                SelectedLineFocused = StartRow;
-            }
-        }
+        if (Mode != PreviewMode.Normal || Lines.Count == 0 || _viewportRows <= 0)
+            return;
+
+        int half = Math.Max(1, _viewportRows / 2);
+        int lastIndex = Lines.Count - 1;
+
+        // Move the selection down by half a page, clamped to last item
+        int targetSel = Math.Min(SelectedLineStart + half, lastIndex);
+
+        // Max top row so a full viewport fits (or 0 if list is shorter)
+        int maxStart = Math.Max(0, Lines.Count - _viewportRows);
+
+        // Put the selected line at the top if possible, but don't exceed maxStart
+        int targetStart = Math.Min(targetSel, maxStart);
+
+        SelectedLineStart   = targetSel;
+        SelectedLineEnd     = targetSel;
+        SelectedLineFocused = targetSel;
+        StartRow            = targetStart;
     }
     
     public void SelectHalfPageUp()
     {
-        if (Mode == PreviewMode.Normal)
+        if (Mode != PreviewMode.Normal || Lines.Count == 0 || _viewportRows <= 0)
         {
-            var half = _viewportRows / 2;
-            var target = SelectedLineStart - half;
-            if (target < 0)
-            {
-                target = 0;
-            }
-            SelectedLineStart = target;
-            SelectedLineEnd = SelectedLineStart;
-            SelectedLineFocused = SelectedLineStart;
-            StartRow = SelectedLineStart;
+            return;
         }
+
+        int half = Math.Max(1, _viewportRows / 2);
+
+        int targetSel = Math.Max(SelectedLineStart - half, 0);
+
+        int maxStart = Math.Max(0, Lines.Count - _viewportRows);
+
+        int targetStart = Math.Min(targetSel, maxStart);
+
+        SelectedLineStart = targetSel;
+        SelectedLineEnd = targetSel;
+        SelectedLineFocused = targetSel;
+        StartRow = targetStart;
     }
     
     public void SelectToTop()

@@ -19,15 +19,15 @@ public class Win32Window
     private readonly SubclassProc _previewControlProc;
     private readonly SubclassProc _textBoxPanelControlProc;
     private readonly SubclassProc _editControlProc;
-    private readonly SubclassProc _autocompleteControlProc;
-    private readonly SubclassProc _autocompletePanelControlProc;
+    private readonly SubclassProc _suggestionsControlProc;
+    private readonly SubclassProc _suggestionsPanelControlProc;
 
     private int _spinnerCtr = 0;
     private const int PS_SOLID = 0;
     private const int BORDER_THICKNESS = 2;
     private const int BORDER_COLOR = 0x00888545; //0x00bbggrr
     private const int BACKGROUND_COLOR = 0x00282828; //0x00bbggrr
-    private const int AUTOCOMPLETE_BACKGROUND_COLOR = 0x00302f32;
+    private const int SUGGESTIONS_BACKGROUND_COLOR = 0x00302f32;
     private const int SELECTED_BACKGROUND_COLOR = 0x00454950; //0x00bbggrr
     private const int SELECTED_BACKGROUND_COLOR_2 = 0x00545c66; //0x00665c54
     private const int TEXT_COLOR = 0x008499a8; //0x00a88499
@@ -477,9 +477,16 @@ public class Win32Window
                 var notificationCode = (ushort)((wParam.ToInt64() >> 16) & 0xFFFF);
                 if (notificationCode == EN_CHANGE)
                 {
+                    var selStart = 0;
+                    var selEnd = 0;
+                    // if (_newCursorIndex.HasValue)
+                    // {
+                    //     
+                    // }
+                    SendMessage(_textBoxHwnd, EM_GETSEL, ref selStart, ref selEnd);
                     var text = new StringBuilder(GetWindowTextLength(_textBoxHwnd) + 1);
                     GetWindowText(_textBoxHwnd, text, text.Capacity);
-                    _viewModel.SetSearchString(text.ToString());
+                    _viewModel.SetSearchString(text.ToString(), selStart);
                 }
                 return 0;
             case WM_CTLCOLOREDIT:
@@ -609,8 +616,21 @@ public class Win32Window
                     var text = new StringBuilder(GetWindowTextLength(_textBoxHwnd) + 1);
                     GetWindowText(_textBoxHwnd, text, text.Capacity);
                     var searchText = text.ToString();
+                    var selStart = 0;
+                    var selEnd = 0;
 
-                    Task.Run(() => _viewModel.SetSearchString(searchText));
+                    if (_newCursorIndex.HasValue)
+                    {
+                        SendMessage(_textBoxHwnd, EM_SETSEL, (IntPtr)_newCursorIndex, (IntPtr)_newCursorIndex);
+                        selStart = _newCursorIndex.Value;
+                        _newCursorIndex = null;
+                    }
+                    else
+                    {
+                        SendMessage(_textBoxHwnd, EM_GETSEL, ref selStart, ref selEnd);
+                    }
+
+                    Task.Run(() => _viewModel.SetSearchString(searchText, selStart));
                 }
                 return 0;
             case WM_CTLCOLOREDIT:
@@ -712,7 +732,7 @@ public class Win32Window
 
                     var selectedLine = false;
                     var selectedAndFocused = false;
-                    if (_viewModel.PreviewViewPort.Focused)
+                    if (_viewModel.FocusLocation == ViewModel.ViewModelFocus.Preview)
                     {
                         if (i + _viewModel.PreviewViewPort.StartRow >= _viewModel.PreviewViewPort.SelectedLineStart && i + _viewModel.PreviewViewPort.StartRow <= _viewModel.PreviewViewPort.SelectedLineEnd)
                         {
@@ -779,7 +799,7 @@ public class Win32Window
                 }
                 
                 var modifiers = GetModifiersPressed();
-                if (modifiers != ModifierKeys.None)
+                if (modifiers != ModifierKeys.None && wParam != VK_LEFT && wParam != VK_RIGHT)
                 {
                     if (modifiers == ModifierKeys.LCtl && wParam == VK_PAGEUP)
                     {
@@ -801,74 +821,24 @@ public class Win32Window
 
                     if ((modifiers & ModifierKeys.LShift) == 0)
                     {
-                        Task.Run(() => _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item, (int)wParam, modifiers));
+                        if ( _snapshot.SelectedIndex < _snapshot.Items.Count)
+                        {
+                            Task.Run(() => _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item, (int)wParam, modifiers));
+                        }
+
                         return 0;
                     }
                 }
-                else
+                else if(wParam != VK_LEFT && wParam != VK_RIGHT)
                 {
-                    // Handle autocomplete navigation first
-                    if (_autocompleteVisible && _autocompleteSuggestions.Count > 0)
+                    //TODO: Add bounds checks to this
+                    if (_snapshot.SelectedIndex < _snapshot.Items.Count)
                     {
-                        switch (wParam)
-                        {
-                            case VK_DOWN:
-                                UpdateAutocompleteSelection(1);
-                                return 0;
-                            case VK_UP:
-                                UpdateAutocompleteSelection(-1);
-                                return 0;
-                            case VK_TAB:
-                            case VK_RETURN:
-                                ApplyAutocompleteSelection();
-                                return 0;
-                            case VK_ESCAPE:
-                                HideAutocomplete();
-                                return 0;
-                        }
+                        Task.Run(() => _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item,
+                            (int)wParam, modifiers));
                     }
 
-                    switch (wParam)
-                    {
-                        case VK_DOWN:
-                            if (_viewModel.PreviewViewPort.Focused)
-                            {
-                                _viewModel.PreviewViewPort.SelectNextLine();
-                                SetPreviewLines(_viewModel.PreviewViewPort.ViewportLines());
-                            }
-                            else
-                            {
-                                _viewModel.SelectNext();
-                            }
-                            return 0;
-                        case VK_UP:
-                            if (_viewModel.PreviewViewPort.Focused)
-                            {
-                                _viewModel.PreviewViewPort.SelectPreviousLine();
-                                SetPreviewLines(_viewModel.PreviewViewPort.ViewportLines());
-                            }
-                            else
-                            {
-                                _viewModel.SelectPrevious();
-                            }
-
-                            return 0;
-                        case VK_PAGEDOWN:
-                            _viewModel.SelectPageDown();
-                            return 0;
-                        case VK_PAGEUP:
-                            _viewModel.SelectPageUp();
-                            return 0;
-                        case VK_RETURN:
-                            lock (_itemsLock)
-                            {
-                                Task.Run(async () => { await _viewModel.OnReturn(_snapshot.Items[_snapshot.SelectedIndex].Item); });
-                            }
-                            return 0;
-                        case VK_ESCAPE:
-                            _viewModel.OnEscape();
-                            return 0;
-                    }
+                    return 0;
                 }
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
             default:
@@ -914,7 +884,7 @@ public class Win32Window
         }
     }
 
-    private static IntPtr AutocompletePanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
+    private static IntPtr SuggestionsPanelControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData)
     {
         switch (uMsg)
         {
@@ -929,15 +899,15 @@ public class Win32Window
         }
     }
 
-    private IntPtr AutocompleteControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefDatk)
+    private IntPtr SuggestionsControlProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefDatk)
     {
         switch (uMsg)
         {
             case WM_PAINT:
-                if (!_autocompleteVisible || _autocompleteSuggestions.Count == 0)
+                if (_suggestions.Count == 0)
                 {
                     var hdc = BeginPaint(hWnd, out var ps);
-                    FillRect(hdc, ref ps.rcPaint, _autoCompleteBackgroundBrush);
+                    FillRect(hdc, ref ps.rcPaint, _suggestionsBackgroundBrush);
                     EndPaint(hWnd, ref ps);
                     return 0;
                 }
@@ -956,7 +926,7 @@ public class Win32Window
                     return IntPtr.Zero;
                 }
 
-                FillRect(hNewDc, ref paintStruct.rcPaint, _autoCompleteBackgroundBrush);
+                FillRect(hNewDc, ref paintStruct.rcPaint, _suggestionsBackgroundBrush);
 
                 GetTextMetrics(hNewDc, out var tm);
                 SelectObject(hNewDc, _font);
@@ -964,9 +934,10 @@ public class Win32Window
 
                 int padding = 2;
 
-                for (int i = 0; i < _autocompleteSuggestions.Count; i++)
+                for (int i = 0; i < _suggestions.Count; i++)
                 {
-                    var suggestion = _autocompleteSuggestions[i];
+                    var suggestion = _suggestions[i];
+                    var line = suggestion.Lines[0];
                     var y = i * _listBoxItemHeight + padding;
                     var itemRect = new RECT
                     {
@@ -976,7 +947,7 @@ public class Win32Window
                         bottom = y + _listBoxItemHeight
                     };
 
-                    if (i == _autocompleteSelectedIndex)
+                    if (i == _suggestionsSelectedIndex)
                     {
                         SetBkColor(hNewDc, SELECTED_BACKGROUND_COLOR);
                         FillRect(hNewDc, ref itemRect, _selectedBackgroundBrush);
@@ -984,11 +955,25 @@ public class Win32Window
                     }
                     else
                     {
-                        SetBkColor(hNewDc, AUTOCOMPLETE_BACKGROUND_COLOR);
+                        SetBkColor(hNewDc, SUGGESTIONS_BACKGROUND_COLOR);
                         SetTextColor(hNewDc, TEXT_COLOR);
                     }
 
-                    TextOut(hNewDc, padding + 3, y, suggestion, suggestion.Length);
+                    TextOut(hNewDc, padding + 3, y, line.LineText(), line.LineText().Length);
+                    
+                    SetTextColor(hNewDc, HIGHLIGHTED_TEXT_COLOR);
+                    for (int j = 0; j < line.Pos.Count; j++)
+                    {
+                        var pos = line.Pos[j];
+                        SIZE sz;
+                        GetTextExtentPoint32(hNewDc, line.LineText(), pos, out sz);
+                        TextOut(
+                            hNewDc,
+                            sz.cx + padding + 3,
+                            y,
+                            line.LineText()[pos].ToString(),
+                            1);
+                    }
                 }
 
                 EndBufferedPaint(hBufferedPaint, true);
@@ -1003,14 +988,11 @@ public class Win32Window
         }
     }
 
-    private void ShowAutocomplete()
+    private void ShowSuggestions()
     {
-        var suggestions = _autocompleteSuggestions;
-        _autocompleteSelectedIndex = suggestions.Count > 0 ? 0 : -1;
-        _autocompleteVisible = true;
+        var suggestions = _suggestions;
 
-        int maxItems = Math.Min(suggestions.Count, 7);
-        int contentHeight = maxItems * _listBoxItemHeight;
+        int contentHeight = suggestions.Count * _listBoxItemHeight;
         int padding = BORDER_THICKNESS + 10;
         int panelHeight = contentHeight + (padding * 2);
 
@@ -1021,76 +1003,26 @@ public class Win32Window
         var textBoxBottom = textBoxRect.bottom - rootRect.top;
         var textBoxWidth = textBoxRect.right - textBoxRect.left;
 
-        SetWindowPos(_autocompletePanelHwnd, HWND_TOP,
+        SetWindowPos(_suggestionsPanelHwnd, HWND_TOP,
             textBoxLeft, textBoxBottom,
             textBoxWidth, panelHeight,
             SetWindowPosFlags.SWP_SHOWWINDOW);
         
-        SetWindowPos(_autocompleteHwnd, HWND_TOP,
+        SetWindowPos(_suggestionsHwnd, HWND_TOP,
             padding, padding,
             textBoxWidth - (padding * 2), contentHeight,
             SetWindowPosFlags.SWP_SHOWWINDOW);
         
-        InvalidateRect(_autocompletePanelHwnd, IntPtr.Zero, true);
-        InvalidateRect(_autocompleteHwnd, IntPtr.Zero, true);
+        InvalidateRect(_suggestionsPanelHwnd, IntPtr.Zero, true);
+        InvalidateRect(_suggestionsHwnd, IntPtr.Zero, true);
     }
 
     private void HideAutocomplete()
     {
-        _autocompleteVisible = false;
-        _autocompleteSuggestions.Clear();
-        _autocompleteSelectedIndex = -1;
-        ShowWindow(_autocompletePanelHwnd, SW_HIDE);
-        ShowWindow(_autocompleteHwnd, SW_HIDE);
-    }
-
-    private void UpdateAutocompleteSelection(int direction)
-    {
-        if (!_autocompleteVisible || _autocompleteSuggestions.Count == 0)
-        {
-            return;
-        }
-
-        _autocompleteSelectedIndex += direction;
-
-        if (_autocompleteSelectedIndex < 0)
-        {
-            _autocompleteSelectedIndex = _autocompleteSuggestions.Count - 1;
-        }
-        else if (_autocompleteSelectedIndex >= _autocompleteSuggestions.Count)
-        {
-            _autocompleteSelectedIndex = 0;
-        }
-
-        InvalidateRect(_autocompleteHwnd, IntPtr.Zero, true);
-    }
-
-    private void ApplyAutocompleteSelection()
-    {
-        if (!_autocompleteVisible || _autocompleteSelectedIndex < 0 || _autocompleteSelectedIndex >= _autocompleteSuggestions.Count)
-        {
-            return;
-        }
-
-        var selectedSuggestion = _autocompleteSuggestions[_autocompleteSelectedIndex];
-        
-        var length = GetWindowTextLength(_textBoxHwnd);
-        var sb = new StringBuilder(length + 1);
-        GetWindowText(_textBoxHwnd, sb, sb.Capacity);
-        var currentText = sb.ToString();
-        
-        var startPos = 0;
-        var endPos = 0;
-        SendMessage(_textBoxHwnd, EM_GETSEL, ref startPos, ref endPos);
-        var currentCursorPosition = endPos;
-        
-        var result = AutocompleteService.ApplySelection(currentText, currentCursorPosition, selectedSuggestion);
-
-        if (result.Success)
-        {
-            SetWindowText(_textBoxHwnd, result.NewText);
-            SendMessage(_textBoxHwnd, EM_SETSEL, (IntPtr)result.NewCursorPosition, (IntPtr)result.NewCursorPosition);
-        }
+        _suggestions.Clear();
+        _suggestionsSelectedIndex = -1;
+        ShowWindow(_suggestionsPanelHwnd, SW_HIDE);
+        ShowWindow(_suggestionsHwnd, SW_HIDE);
     }
 
     private struct ScreenLocation
@@ -1343,9 +1275,8 @@ public class Win32Window
     private readonly Lock _itemsLock = new();
     private IntPtr _font;
 
-    private List<string> _autocompleteSuggestions = [];
-    private int _autocompleteSelectedIndex = -1;
-    private bool _autocompleteVisible = false;
+    private List<TerminalEscapedLine> _suggestions = [];
+    private int _suggestionsSelectedIndex = -1;
     private IntPtr _rootHwnd;
     private IntPtr _textBoxHwnd;
     private IntPtr _textBoxPanelHwnd;
@@ -1354,10 +1285,10 @@ public class Win32Window
     private IntPtr _previewPanelHwnd;
     private IntPtr _listBoxHwnd;
     private IntPtr _listBoxPanelHwnd;
-    private IntPtr _autocompleteHwnd;
-    private IntPtr _autocompletePanelHwnd;
+    private IntPtr _suggestionsHwnd;
+    private IntPtr _suggestionsPanelHwnd;
     private IntPtr _backgroundBrush;
-    private IntPtr _autoCompleteBackgroundBrush;
+    private IntPtr _suggestionsBackgroundBrush;
     private IntPtr _gapPen;
     private IntPtr _borderPen;
     private IntPtr _selectedBackgroundBrush;
@@ -1381,6 +1312,7 @@ public class Win32Window
     private static CancellationTokenSource _cts = new();
     private static List<Win32Window> s_instances = new();
     private readonly bool _excludeTopmost;
+    private int? _newCursorIndex;
 
     public Win32Window(ViewModel viewModel, Action onInit, bool excludeTopmost = false)
     {
@@ -1393,8 +1325,8 @@ public class Win32Window
         _previewControlProc = PreviewControlProc;
         _textBoxPanelControlProc = TextBoxPanelControlProc;
         _editControlProc = EditControlProc;
-        _autocompleteControlProc = AutocompleteControlProc;
-        _autocompletePanelControlProc = AutocompletePanelControlProc;
+        _suggestionsControlProc = SuggestionsControlProc;
+        _suggestionsPanelControlProc = SuggestionsPanelControlProc;
         _viewModel = viewModel;
         _onInit = onInit;
         _viewModel.SetView(this);
@@ -1416,7 +1348,7 @@ public class Win32Window
                 _borderPen = CreatePen(PS_SOLID, 1, BORDER_COLOR);
                 _gapPen = CreatePen(PS_SOLID, 1, GAP_COLOR);
                 _backgroundBrush = CreateSolidBrush(BACKGROUND_COLOR);
-                _autoCompleteBackgroundBrush = CreateSolidBrush(BACKGROUND_COLOR);
+                _suggestionsBackgroundBrush = CreateSolidBrush(BACKGROUND_COLOR);
                 _selectedBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR);
                 _selectedBackgroundBrush2 = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
                 _highlightBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
@@ -1525,7 +1457,7 @@ public class Win32Window
 
                 // Create autocomplete panel (initially hidden) as child of root window for overlay
                 var autocompleteExtendedStyle = _excludeTopmost ? 0u : WS_EX_TOPMOST;
-                _autocompletePanelHwnd = CreateWindowEx(
+                _suggestionsPanelHwnd = CreateWindowEx(
                     autocompleteExtendedStyle,
                     "static",
                     "",
@@ -1538,10 +1470,10 @@ public class Win32Window
                     8,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_autocompletePanelHwnd, _autocompletePanelControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_suggestionsPanelHwnd, _suggestionsPanelControlProc, 0, IntPtr.Zero);
 
                 // Create autocomplete content window as child of the panel
-                _autocompleteHwnd = CreateWindowEx(
+                _suggestionsHwnd = CreateWindowEx(
                     0,
                     "static",
                     "",
@@ -1550,11 +1482,11 @@ public class Win32Window
                     padding,
                     searchInputWidth - (padding * 2),
                     1, // Will be sized dynamically in ShowAutocomplete
-                    _autocompletePanelHwnd, // Parent is the panel
+                    _suggestionsPanelHwnd, // Parent is the panel
                     9,
                     _instance,
                     IntPtr.Zero);
-                SetWindowSubclass(_autocompleteHwnd, _autocompleteControlProc, 0, IntPtr.Zero);
+                SetWindowSubclass(_suggestionsHwnd, _suggestionsControlProc, 0, IntPtr.Zero);
 
                 _listBoxPanelHwnd = CreateWindowEx(
                     0,
@@ -1659,8 +1591,8 @@ public class Win32Window
                 string? searchStr = Marshal.PtrToStringUni(lParam);
                 if (searchStr != null)
                 {
+                    _newCursorIndex = searchStr.Length;
                     SetWindowText(_textBoxHwnd, searchStr);
-                    SendMessage(_textBoxHwnd, EM_SETSEL, searchStr.Length - 1, searchStr.Length - 1);
                 }
 
                 Marshal.FreeHGlobal(lParam);
@@ -1681,7 +1613,7 @@ public class Win32Window
                 break;
             
             case WM_SHOW_SUGGESTIONS:
-                ShowAutocomplete();
+                ShowSuggestions();
                 break;
             
             case WM_HIDE_SUGGESTIONS:
@@ -1827,9 +1759,10 @@ public class Win32Window
         PostMessage(_rootHwnd, WM_FOCUS_SEARCH, 0, 0);
     }
 
-    public void ShowSuggestions(List<string> suggestions)
+    public void ShowSuggestions(List<TerminalEscapedLine> suggestions, int suggestionIndex)
     {
-        _autocompleteSuggestions = suggestions;
+        _suggestions = suggestions;
+        _suggestionsSelectedIndex = suggestionIndex;
         PostMessage(_rootHwnd, WM_SHOW_SUGGESTIONS, 0, 0);
     }
     

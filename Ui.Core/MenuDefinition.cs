@@ -1,4 +1,5 @@
 ﻿using System.Threading.Channels;
+using nfm.Win32Ui;
 using nfzf;
 
 namespace nfm.Ui.Core;
@@ -53,7 +54,7 @@ public class MenuDefinition
     public IPreviewHandler? PreviewHandler { get; init; } = null;
     public Func<object, string, Task<Result>>? EditAction { get; init; } = null;
     public Func<string, string>? PreParseFunc { get; init; } = null;
-    public Func<string, (string parsedSearchString, object? state)>? ParseFunc { get; init; } = null;
-    public Func<object?, List<string>>? AutoCompleteSuggestionsFunc { get; init; }
-    public Func<IncompleteFilterInfo, List<string>>? AutoCompleteProvider { get; init; } = null;
+    public Func<string, int, (string parsedSearchString, object? state)>? ParseFunc { get; init; } = null;
+    public Func<object?, List<TerminalEscapedLine>>? AutoCompleteSuggestionsFunc { get; init; }
+    public Func<(string fullSearchString, string selectedSuggestion), string> ApplySelectedSuggestion { get; set; }
 }
