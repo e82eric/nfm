@@ -7,7 +7,7 @@ public static class AutocompleteSelectionApplier
 
     public static string Apply(
         string tokenText,
-        TokenCursorPosition cursorPositionType,
+        TokenPart cursorPositionType,
         int existingTextLength,
         string selectedSuggestion,
         bool shiftApplied)
@@ -49,10 +49,10 @@ public static class AutocompleteSelectionApplier
 
         switch (cursorPositionType)
         {
-            case TokenCursorPosition.Key:
+            case TokenPart.Column:
                 return ReplaceTrailingPrefix(tokenText, existingTextLength, selectedSuggestion + "=");
 
-            case TokenCursorPosition.Operator:
+            case TokenPart.Operator:
                 if (fullOpIndex < 0)
                     return ReplaceTrailingPrefix(tokenText, existingTextLength, selectedSuggestion);
                 else
@@ -61,7 +61,7 @@ public static class AutocompleteSelectionApplier
                     return ReplaceTrailingPrefix(tokenText, existingTextLength, selectedSuggestion + suffix);
                 }
 
-            case TokenCursorPosition.Value:
+            case TokenPart.Value:
             {
                 // NEW: append delimiter here too
                 var processed = PrepareValueForExplicitInsertion(selectedSuggestion);

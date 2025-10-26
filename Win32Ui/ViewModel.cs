@@ -529,7 +529,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             _searchStringState = parseResult.state;
         }
 
-        _suggestions = _definition?.AutoCompleteSuggestionsFunc?.Invoke(parseResult.state);
+        _suggestions = _definition?.AutoCompleteSuggestionsFunc?.Invoke(parseResult.state, cursorPos);
         if (_suggestions != null && _suggestions.Count > 0)
         {
             FocusLocation = ViewModelFocus.Suggestions;
@@ -873,7 +873,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             return;
         }
 
-        var newText = _definition.ApplySelectedSuggestion((currentText, selectedSuggestion.ToString()));
+        var newText = _definition.ApplySelectedSuggestion((currentText, _searchStringState, selectedSuggestion.ToString()));
         View.SetSearchString(newText);
         
         // var currentCursorPosition = currentText.Length;

@@ -55,6 +55,6 @@ public class MenuDefinition
     public Func<object, string, Task<Result>>? EditAction { get; init; } = null;
     public Func<string, string>? PreParseFunc { get; init; } = null;
     public Func<string, int, (string parsedSearchString, object? state)>? ParseFunc { get; init; } = null;
-    public Func<object?, List<TerminalEscapedLine>>? AutoCompleteSuggestionsFunc { get; init; }
-    public Func<(string fullSearchString, string selectedSuggestion), string> ApplySelectedSuggestion { get; set; }
+    public Func<object?, int, List<TerminalEscapedLine>>? AutoCompleteSuggestionsFunc { get; init; }
+    public Func<(string fullSearchString, object state, string selectedSuggestion), string> ApplySelectedSuggestion { get; set; }
 }

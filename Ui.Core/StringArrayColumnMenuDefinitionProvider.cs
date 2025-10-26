@@ -110,20 +110,9 @@ public class DisplayColumnsProvider
 
 public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 {
-    class ParseResult(
-        List<SplitToken> sortFilters2,
-        List<SplitToken> columnFilters2,
-        List<SplitToken> incompleteFilters2)
-    {
-        public List<SplitToken> SortFilters2 { get; private set; } = sortFilters2;
-        public List<SplitToken> ColumnFilters2 { get; private set; } = columnFilters2;
-        public List<SplitToken> IncompleteFilters2 { get; private set; } = incompleteFilters2;
-    }
-    
     private readonly MenuDefinition _menuDefinition;
     private readonly Func<string[][]> _dataProvider;
     private DisplayColumnsProvider _displayColumnProvider;
-    private SplitToken _currentSuggestionToken;
 
     public StringArrayColumnMenuDefinitionProvider(
         Func<string[][]> dataProvider,
@@ -217,12 +206,11 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             },
             PreFilter = (stateObj, sObj, searchString) =>
             {
-                if (sObj is StringArrayRow row && stateObj is ParseResult parseResult)
+                if (sObj is StringArrayRow row && stateObj is (ParseResult parseResult, int))
                 {
-                    //var columnFilters = parseResult.ColumnFilters;
-                    var columnFilters = parseResult.ColumnFilters2;
+                    var columnFilters = parseResult.GetFilters();
 
-                    if (columnFilters.Count > 0)
+                    if (columnFilters.Any())
                     {
                         var allHeaders = row.GetAllColumnHeaders();
                         if (allHeaders != null)
@@ -233,30 +221,31 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                             foreach (var filter in columnFilters)
                             {
                                 var columnIndex = Array.FindIndex(allHeaders, h =>
-                                    string.Equals(h, filter.Key, StringComparison.OrdinalIgnoreCase));
+                                    string.Equals(h, filter.Column.Val, StringComparison.OrdinalIgnoreCase));
 
                                 if (columnIndex >= 0 && columnIndex < allData.Length)
                                 {
-                                    if (!filter.Values.Where(t =>
+                                    var filterValues = filter.Values.Values.Select(v => v.Token.Val);
+                                    if (!filterValues.Where(t =>
                                         {
                                             var cellValue = allData[columnIndex] ?? string.Empty;
-                                            bool filterMatches = filter.TokenOperator switch
+                                            bool filterMatches = filter.Operator.TokenOperator switch
                                             {
-                                                TokenOperator.Equals =>
+                                                OperatorTokenKind.Equals =>
                                                     string.Equals(cellValue, t, StringComparison.OrdinalIgnoreCase),
-                                                TokenOperator.NotEquals =>
+                                                OperatorTokenKind.NotEquals =>
                                                     !string.Equals(cellValue, t, StringComparison.OrdinalIgnoreCase),
-                                                TokenOperator.Regex =>
+                                                OperatorTokenKind.Regex =>
                                                     IsRegexMatch(cellValue, t),
-                                                TokenOperator.NotEqualsRegex =>
+                                                OperatorTokenKind.NotEqualsRegex =>
                                                     !IsRegexMatch(cellValue, t),
-                                                TokenOperator.GreaterThan =>
+                                                OperatorTokenKind.GreaterThan =>
                                                     CompareForFilter(cellValue, t) > 0,
-                                                TokenOperator.GreaterThanOrEqual =>
+                                                OperatorTokenKind.GreaterThanOrEqual =>
                                                     CompareForFilter(cellValue, t) >= 0,
-                                                TokenOperator.LessThan =>
+                                                OperatorTokenKind.LessThan =>
                                                     CompareForFilter(cellValue, t) < 0,
-                                                TokenOperator.LessThenOrEqual =>
+                                                OperatorTokenKind.LessThenOrEqual =>
                                                     CompareForFilter(cellValue, t) <= 0,
                                                 _ => false
                                             };
@@ -289,14 +278,14 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             SearchString = string.Empty,
             PostProcess = (stateObject, items) =>
             {
-                var parseResult = stateObject as ParseResult;
+                var parseResult = stateObject as (ParseResult parseResult, int cursorPos)?;
                 if (parseResult is null || allColumnHeaders is null)
                 {
                     return;
                 }
 
-                var sortFilters = parseResult.SortFilters2;
-                if (sortFilters.Count == 0)
+                var sortFilters = parseResult.Value.parseResult.GetSortFilters().ToList();
+                if (!sortFilters.Any())
                 {
                     return;
                 }
@@ -312,14 +301,15 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                     }
 
                     // Apply sorts in reverse order so the first sort filter has highest priority
-                    for (int i = sortFilters.Count - 1; i >= 0; i--)
+                    for (int i = sortFilters.Count() - 1; i >= 0; i--)
                     {
                         var sortFilter = sortFilters[i];
-                        if (sortFilter.Values.Any())
+                        var sortFilterValues = sortFilter.Values.Values.Select(t => t.Token.Val);
+                        if (sortFilterValues.Any())
                         {
                             var columnIndex = Array.FindIndex(allColumnHeaders, h =>
                                 //TODO:: Do something better with Values
-                                string.Equals(h, sortFilter.Values[0], StringComparison.OrdinalIgnoreCase));
+                                string.Equals(h, sortFilterValues.First(), StringComparison.OrdinalIgnoreCase));
 
                             if (columnIndex < 0)
                             {
@@ -332,7 +322,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                             var comparison = CompareValues(value1, value2);
                             if (comparison != 0)
                             {
-                                var isAscending = string.Equals(sortFilter.Key, "SortAsc", StringComparison.OrdinalIgnoreCase);
+                                var isAscending = string.Equals(sortFilter.Column.Val, "SortAsc", StringComparison.OrdinalIgnoreCase);
                                 return isAscending ? comparison : -comparison;
                             }
                         }
@@ -343,41 +333,26 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             },
             ParseFunc = (searchString, cursorPos) =>
             {
-                var baseTokens = SlashColonTokenParser.Extract(searchString, cursorPos - 1);
-                var tokens = new List<SplitToken>();
-                foreach (var baseToken in baseTokens.Tokens)
-                {
-                    // if (baseToken.Value != String.Empty)
-                    // {
-                        var token = TokenParser.Parse(baseToken);
-                        tokens.Add(token);
-                    //}
-                }
-
-                var parsedSearchString = baseTokens.ParsedSearchString;
-                var incompleteFilters2 = tokens.Where(t => t.CursorPosition != null).ToList();
-                var displayColumns2 = tokens.Where(t => t.Key == "DisplayColumns");
-                var sortFilters2 = tokens.Where(t => (t.Key == "SortDsc" || t.Key == "SortAsc") && t.CursorPosition == null).ToList();
-                var columnFilters2 = tokens.Where(t => t.Key != "SortDesc" && t.Key != "SortAsc" && t.Key != "SortDsc" && t.Key != "DisplayColumns" && t.CursorPosition == null).ToList();
+                var parseResult = TokenParser.Parse(searchString);
+                var newDisplayColumns = parseResult.GetDisplayColumns();
                 
-                if (displayColumns2.Any())
+                if (newDisplayColumns != null)
                 {
-                    _displayColumnProvider.SetDisplayColumns(displayColumns2.First().Values.ToArray());
+                    _displayColumnProvider.SetDisplayColumns(newDisplayColumns.ToArray());
                     _menuDefinition.Header = _displayColumnProvider.GetHeader();
                     viewModel.UpdateHeader();
                 }
-                return (parsedSearchString, new ParseResult(sortFilters2, columnFilters2, incompleteFilters2));
+
+                return (parseResult.SearchString, (parseResult, cursorPos));
             },
-            AutoCompleteSuggestionsFunc = state =>
+            AutoCompleteSuggestionsFunc = (state, _) =>
             {
-                if (state is ParseResult parseResult)
+                if (state is (ParseResult parseResult, int cursorPos))
                 {
-                    var incompleteFilterInfo = parseResult.IncompleteFilters2;
-                    if (incompleteFilterInfo != null && incompleteFilterInfo.Any())
+                    var focused = parseResult.GetFocusedToken(cursorPos);
+                    if (focused != null)
                     {
-                        Debug.Assert(incompleteFilterInfo.Count == 1);
-                        _currentSuggestionToken = incompleteFilterInfo.Last();
-                        var suggestions = AutoCompleteProvider(_currentSuggestionToken, allColumnHeaders);
+                        var suggestions = AutoCompleteProvider(focused.Value.Token, focused.Value.Part, allColumnHeaders);
 
                         if (suggestions.Count > 0)
                         {
@@ -390,39 +365,65 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
             },
             ApplySelectedSuggestion = request =>
             {
-                var existingLength = 0;
-                var shiftApplied = false;
-                switch (_currentSuggestionToken.CursorPosition)
+                if (request.state is (ParseResult parseResult, int cursorPos))
                 {
-                    case TokenCursorPosition.Key:
-                        existingLength = _currentSuggestionToken.Key.Length;
-                        break;
-                    case TokenCursorPosition.Operator:
-                        existingLength = 1;
-                        break;
-                    case TokenCursorPosition.Value:
-                        if (_currentSuggestionToken.Key.Equals("DisplayColumns", StringComparison.OrdinalIgnoreCase))
+                    var focusedResult = parseResult.GetFocusedToken(cursorPos);
+                    if (focusedResult != null)
+                    {
+                        TextSpan? replacePos = null;
+                        int? insertPos = null;
+                        var postfix = string.Empty;
+                        switch (focusedResult.Value.Part)
                         {
-                            shiftApplied = true;
+                            case TokenPart.Column:
+                                replacePos = focusedResult.Value.Token.Column.TextSpan;
+                                insertPos = replacePos.Start;
+                                postfix = "=";
+                                break;
+                            case TokenPart.Operator:
+                                replacePos = focusedResult.Value.Token.Operator.TextSpan;
+                                insertPos = replacePos.Start;
+                                break;
+                            case TokenPart.Value:
+                                postfix = " ";
+                                if (focusedResult.Value.Token.Column.Val.Equals("DisplayColumns", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    postfix = ",";
+                                }
+                                if (focusedResult.Value.Token.Values != null)
+                                {
+                                    if (focusedResult.Value.Token.Values.Values.Any())
+                                    {
+                                        var last = focusedResult.Value.Token.Values.Values.Last();
+                                        replacePos = last.Token.TextSpan;
+                                    }
+                                    else
+                                    {
+                                        replacePos = null;
+                                        insertPos = null;
+                                    }
+                                }
+                                break;
                         }
-                        if (_currentSuggestionToken.Values.Any())
+                        var sb = new StringBuilder(request.fullSearchString);
+                        if (replacePos != null)
                         {
-                            existingLength = _currentSuggestionToken.Values.Last().Length;
+                            sb.Remove(replacePos.Start, replacePos.EndExclusive - replacePos.Start);
                         }
-                        break;
-                }
 
-                var result = AutocompleteSelectionApplier.Apply(
-                    _currentSuggestionToken.BaseToken.Value,
-                    _currentSuggestionToken.CursorPosition.Value,
-                    existingLength,
-                    request.selectedSuggestion,
-                    shiftApplied);
-                
-                var sb = new StringBuilder(request.fullSearchString);
-                sb.Remove(_currentSuggestionToken.BaseToken.tokenStartPos, _currentSuggestionToken.BaseToken.Value.Length).Insert(_currentSuggestionToken.BaseToken.tokenStartPos, result);
-                var newText = sb.ToString();
-                return newText;
+                        if (insertPos == null)
+                        {
+                            sb.Append(request.selectedSuggestion + postfix);
+                        }
+                        else
+                        {
+                            sb.Insert(insertPos.Value, request.selectedSuggestion + postfix);
+                        }
+                        var newText = sb.ToString();
+                        return newText;
+                    }
+                }
+                return request.fullSearchString;
             }
         };
 
@@ -492,7 +493,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
         });
     }
     
-    List<TerminalEscapedLine> AutoCompleteProvider(SplitToken incompleteFilterInfo, string[]? allColumnHeaders)
+    List<TerminalEscapedLine> AutoCompleteProvider(Token token, TokenPart part, string[]? allColumnHeaders)
     {
         if (allColumnHeaders == null || allColumnHeaders.Length == 0)
         {
@@ -502,43 +503,42 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
         var suggestions = new List<string>();
         var searchString = string.Empty;
 
-        if (incompleteFilterInfo.CursorPosition == TokenCursorPosition.Key)
+        if (part == TokenPart.Column)
         {
-            searchString = incompleteFilterInfo.Key;
-
+            searchString = token.Column == null ? string.Empty : token.Column.Val;
             suggestions.Add("DisplayColumns");
             suggestions.Add("SortDsc");
             suggestions.Add("SortAsc");
             suggestions.AddRange(allColumnHeaders);
         }
-        else if (incompleteFilterInfo.CursorPosition == TokenCursorPosition.Operator)
+        else if (part == TokenPart.Operator)
         {
-            foreach (var op in TokenParser.Operators.Select(o => o.op))
+            foreach (var op in TokenParser.Operators.Select(o => o.Key))
             {
                 suggestions.Add(op);
             }
         }
-        else if (incompleteFilterInfo.CursorPosition == TokenCursorPosition.Value)
+        else if (part == TokenPart.Value)
         {
-            var valuePrefix = incompleteFilterInfo.Values.LastOrDefault();
-            searchString = valuePrefix;
-            if (string.Equals(incompleteFilterInfo.Key, "SortAsc", StringComparison.OrdinalIgnoreCase) || string.Equals(incompleteFilterInfo.Key, "SortDsc", StringComparison.OrdinalIgnoreCase))
+            searchString = token.Values == null ? string.Empty : token.Values.GetFocusedValuePrefix();
+            if (string.Equals(token.Column.Val, "SortAsc", StringComparison.OrdinalIgnoreCase) || string.Equals(token.Column.Val, "SortDsc", StringComparison.OrdinalIgnoreCase))
             {
-                if (!string.IsNullOrEmpty(valuePrefix))
+                if (!string.IsNullOrEmpty(searchString))
                 {
                     suggestions.AddRange(allColumnHeaders);
                 }
             }
 
-            if (string.Equals(incompleteFilterInfo.Key, "DisplayColumns", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(token.Column.Val, "DisplayColumns", StringComparison.OrdinalIgnoreCase))
             {
-                var notAddedColumns = allColumnHeaders.Where(h => !incompleteFilterInfo.Values.Contains(h));
+                var values = token.Values != null ? token.Values.Values.Select(v => v.Token.Val) : [];
+                var notAddedColumns = allColumnHeaders.Where(h => !values.Contains(h));
                 suggestions.AddRange(notAddedColumns);
             }
 
             var data = _dataProvider();
 
-            var column = Array.FindIndex(allColumnHeaders, h => string.Equals(h, incompleteFilterInfo.Key, StringComparison.OrdinalIgnoreCase));
+            var column = Array.FindIndex(allColumnHeaders, h => string.Equals(h, token.Column.Val, StringComparison.OrdinalIgnoreCase));
 
             if (column >= 0)
             {
@@ -553,7 +553,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
         else
         {
             var data = _dataProvider();
-            var column = Array.FindIndex(allColumnHeaders, h => string.Equals(h, incompleteFilterInfo.Key, StringComparison.OrdinalIgnoreCase));
+            var column = Array.FindIndex(allColumnHeaders, h => string.Equals(h, token.Column.Val, StringComparison.OrdinalIgnoreCase));
             if (column >= 0)
             {
                 var uniqueValues = data.Where(row => column < row.Length && !string.IsNullOrEmpty(row[column]))
@@ -564,51 +564,6 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                 suggestions.AddRange(uniqueValues);
             }
         }
-
-        // switch (incompleteFilterInfo.Context)
-        // {
-        //     case IncompleteFilterContext.Column:
-        //         searchString = incompleteFilterInfo.ColumnPrefix;
-        //
-        //         suggestions.Add("DisplayColumns");
-        //         suggestions.Add("SortDsc");
-        //         suggestions.Add("SortAsc");
-        //         suggestions.AddRange(allColumnHeaders);
-        //         break;
-        //     case IncompleteFilterContext.Value:
-        //         searchString = incompleteFilterInfo.ValuePrefix;
-        //         if (string.Equals(incompleteFilterInfo.ColumnPrefix, "SortAsc", StringComparison.OrdinalIgnoreCase) || string.Equals(incompleteFilterInfo.ColumnPrefix, "SortDsc", StringComparison.OrdinalIgnoreCase))
-        //         {
-        //             if (!string.IsNullOrEmpty(incompleteFilterInfo.ValuePrefix))
-        //             {
-        //                 suggestions.AddRange(allColumnHeaders);
-        //                 break;
-        //             }
-        //         }
-        //
-        //         if (string.Equals(incompleteFilterInfo.ColumnPrefix, "DisplayColumns", StringComparison.OrdinalIgnoreCase))
-        //         {
-        //             var notAddedColumns = allColumnHeaders.Where(h => !incompleteFilterInfo.CompletedValues.Contains(h));
-        //             suggestions.AddRange(notAddedColumns);
-        //             break;
-        //         }
-        //
-        //         var data = _dataProvider();
-        //
-        //         var column = Array.FindIndex(allColumnHeaders, h => string.Equals(h, incompleteFilterInfo.ColumnPrefix, StringComparison.OrdinalIgnoreCase));
-        //
-        //         if (column >= 0)
-        //         {
-        //             var uniqueValues = data.Where(row => column < row.Length && !string.IsNullOrEmpty(row[column]))
-        //                 .Select(row => row[column])
-        //                 .Distinct(StringComparer.OrdinalIgnoreCase)
-        //                 .OrderBy(value => value)
-        //                 .ToList();
-        //             suggestions.AddRange(uniqueValues);
-        //         }
-        //
-        //         break;
-        // }
 
         var result = new List<(int score, string text, IList<int> pos)>();
         var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, searchString, true);
