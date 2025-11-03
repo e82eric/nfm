@@ -322,7 +322,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                             var comparison = CompareValues(value1, value2);
                             if (comparison != 0)
                             {
-                                var isAscending = string.Equals(sortFilter.Column.Val, "SortAsc", StringComparison.OrdinalIgnoreCase);
+                                var isAscending = sortFilter.Column.Val == "Ascending";
                                 return isAscending ? comparison : -comparison;
                             }
                         }
@@ -373,35 +373,36 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                         TextSpan? replacePos = null;
                         int? insertPos = null;
                         var postfix = string.Empty;
-                        switch (focusedResult.Value.Part)
+                        var value = request.selectedSuggestion;
+                        switch (focusedResult.Value.Token)
                         {
-                            case TokenPart.Column:
-                                replacePos = focusedResult.Value.Token.Column.TextSpan;
-                                insertPos = replacePos.Start;
-                                postfix = "=";
+                            case OnActionToken:
+                                value = request.selectedSuggestion[0].ToString();
                                 break;
-                            case TokenPart.Operator:
-                                replacePos = focusedResult.Value.Token.Operator.TextSpan;
+                            case OnColumnToken columnToken:
+                                replacePos = columnToken.Column.TextSpan;
+                                insertPos = replacePos.Start;
+                                postfix = columnToken.Action.Action == ActionTokenKind.Sort ? "==" : "=";
+                                break;
+                            case OnOperatorToken operatorToken:
+                                replacePos = operatorToken.Operator.TextSpan;
                                 insertPos = replacePos.Start;
                                 break;
-                            case TokenPart.Value:
+                            case OnValueToken valueToken:
                                 postfix = " ";
-                                if (focusedResult.Value.Token.Column.Val.Equals("DisplayColumns", StringComparison.OrdinalIgnoreCase))
+                                if (valueToken.Action.Action == ActionTokenKind.SelectDisplayColumns)
                                 {
                                     postfix = ",";
                                 }
-                                if (focusedResult.Value.Token.Values != null)
+                                if (valueToken.Values.Values.Any())
                                 {
-                                    if (focusedResult.Value.Token.Values.Values.Any())
-                                    {
-                                        var last = focusedResult.Value.Token.Values.Values.Last();
-                                        replacePos = last.Token.TextSpan;
-                                    }
-                                    else
-                                    {
-                                        replacePos = null;
-                                        insertPos = null;
-                                    }
+                                    var last = valueToken.Values.Values.Last();
+                                    replacePos = last.Token.TextSpan;
+                                }
+                                else
+                                {
+                                    replacePos = null;
+                                    insertPos = null;
                                 }
                                 break;
                         }
@@ -413,11 +414,11 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
 
                         if (insertPos == null)
                         {
-                            sb.Append(request.selectedSuggestion + postfix);
+                            sb.Append(value + postfix);
                         }
                         else
                         {
-                            sb.Insert(insertPos.Value, request.selectedSuggestion + postfix);
+                            sb.Insert(insertPos.Value, value + postfix);
                         }
                         var newText = sb.ToString();
                         return newText;
@@ -493,7 +494,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
         });
     }
     
-    List<TerminalEscapedLine> AutoCompleteProvider(Token token, TokenPart part, string[]? allColumnHeaders)
+    List<TerminalEscapedLine> AutoCompleteProvider(BaseToken token, TokenPart part, string[]? allColumnHeaders)
     {
         if (allColumnHeaders == null || allColumnHeaders.Length == 0)
         {
@@ -503,66 +504,58 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
         var suggestions = new List<string>();
         var searchString = string.Empty;
 
-        if (part == TokenPart.Column)
+        switch (token)
         {
-            searchString = token.Column == null ? string.Empty : token.Column.Val;
-            suggestions.Add("DisplayColumns");
-            suggestions.Add("SortDsc");
-            suggestions.Add("SortAsc");
-            suggestions.AddRange(allColumnHeaders);
-        }
-        else if (part == TokenPart.Operator)
-        {
-            foreach (var op in TokenParser.Operators.Select(o => o.Key))
-            {
-                suggestions.Add(op);
-            }
-        }
-        else if (part == TokenPart.Value)
-        {
-            searchString = token.Values == null ? string.Empty : token.Values.GetFocusedValuePrefix();
-            if (string.Equals(token.Column.Val, "SortAsc", StringComparison.OrdinalIgnoreCase) || string.Equals(token.Column.Val, "SortDsc", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!string.IsNullOrEmpty(searchString))
+            case OnActionToken:
+                var actions = TokenParser.Actions.Select(a => $"{a.Key}   {a.Value.Description}");
+                suggestions.AddRange(actions);
+                break;
+            case OnColumnToken columnToken:
+                if (columnToken.Action.Action == ActionTokenKind.Sort)
                 {
+                    suggestions.Add("Ascending");
+                    suggestions.Add("Descending");
+                }
+                else
+                {
+                    searchString = columnToken.Column.Val;
                     suggestions.AddRange(allColumnHeaders);
                 }
-            }
+                break;
+            case OnOperatorToken:
+                foreach (var op in TokenParser.Operators.Select(o => o.Key))
+                {
+                    suggestions.Add(op);
+                }
+                break;
+            case OnValueToken valuesToken:
+                searchString = valuesToken.Values.GetFocusedValuePrefix();
+                switch (valuesToken.Action.Action)
+                {
+                    case ActionTokenKind.Sort:
+                        suggestions.AddRange(allColumnHeaders);
+                        break;
+                    case ActionTokenKind.SelectDisplayColumns:
+                        var values = valuesToken.Values.Values.Select(v => v.Token.Val);
+                        var notAddedColumns = allColumnHeaders.Where(h => !values.Contains(h));
+                        suggestions.AddRange(notAddedColumns);
+                        break;
+                }
 
-            if (string.Equals(token.Column.Val, "DisplayColumns", StringComparison.OrdinalIgnoreCase))
-            {
-                var values = token.Values != null ? token.Values.Values.Select(v => v.Token.Val) : [];
-                var notAddedColumns = allColumnHeaders.Where(h => !values.Contains(h));
-                suggestions.AddRange(notAddedColumns);
-            }
+                var data = _dataProvider();
+                var column = Array.FindIndex(allColumnHeaders, h => string.Equals(h, valuesToken.Column.Val, StringComparison.OrdinalIgnoreCase));
 
-            var data = _dataProvider();
+                if (column >= 0)
+                {
+                    var uniqueValues = data.Where(row => column < row.Length && !string.IsNullOrEmpty(row[column]))
+                        .Select(row => row[column])
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(value => value)
+                        .ToList();
+                    suggestions.AddRange(uniqueValues);
+                }
 
-            var column = Array.FindIndex(allColumnHeaders, h => string.Equals(h, token.Column.Val, StringComparison.OrdinalIgnoreCase));
-
-            if (column >= 0)
-            {
-                var uniqueValues = data.Where(row => column < row.Length && !string.IsNullOrEmpty(row[column]))
-                    .Select(row => row[column])
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(value => value)
-                    .ToList();
-                suggestions.AddRange(uniqueValues);
-            }
-        }
-        else
-        {
-            var data = _dataProvider();
-            var column = Array.FindIndex(allColumnHeaders, h => string.Equals(h, token.Column.Val, StringComparison.OrdinalIgnoreCase));
-            if (column >= 0)
-            {
-                var uniqueValues = data.Where(row => column < row.Length && !string.IsNullOrEmpty(row[column]))
-                    .Select(row => row[column])
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(value => value)
-                    .ToList();
-                suggestions.AddRange(uniqueValues);
-            }
+                break;
         }
 
         var result = new List<(int score, string text, IList<int> pos)>();
