@@ -391,6 +391,62 @@ public class TokenParserTests()
     }
     
     [Test]
+    public void FullTokenGreaterThanOrEqual()
+    {
+        var input = "/:col1>=100 ";
+        var result = TokenParser.Parse(input);
+        Assert.That(result.Tokens.Count, Is.EqualTo(1));
+        AssertTokensSame((OnValueToken)result.Tokens[0], new OnValueToken(
+            new TextSpan(0, 11),
+            new ActionToken(new TextSpan(1, 2), ActionTokenKind.Filter, true),
+            new ValueToken(new TextSpan(2, 6), "col1", true),
+            new OperatorToken(new TextSpan(6, 8), OperatorTokenKind.GreaterThanOrEqual, true, true),
+            new SeparatedValues([new SeparatedValue(new ValueToken(new TextSpan(8, 11), "100", true), null)], true)));
+    }
+    
+    [Test]
+    public void FullTokenGreaterThan()
+    {
+        var input = "/:col1>100 ";
+        var result = TokenParser.Parse(input);
+        Assert.That(result.Tokens.Count, Is.EqualTo(1));
+        AssertTokensSame((OnValueToken)result.Tokens[0], new OnValueToken(
+            new TextSpan(0, 10),
+            new ActionToken(new TextSpan(1, 2), ActionTokenKind.Filter, true),
+            new ValueToken(new TextSpan(2, 6), "col1", true),
+            new OperatorToken(new TextSpan(6, 7), OperatorTokenKind.GreaterThan, true, true),
+            new SeparatedValues([new SeparatedValue(new ValueToken(new TextSpan(7, 10), "100", true), null)], true)));
+    }
+    
+    [Test]
+    public void FullTokenLessThanOrEqual()
+    {
+        var input = "/:col1<=100 ";
+        var result = TokenParser.Parse(input);
+        Assert.That(result.Tokens.Count, Is.EqualTo(1));
+        AssertTokensSame((OnValueToken)result.Tokens[0], new OnValueToken(
+            new TextSpan(0, 11),
+            new ActionToken(new TextSpan(1, 2), ActionTokenKind.Filter, true),
+            new ValueToken(new TextSpan(2, 6), "col1", true),
+            new OperatorToken(new TextSpan(6, 8), OperatorTokenKind.LessThenOrEqual, true, true),
+            new SeparatedValues([new SeparatedValue(new ValueToken(new TextSpan(8, 11), "100", true), null)], true)));
+    }
+    
+    [Test]
+    public void FullTokenLessThan()
+    {
+        var input = "/:col1<100 ";
+        var result = TokenParser.Parse(input);
+        Assert.That(result.Tokens.Count, Is.EqualTo(1));
+        AssertTokensSame((OnValueToken)result.Tokens[0], new OnValueToken(
+            new TextSpan(0, 10),
+            new ActionToken(new TextSpan(1, 2), ActionTokenKind.Filter, true),
+            new ValueToken(new TextSpan(2, 6), "col1", true),
+            new OperatorToken(new TextSpan(6, 7), OperatorTokenKind.LessThan, true, true),
+            new SeparatedValues([new SeparatedValue(new ValueToken(new TextSpan(7, 10), "100", true), null)], true)));
+    }
+    
+    [Test]
     public void SecondTokenIsStartOfColumn()
     {
         var input = "/:col1==val1 /:c";

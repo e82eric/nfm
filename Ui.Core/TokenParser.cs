@@ -182,7 +182,7 @@ public static partial class TokenParser
     [GeneratedRegex(@"^(?<val>[^(=|!|<|>|\s)]+)$", RegexOptions.CultureInvariant)]
     private static partial Regex IncompleteUnquotedColumnLineEnd();
     
-    [GeneratedRegex(@"^(?<val>(==|!=|<|>|=~|!~|>=|<=)+)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?<val>(==|!=|<=|>=|=~|!~|>|<)+)", RegexOptions.CultureInvariant)]
     private static partial Regex CompleteOperator();
     
     [GeneratedRegex(@"^(?<val>(=|!))(\s|$)", RegexOptions.CultureInvariant)]
