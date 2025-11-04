@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using nfm.FileSystem;
 using nfm.Ui.Core;
 using nfm.Win32Ui;
@@ -7,63 +8,58 @@ using nfm.ListProcesses;
 
 namespace nfm.Cli;
 
-class StdInOptions
-{
-    public string? Header { get; set; }
-    public string? EditCommand { get; set; }
-    public bool ShowPreview { get; set; }
-    public string? PreviewCommand { get; set; }
-    public char? Delimiter { get; set; }
-    public string? PreviewStartLineCommand { get; set; }
-    public string? PreviewStartLineOffsetCommand { get; set; }
-    public bool ShowGap { get; set; } = false;
-    public string? LineContinuation { get; set; }
-    public bool WrapLines { get; set; }
-    public string? SearchString { get; set; }
-    public bool NoLengthSort { get; set; }
-    public bool ExcludeTopmost { get; set; } = false;
-}
+internal sealed record StdInOptions(
+    string? Header = null,
+    string? EditCommand = null,
+    bool ShowPreview = false,
+    string? PreviewCommand = null,
+    char? Delimiter = null,
+    string? PreviewStartLineCommand = null,
+    string? PreviewStartLineOffsetCommand = null,
+    bool ShowGap = false,
+    string? LineContinuation = null,
+    bool WrapLines = false,
+    string? SearchString = null,
+    bool NoLengthSort = false,
+    bool ExcludeTopmost = false
+);
 
-class FileSystemOptions
-{
-    public bool SearchDirectoryOnSelect { get; set; } = false;
-    public string RootDirectory { get; set; } = string.Empty;
-    public int MaxDepth { get; set; } = int.MaxValue;
-    public bool DirectoriesOnly { get; set; } = false;
-    public bool FilesOnly { get; set; } = false;
-    public char? Delimiter { get; set; }
-    public string? PreviewStartLineCommand { get; set; }
-    public string? PreviewStartLineOffsetCommand { get; set; }
-    public bool WrapLines { get; set; }
-    public bool ShowGap { get; set; }
-    public bool ShowPreview { get; set; }
-    public bool ExcludeTopmost { get; set; } = false;
-}
+internal sealed record FileSystemOptions(
+    bool SearchDirectoryOnSelect = false,
+    string RootDirectory = "",
+    int MaxDepth = int.MaxValue,
+    bool DirectoriesOnly = false,
+    bool FilesOnly = false,
+    char? Delimiter = null,
+    string? PreviewStartLineCommand = null,
+    string? PreviewStartLineOffsetCommand = null,
+    bool WrapLines = false,
+    bool ShowGap = false,
+    bool ShowPreview = false,
+    bool ExcludeTopmost = false
+);
 
-class CommandOptions
-{
-    public IEnumerable<string>? Command { get; set; }
-}
+internal sealed record CommandOptions(
+    IEnumerable<string>? Command
+);
 
-class CsvOptions
-{
-    public int[]? ColumnIndices { get; set; }
-    public string[]? DisplayColumns { get; set; }
-    public string[]? Headers { get; set; }
-    public bool HasHeader { get; set; } = true;
-    public char Delimiter { get; set; } = ',';
-    public bool DisablePreview { get; set; } = false;
-    public bool ExcludeTopmost { get; set; } = false;
-}
+internal sealed record CsvOptions(
+    int[]? ColumnIndices = null,
+    string[]? DisplayColumns = null,
+    string[]? Headers = null,
+    bool HasHeader = true,
+    char Delimiter = ',',
+    bool DisablePreview = false,
+    bool ExcludeTopmost = false
+);
 
-class ProcessOptions
-{
-    public bool ExcludeTopmost { get; set; } = false;
-    public bool SortByCpu { get; set; } = false;
-    public bool SortByPrivateBytes { get; set; } = false;
-    public bool SortByWorkingSet { get; set; } = false;
-    public bool SortByPid { get; set; } = false;
-}
+internal sealed record ProcessOptions(
+    bool ExcludeTopmost = false,
+    bool SortByCpu = false,
+    bool SortByPrivateBytes = false,
+    bool SortByWorkingSet = false,
+    bool SortByPid = false
+);
 
 [SupportedOSPlatform("windows")]
 class Program
@@ -71,32 +67,67 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        var viewModel = new ViewModel();
+        var loggerFactory = LoggerFactory.Create(b =>
+        {
+            var level = LogLevel.Warning;
+            foreach (var a in args)
+            {
+                switch (a)
+                {
+                    case "--debug":
+                    case "-d":
+                        level = LogLevel.Debug;
+                        break;
+                }
+            }
+            
+            b.AddConsole(o =>
+            {
+                o.LogToStandardErrorThreshold = level;
+            });
+        
+            b.SetMinimumLevel(level);
+        });
+
+        args = args.Where(a => a != "--debug" && a != "-d").ToArray();
+        var log = loggerFactory.CreateLogger<Program>();
+        log.LogDebug("Starting");
+        
+        var viewModel = new ViewModel(loggerFactory);
         viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
-        viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (o, model) =>
+        viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (_, _) =>
         {
             viewModel.TogglePreview();
             return Task.CompletedTask;
         });
+        
         if (Console.IsInputRedirected)
         {
+            log.LogDebug("Reading from stdin");
             try
             {
                 int nextChar = Console.In.Peek();
                 if (nextChar != -1)
                 {
-                    // Check if this is a CSV input request
                     if (args.Length > 0 && args[0] == "csv")
                     {
-                        var csvOptions = ParseCsvOptions(args);
+                        log.LogDebug("Reading input as csv");
+                        var csvOptions = ParseCsvOptions(args, log);
                         if (csvOptions != null)
                         {
-                            var csvProvider = CreateCsvStringArrayColumnProvider(viewModel, csvOptions);
-                            var window = new Win32Window(viewModel, () =>
+                            var csvProvider = CreateCsvStringArrayColumnProvider(loggerFactory, viewModel, csvOptions);
+                            var window = new Win32Window(loggerFactory, viewModel, () =>
                             {
                                 Task.Run(async () =>
                                 {
-                                    await viewModel.RunDefinitionAsync(csvProvider.Get());
+                                    try
+                                    {
+                                        await viewModel.RunDefinitionAsync(csvProvider.Get());
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        log.LogError(e, "Error occured running csv definition");
+                                    }
                                 });
                             }, csvOptions.ExcludeTopmost);
                             window.Run();
@@ -105,10 +136,12 @@ class Program
                     }
                     else
                     {
-                        var stdInOptions = ParseStdInOptions(args);
+                        log.LogDebug("Running using stdin");
+                        var stdInOptions = ParseStdInOptions(args, log);
                         if (stdInOptions != null)
                         {
                             var menuDefinitionProvider = new StdInMenuDefinitionProvider(
+                                loggerFactory,
                                 viewModel,
                                 stdInOptions.ShowPreview,
                                 null,
@@ -122,11 +155,18 @@ class Program
                                 stdInOptions.WrapLines,
                                 stdInOptions.NoLengthSort ? Comparers.ScoreOnly : Comparers.ScoreLengthAndValue,
                                 stdInOptions.ShowGap);
-                            var window = new Win32Window(viewModel,() =>
+                            var window = new Win32Window(loggerFactory, viewModel,() =>
                             {
                                 Task.Run(async () =>
                                 {
-                                    await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get());
+                                    try
+                                    {
+                                        await viewModel.RunDefinitionAsync(menuDefinitionProvider.Get());
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        log.LogError(e, "Error running stdin definition");
+                                    }
                                 });
                             }, stdInOptions.ExcludeTopmost);
                             window.Run();
@@ -135,9 +175,9 @@ class Program
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // Handle exception
+                log.LogError(e, "Error occured");
             }
         }
         
@@ -145,7 +185,8 @@ class Program
         {
             if (args[0] == "filesystem")
             {
-                var fileSystemOptions = ParseFileSystemOptions(args);
+                log.LogDebug("Running as filesystem");
+                var fileSystemOptions = ParseFileSystemOptions(args, log);
                 if (fileSystemOptions is null)
                 {
                     return;
@@ -166,11 +207,19 @@ class Program
                     viewModel,
                     null,
                     null);
-                var window = new Win32Window(viewModel,() =>
+                var window = new Win32Window(loggerFactory, viewModel,() =>
                 {
                     Task.Run(async () =>
                     {
-                        await viewModel.RunDefinitionAsync(definitionProvider.Get());
+                        try
+                        {
+                            await viewModel.RunDefinitionAsync(definitionProvider.Get());
+                        }
+                        catch (Exception e)
+                        {
+                            log.LogError(e, "Error occured running file system definition");
+                            throw;
+                        }
                     });
                 }, fileSystemOptions.ExcludeTopmost);
                 window.Run();
@@ -182,20 +231,27 @@ class Program
                 {
                     //BuildCommandApp(string.Join(" ", commandOptions.Command))
                     //    .Start((application, strings) => Run(application, false), args);
-                    return;
+                    //return;
                 }
             }
             else if (args[0] == "processes")
             {
-                var processOptions = ParseProcessOptions(args);
+                var processOptions = ParseProcessOptions(args, log);
                 if (processOptions != null)
                 {
-                    var processProvider = CreateProcessStringArrayColumnProvider(viewModel, processOptions);
-                    var window = new Win32Window(viewModel, () =>
+                    var processProvider = CreateProcessStringArrayColumnProvider(loggerFactory, viewModel, processOptions);
+                    var window = new Win32Window(loggerFactory, viewModel, () =>
                     {
                         Task.Run(async () =>
                         {
-                            await viewModel.RunDefinitionAsync(processProvider.Get());
+                            try
+                            {
+                                await viewModel.RunDefinitionAsync(processProvider.Get());
+                            }
+                            catch(Exception e)
+                            {
+                                log.LogError(e, "Error occured running definition");
+                            }
                         });
                     }, processOptions.ExcludeTopmost);
                     window.Run();
@@ -204,77 +260,77 @@ class Program
         }
     }
     
-    private static StdInOptions? ParseStdInOptions(string[] args)
+    private static StdInOptions? ParseStdInOptions(string[] args, ILogger log)
     {
         var options = new StdInOptions();
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--header" && i + 1 < args.Length)
             {
-                options.Header = args[i + 1];
+                options = options with { Header = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--editcommand" && i + 1 < args.Length)
             {
-                options.EditCommand = args[i + 1];
+                options = options with { EditCommand = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--previewcommand" && i + 1 < args.Length)
             {
-                options.PreviewCommand = args[i + 1];
+                options = options with {PreviewCommand = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--searchstring" && i + 1 < args.Length)
             {
-                options.SearchString = args[i + 1];
+                options = options with { SearchString = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--previewstartlinecommand" && i + 1 < args.Length)
             {
-                options.PreviewStartLineCommand = args[i + 1];
+                options = options with { PreviewStartLineCommand = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--previewstartlineoffsetcommand" && i + 1 < args.Length)
             {
-                options.PreviewStartLineOffsetCommand = args[i + 1];
+                options = options with { PreviewStartLineOffsetCommand = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--delimiter" && i + 1 < args.Length)
             {
                 if (args[i + 1].Length == 1)
                 {
-                    options.Delimiter = args[i + 1][0];
+                    options = options with { Delimiter = args[i + 1][0] };
                 }
                 i++;
             }
             else if (args[i] == "--gap")
             {
-                options.ShowGap = true;
+                options = options with { ShowGap = true };
             }
             else if (args[i] == "--showpreview")
             {
-                options.ShowPreview = true;
+                options = options with { ShowPreview = true };
             }
             else if (args[i] == "--nolengthsort")
             {
-                options.NoLengthSort = true;
+                options = options with { NoLengthSort = true };
             }
             else if (args[i] == "--wrap")
             {
-                options.WrapLines = true;
+                options = options with { WrapLines = true };
             }
             else if (args[i] == "--linecontinuation")
             {
                 if (args[i + 1].Length == 1)
                 {
-                    options.LineContinuation = args[i + 1];
+                    options = options with { LineContinuation = args[i + 1] };
                 }
 
                 i++;
             }
             else if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
             {
-                options.ExcludeTopmost = true;
+                options = options with { ExcludeTopmost = true };
             }
             else
             {
@@ -282,28 +338,30 @@ class Program
                 return null;
             }
         }
+        
+        log.LogDebug("Parsed stdin options: {options}", options);
         return options;
     }
     
-    private static FileSystemOptions? ParseFileSystemOptions(string[] args)
+    private static FileSystemOptions? ParseFileSystemOptions(string[] args, ILogger log)
     {
         var options = new FileSystemOptions();
         for (int i = 1; i < args.Length; i++)
         {
             if (args[i] == "--searchdirectoryonselect")
             {
-                options.SearchDirectoryOnSelect = true;
+                options = options with { SearchDirectoryOnSelect = true };
             }
             else if (args[i] == "--rootdirectory" && i + 1 < args.Length)
             {
-                options.RootDirectory = args[i + 1];
+                options = options with { RootDirectory = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--maxdepth" && i + 1 < args.Length)
             {
                 if (int.TryParse(args[i + 1], out int maxDepth) && maxDepth > 0)
                 {
-                    options.MaxDepth = maxDepth;
+                    options = options with { MaxDepth = maxDepth };
                     i++;
                 }
                 else
@@ -314,45 +372,45 @@ class Program
             }
             else if (args[i] == "--showpreview")
             {
-                options.ShowPreview = true;
+                options = options with { ShowPreview = true };
             }
             else if (args[i] == "--directoriesonly")
             {
-                options.DirectoriesOnly = true;
+                options = options with { DirectoriesOnly = true };
             }
             else if (args[i] == "--filesonly")
             {
-                options.FilesOnly = true;
+                options = options with { FilesOnly = true };
             }
             else if (args[i] == "--wrap")
             {
-                options.WrapLines = true;
+                options = options with { WrapLines = true };
             }
             else if (args[i] == "--gap")
             {
-                options.ShowGap = true;
+                options = options with { ShowGap = true };
             }
             else if (args[i] == "--previewstartlinecommand" && i + 1 < args.Length)
             {
-                options.PreviewStartLineCommand = args[i + 1];
+                options = options with { PreviewStartLineCommand = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--previewstartlineoffsetcommand" && i + 1 < args.Length)
             {
-                options.PreviewStartLineOffsetCommand = args[i + 1];
+                options = options with { PreviewStartLineOffsetCommand = args[i + 1] };
                 i++;
             }
             else if (args[i] == "--delimiter" && i + 1 < args.Length)
             {
                 if (args[i + 1].Length == 1)
                 {
-                    options.Delimiter = args[i + 1][0];
+                    options = options with { Delimiter = args[i + 1][0] };
                 }
                 i++;
             }
             else if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
             {
-                options.ExcludeTopmost = true;
+                options = options with { ExcludeTopmost = true };
             }
             else
             {
@@ -363,13 +421,13 @@ class Program
 
         if (options.DirectoriesOnly && options.FilesOnly)
         {
-            Console.Error.WriteLine("Error: --directoriesonly and --filesonly are mutually exclusive.");
+            log.LogError("Error: --directoriesonly and --filesonly are mutually exclusive.");
             return null;
         }
 
         if (string.IsNullOrEmpty(options.RootDirectory))
         {
-            options.RootDirectory = Directory.GetCurrentDirectory();
+            options = options with { RootDirectory = Directory.GetCurrentDirectory() };
         }
 
         if (!Directory.Exists(options.RootDirectory))
@@ -378,6 +436,7 @@ class Program
             return null;
         }
 
+        log.LogDebug("Parsed filesystem options: {options}", options);
         return options;
     }
     
@@ -389,14 +448,11 @@ class Program
             Console.Error.WriteLine("Error: No command specified.");
             return null;
         }
-        var options = new CommandOptions
-        {
-            Command = command
-        };
+        var options = new CommandOptions(command);
         return options;
     }
 
-    private static CsvOptions? ParseCsvOptions(string[] args)
+    private static CsvOptions? ParseCsvOptions(string[] args, ILogger log)
     {
         var options = new CsvOptions();
         for (int i = 1; i < args.Length; i++) // Start from 1 to skip "csv"
@@ -421,38 +477,38 @@ class Program
 
                 if (columnIndices.Count > 0)
                 {
-                    options.ColumnIndices = columnIndices.ToArray();
+                    options = options with { ColumnIndices = columnIndices.ToArray() };
                 }
                 if (displayColumns.Count > 0)
                 {
-                    options.DisplayColumns = displayColumns.ToArray();
+                    options = options with { DisplayColumns = displayColumns.ToArray() };
                 }
                 i++;
             }
             else if (args[i] == "--headers" && i + 1 < args.Length)
             {
-                options.Headers = args[i + 1].Split(',');
+                options = options with { Headers = args[i + 1].Split(',') };
                 i++;
             }
             else if (args[i] == "--delimiter" && i + 1 < args.Length)
             {
                 if (args[i + 1].Length == 1)
                 {
-                    options.Delimiter = args[i + 1][0];
+                    options = options with { Delimiter = args[i + 1][0] };
                 }
                 i++;
             }
             else if (args[i] == "--no-header")
             {
-                options.HasHeader = false;
+                options = options with { HasHeader = false };
             }
             else if (args[i] == "--disable-preview")
             {
-                options.DisablePreview = true;
+                options = options with { DisablePreview = true };
             }
             else if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
             {
-                options.ExcludeTopmost = true;
+                options = options with { ExcludeTopmost = true };
             }
             else
             {
@@ -460,33 +516,35 @@ class Program
                 return null;
             }
         }
+        
+        log.LogDebug("Parsed csv options {options}", options);
         return options;
     }
 
-    private static ProcessOptions? ParseProcessOptions(string[] args)
+    private static ProcessOptions? ParseProcessOptions(string[] args, ILogger log)
     {
         var options = new ProcessOptions();
         for (int i = 1; i < args.Length; i++) // Start from 1 to skip "processes"
         {
             if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
             {
-                options.ExcludeTopmost = true;
+                options = options with { ExcludeTopmost = true };
             }
             else if (args[i] == "--sort-cpu")
             {
-                options.SortByCpu = true;
+                options = options with { SortByCpu = true };
             }
             else if (args[i] == "--sort-private-bytes")
             {
-                options.SortByPrivateBytes = true;
+                options = options with { SortByPrivateBytes = true };
             }
             else if (args[i] == "--sort-working-set")
             {
-                options.SortByWorkingSet = true;
+                options = options with { SortByWorkingSet = true };
             }
             else if (args[i] == "--sort-pid")
             {
-                options.SortByPid = true;
+                options = options with { SortByPid = true };
             }
             else
             {
@@ -494,10 +552,12 @@ class Program
                 return null;
             }
         }
+        
+        log.LogDebug("Parsed processes options: {options}", options);
         return options;
     }
 
-    private static StringArrayColumnMenuDefinitionProvider CreateCsvStringArrayColumnProvider(IMainViewModel viewModel, CsvOptions options)
+    private static StringArrayColumnMenuDefinitionProvider CreateCsvStringArrayColumnProvider(ILoggerFactory loggerFactory, IMainViewModel viewModel, CsvOptions options)
     {
         // Read CSV input once
         var csvInput = Console.In.ReadToEnd();
@@ -505,6 +565,7 @@ class Program
         {
             Console.Error.WriteLine("No CSV input provided");
             return new StringArrayColumnMenuDefinitionProvider(
+                loggerFactory,
                 () => new string[0][],
                 new int[0],
                 null,
@@ -541,6 +602,7 @@ class Program
         {
             Console.Error.WriteLine("No data rows found in CSV");
             return new StringArrayColumnMenuDefinitionProvider(
+                loggerFactory,
                 () => new string[0][],
                 new int[0],
                 null,
@@ -585,6 +647,7 @@ class Program
         Func<string[][]> csvDataProvider = () => data.ToArray();
 
         return new StringArrayColumnMenuDefinitionProvider(
+            loggerFactory,
             csvDataProvider,
             columnIndices,
             headers,
@@ -638,7 +701,7 @@ class Program
         return result.ToArray();
     }
 
-    private static StringArrayColumnMenuDefinitionProvider CreateProcessStringArrayColumnProvider(IMainViewModel viewModel, ProcessOptions options)
+    private static StringArrayColumnMenuDefinitionProvider CreateProcessStringArrayColumnProvider(ILoggerFactory loggerFactory, IMainViewModel viewModel, ProcessOptions options)
     {
         // Determine sort function based on options
         Comparison<ProcessLister.ProcessInfo>? sortFunc = null;
@@ -661,6 +724,7 @@ class Program
         var columnIndices = new[] { 0, 1, 2, 3, 4 }; // All columns
 
         return new StringArrayColumnMenuDefinitionProvider(
+            loggerFactory,
             processDataProvider,
             columnIndices,
             columnHeaders,

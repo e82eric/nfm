@@ -3,6 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using nfm.Ui.Core;
 using static nfm.Win32Ui.Native;
 
@@ -630,7 +631,7 @@ public class Win32Window
                         SendMessage(_textBoxHwnd, EM_GETSEL, ref selStart, ref selEnd);
                     }
 
-                    Task.Run(() => _viewModel.SetSearchString(searchText, selStart));
+                    _viewModel.SetSearchString(searchText, selStart);
                 }
                 return 0;
             case WM_CTLCOLOREDIT:
@@ -823,7 +824,14 @@ public class Win32Window
                     {
                         if ( _snapshot.SelectedIndex < _snapshot.Items.Count)
                         {
-                            Task.Run(() => _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item, (int)wParam, modifiers));
+                            var task = _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item, (int)wParam, modifiers);
+                            _ = task.ContinueWith(t =>
+                            {
+                                if (t.IsFaulted)
+                                {
+                                    _log.LogError(t.Exception!.GetBaseException(), "HandleKeyUp failed vk={Vk} mods={Mods}", (int)wParam, modifiers);
+                                }
+                            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
                         }
 
                         return 0;
@@ -834,8 +842,14 @@ public class Win32Window
                     //TODO: Add bounds checks to this
                     if (_snapshot.SelectedIndex < _snapshot.Items.Count)
                     {
-                        Task.Run(() => _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item,
-                            (int)wParam, modifiers));
+                        var task = _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item, (int)wParam, modifiers);
+                        task.ContinueWith(t =>
+                        {
+                            if(t.IsFaulted)
+                            {
+                                _log.LogError(t.Exception!.GetBaseException(), "HandleKeyUp failed vk={Vk} mods={Mods}", (int)wParam, modifiers);
+                            }
+                        });
                     }
 
                     return 0;
@@ -1313,9 +1327,11 @@ public class Win32Window
     private static List<Win32Window> s_instances = new();
     private readonly bool _excludeTopmost;
     private int? _newCursorIndex;
+    private readonly ILogger<Win32Window> _log;
 
-    public Win32Window(ViewModel viewModel, Action onInit, bool excludeTopmost = false)
+    public Win32Window(ILoggerFactory loggerFactory, ViewModel viewModel, Action onInit, bool excludeTopmost = false)
     {
+        _log = loggerFactory.CreateLogger<Win32Window>();
         _excludeTopmost = excludeTopmost;
         _delegWndProc = MainWndProc;;
         _summaryTextControlProc = SummaryTextControlProc;

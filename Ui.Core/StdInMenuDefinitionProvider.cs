@@ -1,10 +1,12 @@
 ﻿using System.Text;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 using nfzf;
 
 namespace nfm.Ui.Core;
 
 public class StdInMenuDefinitionProvider(
+    ILoggerFactory loggerFactory,
     IMainViewModel viewModel,
     bool hasPreview,
     string? editCommandStr,
@@ -19,6 +21,8 @@ public class StdInMenuDefinitionProvider(
     IComparer<Entry>? comparer,
     bool showGap) : IMenuDefinitionProvider
 {
+    private readonly ILogger _log = loggerFactory.CreateLogger<StdInMenuDefinitionProvider>();
+    
     public MenuDefinition Get()
     {
         var definition = new MenuDefinition
@@ -74,15 +78,35 @@ public class StdInMenuDefinitionProvider(
         return definition;
     }
     
-    private static async Task ReadFromStdInByLine2(ChannelWriter<object> writer, string delimiter, CancellationToken cancellationToken)
+    private  async Task ReadFromStdInByLine2(ChannelWriter<object> writer, string delimiter, CancellationToken cancellationToken)
     {
         //Reading from stdin is blocking it needs to happen on its own thread.  The async await below is probably overhead
-        await Task.Run(async () => await ReadFromStdInByLineImpl(writer, delimiter, cancellationToken)); 
+        await Task.Run(async () =>
+        {
+            try
+            {
+                await ReadFromStdInByLineImpl(writer, delimiter, cancellationToken);
+            }
+            catch (Exception e)
+            {
+                _log.LogError(e, "Error reading from stdin by line");
+            }
+        }); 
     }
 
-    private static async Task ReadFromStdInByLine(ChannelWriter<object> writer, CancellationToken cancellationToken)
+    private  async Task ReadFromStdInByLine(ChannelWriter<object> writer, CancellationToken cancellationToken)
     {
-        await Task.Run(async () => { await ReadFromStdInByLineImpl(writer, cancellationToken); });
+        await Task.Run(async () => 
+        {
+            try
+            {
+                await ReadFromStdInByLineImpl(writer, cancellationToken); 
+            }
+            catch (Exception e)
+            {
+                _log.LogError(e, "Error reading from stdin by line");
+            }
+        });
     }
 
     private static async Task ReadFromStdInByLineImpl(ChannelWriter<object> writer, string delimiter, CancellationToken cancellationToken)

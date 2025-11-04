@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Runtime.Versioning;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 using nfm.Ui.Core;
 using nfzf;
 
@@ -82,6 +83,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private DateTime _previewVimLastKeyPressTime;
     private readonly TimeSpan _previewVimTimeout = TimeSpan.FromSeconds(1);
     private List<TerminalEscapedLine>? _suggestions;
+    private ILogger<ViewModel> _logger;
 
     public Dictionary<(ModifierKeys, int), Func<object, IMainViewModel, Task>> GlobalKeyBindings { get; } = new();
     
@@ -94,8 +96,9 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         _view = view;
     }
 
-    public ViewModel()
+    public ViewModel(ILoggerFactory loggerFactory)
     {
+        _logger = loggerFactory.CreateLogger<ViewModel>();
         _suggestionViewport = new Viewport(7);
         _searchString = string.Empty;
         for (var i = 0; i < _maxDegreeOfParallelism; i++)
@@ -179,7 +182,21 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             var searchSignalTask = _restartSearchSignal.WaitAsync();
             await Task.WhenAny(delay, searchSignalTask);
             //Searching is all cpu, need to make sure this doesn't get scheduled on the same thread as reading from the source
-            await Task.Run(Search);
+            await Task.Run(() =>
+            {
+                try
+                {
+                    Search();
+                }
+                catch (OperationCanceledException e)
+                {
+                    _logger.LogDebug(e, "Search Cancelled");
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error running search");
+                }
+            });
         }
     }
 
@@ -187,9 +204,20 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     {
         while (true)
         {
-            await _previewSignal.WaitAsync();
-            await RunPreview();
-            await Task.Delay(250);
+            try
+            {
+                await _previewSignal.WaitAsync();
+                await RunPreview();
+                await Task.Delay(250);
+            }
+            catch (OperationCanceledException e)
+            {
+                _logger.LogDebug(e, "Preview cancelled");
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error running preview");
+            }
         }
     }
     

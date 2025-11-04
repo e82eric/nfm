@@ -4,6 +4,9 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.EventLog;
+using Microsoft.Extensions.Logging.EventSource;
 using nfm.FileSystem;
 using nfm.ListProcesses;
 using nfm.ListWindows;
@@ -16,8 +19,25 @@ namespace nfm.NativeBridge;
 [SupportedOSPlatform("windows")]
 public static class NativeBridge
 {
+    private static readonly ILoggerFactory LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(b => {
+        b.AddEventSourceLogger();
+
+        if (OperatingSystem.IsWindows())
+        {
+            b.AddEventLog(new EventLogSettings
+            {
+                SourceName = "SimpleWindowManager",
+                LogName    = "Application",
+                MachineName = ".",
+            });
+
+            b.AddFilter<EventLogLoggerProvider>(null, LogLevel.Warning);
+            b.AddFilter<EventSourceLoggerProvider>(null, LogLevel.Information);
+        }
+    });
+    
     private static Thread? _appThread;
-    private static readonly ViewModel ViewModel = new();
+    private static readonly ViewModel ViewModel = new(LoggerFactory);
     
     private unsafe class ListWindowsNativeResultHandler(delegate* unmanaged<IntPtr, void*, void> onSelect, void* state) : IResultHandler
     {
@@ -151,7 +171,7 @@ public static class NativeBridge
                 ViewModel.TogglePreview();
                 return Task.CompletedTask;
             });
-            var window = new Win32Window(ViewModel, () => { });
+            var window = new Win32Window(LoggerFactory, ViewModel, () => { });
             window.Run();
         });
         _appThread.SetApartmentState(ApartmentState.STA);
@@ -239,6 +259,7 @@ public static class NativeBridge
         void* state)
     {
         var command = new ShowProcessesMenuDefinitionProvider(
+            LoggerFactory,
             ViewModel,
             () => onClosed(),
             new NativeResultHandler(onSelect, state));

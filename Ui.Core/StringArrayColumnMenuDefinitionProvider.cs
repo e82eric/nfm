@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using nfm.Win32Ui;
 using nfzf;
 
@@ -113,8 +114,10 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
     private readonly MenuDefinition _menuDefinition;
     private readonly Func<string[][]> _dataProvider;
     private DisplayColumnsProvider _displayColumnProvider;
+    private ILogger _logger;
 
     public StringArrayColumnMenuDefinitionProvider(
+        ILoggerFactory loggerFactory,
         Func<string[][]> dataProvider,
         int[] columnIndices,
         string[]? columnHeaders = null,
@@ -126,6 +129,7 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
         bool quitOnEscape = true,
         Action? onClosed = null)
     {
+        _logger = loggerFactory.CreateLogger<StringArrayColumnMenuDefinitionProvider>();
         _dataProvider = dataProvider;
         var data = dataProvider();
 
@@ -179,8 +183,13 @@ public class StringArrayColumnMenuDefinitionProvider : IMenuDefinitionProvider
                             writer.WriteAsync(arrayRow, cancellationToken);
                         }
                     }
-                    catch (OperationCanceledException)
+                    catch (OperationCanceledException e)
                     {
+                        _logger.LogDebug(e, "Cancellation while processing csv");
+                    }
+                    catch(Exception e)
+                    {
+                        _logger.LogError(e, "Error processing csv");
                     }
                     finally
                     {

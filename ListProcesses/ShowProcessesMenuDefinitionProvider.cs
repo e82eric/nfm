@@ -1,12 +1,13 @@
 ﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 using nfm.Ui.Core;
 using nfzf;
 
 namespace nfm.ListProcesses;
 
-public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, Action? onClosed, IResultHandler? resultHandler = null) : IMenuDefinitionProvider
+public class ShowProcessesMenuDefinitionProvider(ILoggerFactory loggerFactory, IMainViewModel mainViewModel, Action? onClosed, IResultHandler? resultHandler = null) : IMenuDefinitionProvider
 {
     private static readonly string[] ColumnHeaders = ["Name", "PID", "WorkingSet", "PrivateBytes", "CPU"];
     private static readonly int[] ColumnIndices = [0, 1, 2, 3, 4];
@@ -14,6 +15,7 @@ public class ShowProcessesMenuDefinitionProvider(IMainViewModel mainViewModel, A
     public MenuDefinition Get()
     {
         var provider = new StringArrayColumnMenuDefinitionProvider(
+            loggerFactory,
             () => ProcessLister.GetProcessesAsStringArray(true, ProcessLister.CompareProcessWorkingSet),
             ColumnIndices,
             ColumnHeaders,
