@@ -697,7 +697,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         }
     }
     
-    public async Task HandleKeyUp(object item, int eKey, ModifierKeys eKeyModifiers)
+    public bool HandleKeyUp(int eKey, ModifierKeys eKeyModifiers)
     {
         if (FocusLocation == ViewModelFocus.Suggestions)
         {
@@ -706,18 +706,18 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                 case VirtualKeyCodes.VK_DOWN:
                     _suggestionViewport.SelectNext();
                     View.ShowSuggestions(_suggestionViewport.GetVisibleItems(), _suggestionViewport.ViewportSelectedIndex);
-                    break;
+                    return true;
                 case VirtualKeyCodes.VK_UP:
                     _suggestionViewport.SelectPrevious();
                     View.ShowSuggestions(_suggestionViewport.GetVisibleItems(), _suggestionViewport.ViewportSelectedIndex);
-                    break;
+                    return true;
                 case VirtualKeyCodes.VK_ESCAPE:
                     FocusLocation = ViewModelFocus.SearchBox;
                     View.HideSuggestions();
-                    break;
+                    return true;
                 case VirtualKeyCodes.VK_RETURN:
                     ApplyAutocompleteSelection();
-                    break;
+                    return true;
             }
         }
         else if (eKeyModifiers == ModifierKeys.LCtl)
@@ -729,9 +729,20 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     //EditDialogOpen = true;
                 }
             }
-            else if (eKey == VirtualKeyCodes.VK_V)
+            else if (eKey == VirtualKeyCodes.VK_NEXT)
+            {
+                PreviewHalfPageDown();
+                return true;
+            }
+            else if (eKey == VirtualKeyCodes.VK_PRIOR)
+            {
+                PreviewHalfPageUp();
+                return true;
+            }
+            else if (eKey == VirtualKeyCodes.VK_V && FocusLocation == ViewModelFocus.Preview)
             {
                 PreviewViewPort.ToggleVisualMode();
+                return true;
             }
             else if (eKey == VirtualKeyCodes.VK_W)
             {
@@ -740,15 +751,25 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     FocusLocation = FocusLocation == ViewModelFocus.Preview ? ViewModelFocus.SearchBox : ViewModelFocus.Preview;
                     View.FocusPreview();
                     View.SetPreviewLines(PreviewViewPort.ViewportLines());
+                    return true;
                 }
             }
             else if (_definition != null && _definition.KeyBindings.TryGetValue((eKeyModifiers, eKey), out var action))
             {
-                await action(item);
+                if(ViewPort.TryGetSelectedItem(out var item))
+                {
+                    Task.Run(async () => { await action(item); });
+                }
+                
+                return true;
             }
             else if (GlobalKeyBindings.TryGetValue((eKeyModifiers, eKey), out var globalAction))
             {
-                await globalAction(item, this);
+                if(ViewPort.TryGetSelectedItem(out var item))
+                {
+                    Task.Run(async () => { await globalAction(item, this); });
+                }
+                return true;
             }
         }
         else
@@ -765,7 +786,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     {
                         SelectNext();
                     }
-                    break;
+                    return true;
                 case VirtualKeyCodes.VK_UP:
                     if (FocusLocation == ViewModelFocus.Preview)
                     {
@@ -776,23 +797,24 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     {
                         SelectPrevious();
                     }
-                    break;
+                    return true;
                 case VirtualKeyCodes.VK_NEXT:
                     SelectPageDown();
-                    break;
+                    return true;
                 case VirtualKeyCodes.VK_PRIOR:
                     SelectPageUp();
-                    break;
+                    return true;
                 case VirtualKeyCodes.VK_RETURN:
-                    await OnReturn();
-                    break;
+                    Task.Run(async () => { await OnReturn(); });
+                    return true;
                 case VirtualKeyCodes.VK_ESCAPE:
                     OnEscape();
-                    break;
+                    return true;
             }
         }
+        return false;
     }
-
+    
     public Task ShowToast(string message, int duration = 3000)
     {
         View.ShowToast(message, duration);

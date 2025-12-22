@@ -783,7 +783,7 @@ public class Win32Window
         switch (uMsg)
         {
             case WM_CHAR:
-                if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 && wParam != VK_LEFT && wParam != VK_RIGHT)
+                if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 && wParam != VK_LEFT && wParam != VK_RIGHT && wParam != VK_BACK && wParam != 0x16)
                 {
                     return 0;
                 }
@@ -802,18 +802,6 @@ public class Win32Window
                 var modifiers = GetModifiersPressed();
                 if (modifiers != ModifierKeys.None && wParam != VK_LEFT && wParam != VK_RIGHT)
                 {
-                    if (modifiers == ModifierKeys.LCtl && wParam == VK_PAGEUP)
-                    {
-                        _viewModel.PreviewHalfPageUp();
-                        return 0;
-                    }
-                    
-                    if (modifiers == ModifierKeys.LCtl && wParam == VK_PAGEDOWN)
-                    {
-                        _viewModel.PreviewHalfPageDown();
-                        return 0;
-                    }
-                    
                     if (modifiers == ModifierKeys.LCtl && wParam == VK_BACK)
                     {
                         DeletePreviousWord(hWnd);
@@ -822,37 +810,38 @@ public class Win32Window
 
                     if ((modifiers & ModifierKeys.LShift) == 0)
                     {
-                        if ( _snapshot.SelectedIndex < _snapshot.Items.Count)
+                        var handled = true;
+                        try
                         {
-                            var task = _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item, (int)wParam, modifiers);
-                            _ = task.ContinueWith(t =>
-                            {
-                                if (t.IsFaulted)
-                                {
-                                    _log.LogError(t.Exception!.GetBaseException(), "HandleKeyUp failed vk={Vk} mods={Mods}", (int)wParam, modifiers);
-                                }
-                            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                            handled = _viewModel.HandleKeyUp((int)wParam, modifiers);
+                        }
+                        catch (Exception e)
+                        {
+                            _log.LogError(e, "HandleKeyUp failed vk={Vk} mods={Mods}", (int)wParam, modifiers);
                         }
 
-                        return 0;
+                        if (handled)
+                        {
+                            return 0;
+                        }
                     }
                 }
                 else if(wParam != VK_LEFT && wParam != VK_RIGHT)
                 {
-                    //TODO: Add bounds checks to this
-                    if (_snapshot.SelectedIndex < _snapshot.Items.Count)
+                    var handled = true;
+                    try
                     {
-                        var task = _viewModel.HandleKeyUp(_snapshot.Items[_snapshot.SelectedIndex].Item, (int)wParam, modifiers);
-                        task.ContinueWith(t =>
-                        {
-                            if(t.IsFaulted)
-                            {
-                                _log.LogError(t.Exception!.GetBaseException(), "HandleKeyUp failed vk={Vk} mods={Mods}", (int)wParam, modifiers);
-                            }
-                        });
+                        handled = _viewModel.HandleKeyUp((int)wParam, modifiers);
+                    }
+                    catch (Exception e)
+                    {
+                        _log.LogError(e, "HandleKeyUp failed vk={Vk} mods={Mods}", (int)wParam, modifiers);
                     }
 
-                    return 0;
+                    if (handled)
+                    {
+                        return 0;
+                    }
                 }
                 return DefSubclassProc(hWnd, uMsg, wParam, lParam);
             default:
