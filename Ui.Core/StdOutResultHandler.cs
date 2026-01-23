@@ -5,6 +5,7 @@ public class StdOutResultHandler(IMainViewModel viewModel) : IResultHandler
     private void Handle(string output)
     {
         Console.WriteLine(output);
+        Console.Out.Flush();
     }
 
     public async Task HandleAsync(object output)
@@ -12,6 +13,7 @@ public class StdOutResultHandler(IMainViewModel viewModel) : IResultHandler
         var outputStr = output.ToString();
         if (outputStr == null) return;
         Handle(outputStr);
-        await viewModel.Close(true);
+        Environment.Exit(0);
+        //await viewModel.Close(true);
     }
 }

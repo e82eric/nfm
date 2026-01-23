@@ -308,6 +308,7 @@ public class Win32Window
                     {
                         var item = snapshot.Items[i];
                         var startLine = 0;
+                        
                         var linesToRender = snapshot.WrapLines ? item.Text.WrappedLines() : item.Text.Lines;
                         var itemLines = linesToRender.Count;
                         if (i == 0)
@@ -399,19 +400,34 @@ public class Win32Window
                 
                     var height = ps.rcPaint.bottom - ps.rcPaint.top;
                     var middle = ps.rcPaint.top + height / 2;
-                
-                    SIZE toastTextSize;
-                    GetTextExtentPoint32(hNewDc, _toastString, _toastString.Length, out toastTextSize);
+                    var width = ps.rcPaint.right - ps.rcPaint.left - (padding * 2);
+                    
+                    int cols = ((width - (padding * 4)) / tm.tmAveCharWidth);
+                    _toastString.SetWrapColumn(131);
 
-                    var width = ps.rcPaint.right - ps.rcPaint.left;
-                    var hMiddle = ps.rcPaint.left + (width / 2);
-                    var toastTextWidth = toastTextSize.cx;
+                    int toastWidth = 0;
+                    foreach (var toastLine in _toastString.WrappedLines())
+                    {
+                        SIZE toastLineTextSize;
+                        GetTextExtentPoint32(hNewDc, toastLine.LineText(), toastLine.LineText().Length, out toastLineTextSize);
+                        if (toastLineTextSize.cx > width)
+                        {
+                            toastWidth = width;
+                        }
+                        else if (toastLineTextSize.cx > toastWidth)
+                        {
+                            toastWidth = toastLineTextSize.cx;
+                        }
+                    }
+                    
+
+                    var hMiddle = padding + ps.rcPaint.left + (width / 2);
                 
                     var toastRect = new Rectangle(
-                        hMiddle - (toastTextWidth / 2) - padding,
+                        hMiddle - (toastWidth / 2) - padding,
                         middle,
-                        toastTextWidth + (padding * 2),
-                        padding + tm.tmHeight + padding
+                        toastWidth + (padding * 2),
+                        padding + (_listBoxItemHeight * _toastString.WrappedLines().Count()) + padding
                     );
                     
                     using (Graphics g = Graphics.FromHdc(hNewDc))
@@ -431,13 +447,19 @@ public class Win32Window
                             }
                         }
                     }
-
-                    TextOut(
-                        hNewDc,
-                        toastRect.Left + padding,
-                        toastRect.Top + padding,
-                        _toastString,
-                        _toastString.Length);
+                    
+                    var list = _toastString.WrappedLines();
+                    for (var index = 0; index < list.Count; index++)
+                    {
+                        var centeredY = padding + toastRect.Top + (_listBoxItemHeight * index) + (textHeight / 2);
+                        var toastLine = list[index];
+                        TextOut(
+                            hNewDc,
+                            toastRect.Left + padding,
+                            centeredY,
+                            toastLine.LineText(),
+                            toastLine.LineText().Length);
+                    }
                 }
                 
                 EndBufferedPaint(hBufferedPaint, true);
@@ -1301,7 +1323,7 @@ public class Win32Window
     private readonly ViewModel _viewModel;
     private Timer? _timer;
     private bool _toastVisible;
-    private string? _toastString;
+    private TerminalEscapedLine? _toastString;
     private long _toastExpirationTicks;
     private bool _showPreview;
     private readonly int _listboxItemPadding = 7;
@@ -1664,7 +1686,7 @@ public class Win32Window
         ShowWindow(_previewPanelHwnd, showPreview);
         SetWindowText(_textBoxHwnd, string.Empty);
         SetFocus(_textBoxHwnd);
-        SetListBoxItems();
+        //SetListBoxItems();
         UpdateWindow(_rootHwnd);
         FocusStealer.BringToForeground(_rootHwnd);
     }
@@ -1675,14 +1697,23 @@ public class Win32Window
         _viewModel.FillSnapshot(snapshot);
 
         lock (_itemsLock)
-        {
+        { 
+            GetClientRect(_listBoxHwnd, out var rc);
+            var hdc = GetDC(_listBoxHwnd); SelectObject(hdc, _font); GetTextMetrics(hdc, out var tm); ReleaseDC(_listBoxHwnd, hdc);
+            int clientWidth = rc.right - rc.left;
+            const int leftPad = 5, rightPad = 5;
+            int usablePx = Math.Max(0, clientWidth - leftPad - rightPad);
+            int cols = Math.Max(10, usablePx / Math.Max(1, tm.tmAveCharWidth));
+            _viewModel.SetWrapColumn(cols);
+            _viewModel.FillSnapshot(snapshot);
+            
             _snapshot = snapshot;
         }
 
         PostMessage(_rootHwnd, WM_ITEMS_UPDATED, IntPtr.Zero, IntPtr.Zero);
     }
 
-    public void ShowToast(string text, int duration)
+    public void ShowToast(TerminalEscapedLine text, int duration)
     {
         _toastExpirationTicks = DateTime.UtcNow.Add(TimeSpan.FromMilliseconds(duration)).Ticks;
         _toastString = text;

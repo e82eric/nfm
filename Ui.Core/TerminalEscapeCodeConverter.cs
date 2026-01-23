@@ -11,6 +11,11 @@ public class TextSegment
     {
         return [ new() { new() { State = new AnsiState(), Text = val } } ];
     }
+    
+    public static List<TextSegment> BasicLineText(string val)
+    {
+        return new List<TextSegment>() { new TextSegment(){ State = new AnsiState(), Text = val}};
+    }
 
     public static List<TextSegment> BlankLine()
     {

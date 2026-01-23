@@ -9,6 +9,14 @@ public class Viewport
     private int _endRow;
     private List<(object Obj, TerminalEscapedLine Text)>? _items;
 
+    public void SetWrapColum(int value)
+    {
+        foreach (var item in Items)
+        {
+            item.Text.SetWrapColumn(value);
+        }
+    }
+
     public int ViewportSelectedIndex
     {
         get { lock(_sync) {return _viewportSelectedIndex;} }

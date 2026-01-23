@@ -4,19 +4,25 @@ public class TerminalEscapedLine
 {
     private IList<int> _pos = new List<int>();
     public List<EscapedLine> Lines { get; } = new();
+    private int _maxWidth = 131;
+
+    public void SetWrapColumn(int value)
+    {
+        _maxWidth = value;
+    }
 
     public List<EscapedLine> WrappedLines()
     {
         var result = new List<EscapedLine>();
         foreach (var line in Lines)
         {
-            if (line.LineText().Length < 131)
+            if (line.LineText().Length < _maxWidth)
             {
                 result.Add(line);
             }
             else
             {
-                foreach (var wrappedLine in line.WrapLines())
+                foreach (var wrappedLine in line.WrapLines(_maxWidth))
                 {
                     result.Add(wrappedLine);
                 }

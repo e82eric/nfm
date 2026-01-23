@@ -96,6 +96,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         _view = view;
     }
 
+    public void SetWrapColumn(int value)
+    {
+        ViewPort.SetWrapColum(value);
+    }
+
     public ViewModel(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<ViewModel>();
@@ -815,9 +820,9 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         return false;
     }
     
-    public Task ShowToast(string message, int duration = 3000)
+    public Task ShowToast(TerminalEscapedLine line, int duration = 3000)
     {
-        View.ShowToast(message, duration);
+        View.ShowToast(line, duration);
         return Task.CompletedTask;
     }
 

@@ -54,7 +54,7 @@ public class ClipboardHelper
         }
         Copy(text);
 
-        return viewModel.ShowToast($"Copied '{text}' to clipboard");
+        return viewModel.ShowToast(TerminalEscapedLine.SimpleText( $"Copied '{text}' to clipboard"));
 #else
         return Task.CompletedTask;
 #endif

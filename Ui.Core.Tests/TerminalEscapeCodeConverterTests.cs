@@ -16,7 +16,7 @@ namespace nfm.Ui.Core.Tests
             };
             
             var line = new EscapedLine([segment]);
-            var wrapped = line.WrapLines();
+            var wrapped = line.WrapLines(131);
         }
     }
     

@@ -24,8 +24,7 @@ public class EscapedLine
         return _parsedText;
     }
     
-    // New overload to return wrapped lines at 131 chars
-    public List<EscapedLine> WrapLines(int maxLength = 131)
+    public List<EscapedLine> WrapLines(int maxLength)
     {
         var wrappedLines = new List<EscapedLine>();
         var currentSegments = new List<TextSegment>();
