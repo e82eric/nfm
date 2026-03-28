@@ -50,11 +50,13 @@ public class MenuDefinition
         init => _finalComparer = value;
     }
     public Action? OnClosed { get; init; } = null;
-    public string SearchString { get; init; } = string.Empty;
+    public string SearchString { get; set; } = string.Empty;
     public IPreviewHandler? PreviewHandler { get; init; } = null;
     public Func<object, string, Task<Result>>? EditAction { get; init; } = null;
     public Func<string, string>? PreParseFunc { get; init; } = null;
     public Func<string, int, (string parsedSearchString, object? state)>? ParseFunc { get; init; } = null;
     public Func<object?, int, List<TerminalEscapedLine>>? AutoCompleteSuggestionsFunc { get; init; }
     public Func<(string fullSearchString, object state, string selectedSuggestion), string> ApplySelectedSuggestion { get; set; }
+    public int? X { get; init; } = null;
+    public int? Y { get; init; } = null;
 }

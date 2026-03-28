@@ -59,7 +59,8 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
         bool gap,
         IMainViewModel viewModel,
         IComparer<Entry>? comparer,
-        Action? onClosed)
+        Action? onClosed,
+        string? searchString)
     {
         _resultHandler = resultHandler;
         _maxDepth = maxDepth;
@@ -125,6 +126,11 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
                 return Task.FromResult(Result.Error("Failed to update file path"));
             }
         };
+        if (searchString != null)
+        {
+            _definition.SearchString = searchString;
+        }
+
         _definition.KeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_O), _ => ParentDir(_rootDirectory));
 
         (int, int) ScoreFunc(object nodeObj, Pattern pattern, Slab slab)
@@ -163,7 +169,8 @@ public class FileSystemMenuDefinitionProvider : IMenuDefinitionProvider
                 false,
                _viewModel,
                 null,
-                _onClosed).Get();
+                _onClosed,
+                null).Get();
 
             await _viewModel.Clear();
             await _viewModel.RunDefinitionAsync(definition);

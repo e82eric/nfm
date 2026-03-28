@@ -35,7 +35,8 @@ public class ShowDirectoryResultHandler(
                 false,
                 viewModel,
                 null,
-                onClosed).Get();
+                onClosed,
+                null).Get();
 
         await viewModel.Clear();
         await viewModel.RunDefinitionAsync(definition);

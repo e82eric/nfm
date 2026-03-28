@@ -86,7 +86,10 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     private ILogger<ViewModel> _logger;
 
     public Dictionary<(ModifierKeys, int), Func<object, IMainViewModel, Task>> GlobalKeyBindings { get; } = new();
-    
+
+    public int? RequestedX { get; set; }
+    public int? RequestedY { get; set; }
+
     private Win32Window View => _view ! ?? throw new InvalidOperationException("View has not been set.");
     private Viewport ViewPort => _viewport ! ?? throw new InvalidOperationException("Viewport has not been set.");
     public PreviewViewport PreviewViewPort => _previewViewport ! ?? throw new InvalidOperationException("PreviewViewport has not been set.");
@@ -462,6 +465,8 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     {
         RenderText(new List<List<TextSegment>>(), 0);
         _showPreview = definition.HasPreview;
+        if (definition.X.HasValue) RequestedX = definition.X;
+        if (definition.Y.HasValue) RequestedY = definition.Y;
         View.Show(definition.HasPreview);
         _chunks.Clear();
         _chunks.Add(new Chunk());

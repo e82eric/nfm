@@ -1145,6 +1145,21 @@ public class Win32Window
     private void ResizeWindowForPreview(bool includePreview)
     {
         var screenLocation = CalculateOptimalWindowSize(includePreview);
+
+        if (_viewModel.RequestedX.HasValue || _viewModel.RequestedY.HasValue)
+        {
+            if (_viewModel.RequestedX.HasValue)
+            {
+                screenLocation.x = _viewModel.RequestedX.Value - screenLocation.width / 2;
+            }
+            if (_viewModel.RequestedY.HasValue)
+            {
+                screenLocation.y = _viewModel.RequestedY.Value - screenLocation.height / 2;
+            }
+            _viewModel.RequestedX = null;
+            _viewModel.RequestedY = null;
+        }
+
         SetWindowPos(
             _rootHwnd,
             IntPtr.Zero,

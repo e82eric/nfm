@@ -36,7 +36,8 @@ internal sealed record FileSystemOptions(
     bool WrapLines = false,
     bool ShowGap = false,
     bool ShowPreview = false,
-    bool ExcludeTopmost = false
+    bool ExcludeTopmost = false,
+    string? SearchString = null
 );
 
 internal sealed record CommandOptions(
@@ -206,7 +207,8 @@ class Program
                     fileSystemOptions.ShowGap,
                     viewModel,
                     null,
-                    null);
+                    null,
+                    fileSystemOptions.SearchString);
                 var window = new Win32Window(loggerFactory, viewModel,() =>
                 {
                     Task.Run(async () =>
@@ -411,6 +413,11 @@ class Program
             else if (args[i] == "--exclude-topmost" || args[i] == "--no-topmost")
             {
                 options = options with { ExcludeTopmost = true };
+            }
+            else if (args[i] == "--searchstring" && i + 1 < args.Length)
+            {
+                options = options with {SearchString = args[i + 1] };
+                i++;
             }
             else
             {

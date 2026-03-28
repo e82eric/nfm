@@ -209,7 +209,8 @@ public static class NativeBridge
             false,
             ViewModel,
             Comparers.ScoreLengthAndValue,
-            () => onClosed());
+            () => onClosed(),
+            null);
         
         RunDefinition(command.Get());
     }
@@ -238,7 +239,8 @@ public static class NativeBridge
             false,
             ViewModel,
             ProgramComparer,
-            () => onClosed());
+            () => onClosed(),
+            null);
         
         RunDefinition(command.Get());
     }
@@ -278,6 +280,13 @@ public static class NativeBridge
         RunDefinition(command.Get());
     }
     
+    [UnmanagedCallersOnly(EntryPoint = nameof(SetMenuLocation), CallConvs = [typeof(CallConvCdecl)])]
+    public static void SetMenuLocation(int x, int y)
+    {
+        ViewModel.RequestedX = x;
+        ViewModel.RequestedY = y;
+    }
+
     [UnmanagedCallersOnly(EntryPoint = nameof(RunLastDefinition), CallConvs = [typeof(CallConvCdecl)])]
     public static void RunLastDefinition()
     {
