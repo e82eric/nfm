@@ -11,7 +11,8 @@ namespace nfm.Win32Ui;
 internal enum PreviewType
 {
     Text,
-    Image
+    Image,
+    Thumbnail
 }
 
 public class Snapshot
@@ -865,6 +866,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     public void RenderError(string errorInfo)
     {
         View.SetPreviewLines(TextSegment.BasicText(errorInfo));
+    }
+
+    public void RenderThumbnail(IntPtr hwnd)
+    {
+        View.ShowThumbnailPreview(hwnd);
     }
 
     public void SetPreviewHeight(int height)

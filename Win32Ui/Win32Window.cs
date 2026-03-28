@@ -676,6 +676,14 @@ public class Win32Window
         {
             case WM_PAINT:
             {
+                if (_previewType == PreviewType.Thumbnail)
+                {
+                    PAINTSTRUCT ps2; var hdc2 = BeginPaint(hWnd, out ps2);
+                    FillRect(hdc2, ref ps2.rcPaint, _backgroundBrush);
+                    EndPaint(hWnd, ref ps2);
+                    return 0;
+                }
+
                 if (_previewType == PreviewType.Image && _bitmap == null)
                 {
                     PAINTSTRUCT ps2; var hdc2 = BeginPaint(hWnd, out ps2);
@@ -1345,6 +1353,7 @@ public class Win32Window
     private int _maxListboxItems;
     private PreviewType _previewType;
     private Bitmap? _bitmap;
+    private IntPtr _thumbnailId;
     private bool _hasHeader;
     private string? _headerText;
     private int _listBoxItemHeight;
@@ -1602,6 +1611,7 @@ public class Win32Window
                 break;
 
             case WM_DESTROY:
+                UnregisterThumbnail();
                 DestroyWindow(hWnd);
                 ExitProcess(0);
                 break;
@@ -1744,6 +1754,7 @@ public class Win32Window
     
     public void TriggerPreviewRender()
     {
+        UnregisterThumbnail();
         Interlocked.Increment(ref _previewVersion);
         Interlocked.Exchange(ref _previewType, PreviewType.Text);
         InvalidateRect(_previewHwnd, IntPtr.Zero, true);
@@ -1751,6 +1762,8 @@ public class Win32Window
 
     public void TogglePreview(bool visible)
     {
+        if (!visible)
+            UnregisterThumbnail();
         Interlocked.Exchange(ref _showPreview, visible);
         Interlocked.Exchange(ref _lastPreviewVersion, 0);
         ResizeWindowForPreview(visible);
@@ -1759,10 +1772,67 @@ public class Win32Window
 
     public void ShowImagePreview(Bitmap image)
     {
+        UnregisterThumbnail();
         _bitmap = image;
         Interlocked.Increment(ref _previewVersion);
         Interlocked.Exchange(ref _previewType, PreviewType.Image);
         InvalidateRect(_previewHwnd, IntPtr.Zero, true);
+    }
+
+    public void ShowThumbnailPreview(IntPtr hwndSource)
+    {
+        UnregisterThumbnail();
+
+        int hr = DwmRegisterThumbnail(_rootHwnd, hwndSource, out _thumbnailId);
+        if (hr != 0)
+            return;
+
+        DwmQueryThumbnailSourceSize(_thumbnailId, out SIZE sourceSize);
+
+        // Get preview panel position relative to root window client area, with padding
+        const int THUMBNAIL_PADDING = 15;
+        GetWindowRect(_previewPanelHwnd, out RECT panelRect);
+        GetWindowRect(_rootHwnd, out RECT rootRect);
+        int panelLeft = panelRect.left - rootRect.left + THUMBNAIL_PADDING;
+        int panelTop = panelRect.top - rootRect.top + THUMBNAIL_PADDING;
+        int panelWidth = panelRect.right - panelRect.left - (THUMBNAIL_PADDING * 2);
+        int panelHeight = panelRect.bottom - panelRect.top - (THUMBNAIL_PADDING * 2);
+
+        // Calculate aspect-ratio-preserving destination rect, centered
+        double scaleX = (double)panelWidth / sourceSize.cx;
+        double scaleY = (double)panelHeight / sourceSize.cy;
+        double scale = Math.Min(scaleX, scaleY);
+        int destWidth = (int)(sourceSize.cx * scale);
+        int destHeight = (int)(sourceSize.cy * scale);
+        int offsetX = panelLeft + (panelWidth - destWidth) / 2;
+        int offsetY = panelTop + (panelHeight - destHeight) / 2;
+
+        var props = new DWM_THUMBNAIL_PROPERTIES
+        {
+            dwFlags = DWM_TNP_RECTDESTINATION | DWM_TNP_VISIBLE | DWM_TNP_SOURCECLIENTAREAONLY,
+            rcDestination = new RECT
+            {
+                left = offsetX,
+                top = offsetY,
+                right = offsetX + destWidth,
+                bottom = offsetY + destHeight
+            },
+            fVisible = true,
+            fSourceClientAreaOnly = true
+        };
+
+        DwmUpdateThumbnailProperties(_thumbnailId, ref props);
+        Interlocked.Exchange(ref _previewType, PreviewType.Thumbnail);
+        InvalidateRect(_previewHwnd, IntPtr.Zero, true);
+    }
+
+    private void UnregisterThumbnail()
+    {
+        if (_thumbnailId != IntPtr.Zero)
+        {
+            DwmUnregisterThumbnail(_thumbnailId);
+            _thumbnailId = IntPtr.Zero;
+        }
     }
 
     public void SetHeader(string text)

@@ -13,6 +13,8 @@ public class ShowWindowsMenuDefinitionProvider2(IResultHandler resultHandler, Ac
             Header = null,
             ResultHandler = resultHandler,
             MinScore = 0,
+            HasPreview = true,
+            PreviewHandler = new WindowPreviewHandler(),
             OnClosed = onClosed,
             ScoreFunc = (sObj, pattern, slab) =>
             {

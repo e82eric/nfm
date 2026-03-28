@@ -436,4 +436,32 @@ internal static class Native
     internal delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     internal delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, IntPtr lprcMonitor, IntPtr dwData);
     internal delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, uint uIdSubclass, IntPtr dwRefData);
+
+    // DWM Thumbnail
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmRegisterThumbnail(IntPtr hwndDestination, IntPtr hwndSource, out IntPtr phThumbnailId);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmUnregisterThumbnail(IntPtr hThumbnailId);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmQueryThumbnailSourceSize(IntPtr hThumbnailId, out SIZE pSize);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmUpdateThumbnailProperties(IntPtr hThumbnailId, ref DWM_THUMBNAIL_PROPERTIES ptnProperties);
+
+    internal const int DWM_TNP_RECTDESTINATION = 0x00000001;
+    internal const int DWM_TNP_VISIBLE = 0x00000008;
+    internal const int DWM_TNP_SOURCECLIENTAREAONLY = 0x00000010;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct DWM_THUMBNAIL_PROPERTIES
+    {
+        public int dwFlags;
+        public RECT rcDestination;
+        public RECT rcSource;
+        public byte opacity;
+        public bool fVisible;
+        public bool fSourceClientAreaOnly;
+    }
 }

@@ -5,6 +5,7 @@ using nfm.FileSystem;
 using nfm.Ui.Core;
 using nfm.Win32Ui;
 using nfm.ListProcesses;
+using nfm.ListWindows;
 
 namespace nfm.Cli;
 
@@ -258,6 +259,26 @@ class Program
                     }, processOptions.ExcludeTopmost);
                     window.Run();
                 }
+            }
+            else if (args[0] == "windows")
+            {
+                var windowsProvider = new ShowWindowsMenuDefinitionProvider2(
+                    new StdOutResultHandler(viewModel), null);
+                var window = new Win32Window(loggerFactory, viewModel, () =>
+                {
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await viewModel.RunDefinitionAsync(windowsProvider.Get());
+                        }
+                        catch (Exception e)
+                        {
+                            log.LogError(e, "Error occured running windows definition");
+                        }
+                    });
+                });
+                window.Run();
             }
         }
     }

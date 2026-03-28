@@ -23,6 +23,7 @@
       <ProjectReference Include="..\nfzf\nfzf.csproj" />
       <ProjectReference Include="..\Win32Ui\Win32Ui.csproj" />
       <ProjectReference Include="..\ListProcesses\ListProcesses.csproj" />
+      <ProjectReference Include="..\ListWindows\ListWindows.csproj" />
     </ItemGroup>
 
     <ItemGroup>
