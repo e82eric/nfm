@@ -348,7 +348,7 @@ public class Win32Window
                                 int iconW = GetSystemMetrics(SM_CXSMICON);
                                 int iconH = GetSystemMetrics(SM_CYSMICON);
                                 int iconPaddingLeft = 4;
-                                int iconPaddingRight = 8;
+                                int iconPaddingRight = 12;
                                 int iconX = itemXOffset + iconPaddingLeft;
                                 int iconY = rcItem.top + (totalHeight - iconH) / 2;
                                 DrawIconEx(hNewDc, iconX, iconY, iconHandle, iconW, iconH, 0, IntPtr.Zero, DI_NORMAL);
@@ -697,6 +697,15 @@ public class Win32Window
                 {
                     PAINTSTRUCT ps2; var hdc2 = BeginPaint(hWnd, out ps2);
                     FillRect(hdc2, ref ps2.rcPaint, _backgroundBrush);
+
+                    // Draw rounded border around the thumbnail
+                    IntPtr oldPen = SelectObject(hdc2, _thumbnailBorderPen);
+                    IntPtr oldBrush = SelectObject(hdc2, GetStockObject(NULL_BRUSH));
+                    var r = _thumbnailLocalRect;
+                    RoundRect(hdc2, r.left, r.top, r.right, r.bottom, 12, 12);
+                    SelectObject(hdc2, oldBrush);
+                    SelectObject(hdc2, oldPen);
+
                     EndPaint(hWnd, ref ps2);
                     return 0;
                 }
@@ -1353,6 +1362,8 @@ public class Win32Window
     private IntPtr _suggestionsHwnd;
     private IntPtr _suggestionsPanelHwnd;
     private IntPtr _backgroundBrush;
+    private IntPtr _thumbnailBackgroundBrush;
+    private IntPtr _thumbnailBorderPen;
     private IntPtr _suggestionsBackgroundBrush;
     private IntPtr _gapPen;
     private IntPtr _borderPen;
@@ -1371,6 +1382,7 @@ public class Win32Window
     private PreviewType _previewType;
     private Bitmap? _bitmap;
     private IntPtr _thumbnailId;
+    private RECT _thumbnailLocalRect;
     private bool _hasHeader;
     private string? _headerText;
     private int _listBoxItemHeight;
@@ -1420,6 +1432,8 @@ public class Win32Window
                 _selectedBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR);
                 _selectedBackgroundBrush2 = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
                 _highlightBackgroundBrush = CreateSolidBrush(SELECTED_BACKGROUND_COLOR_2);
+                _thumbnailBackgroundBrush = CreateSolidBrush(0x0021201d); // gruvbox bg0_h #1d2021
+                _thumbnailBorderPen = CreatePen(PS_SOLID, 4, 0x00545c66); // gruvbox bg3 #665c54
 
                 _maxListboxItems = 15;
                 _listBoxItemHeight = (tm.tmHeight + (_listboxItemPadding * 2));
@@ -1731,6 +1745,7 @@ public class Win32Window
         //SetListBoxItems();
         UpdateWindow(_rootHwnd);
         FocusStealer.BringToForeground(_rootHwnd);
+        _viewModel.RefreshPreview();
     }
 
     public void SetListBoxItems()
@@ -1807,13 +1822,16 @@ public class Win32Window
         DwmQueryThumbnailSourceSize(_thumbnailId, out SIZE sourceSize);
 
         // Get preview panel position relative to root window client area, with padding
+        // Reserve space for the border so it doesn't get clipped
         const int THUMBNAIL_PADDING = 15;
+        const int THUMBNAIL_BORDER = 8;
+        int totalPadding = THUMBNAIL_PADDING + THUMBNAIL_BORDER;
         GetWindowRect(_previewPanelHwnd, out RECT panelRect);
         GetWindowRect(_rootHwnd, out RECT rootRect);
-        int panelLeft = panelRect.left - rootRect.left + THUMBNAIL_PADDING;
-        int panelTop = panelRect.top - rootRect.top + THUMBNAIL_PADDING;
-        int panelWidth = panelRect.right - panelRect.left - (THUMBNAIL_PADDING * 2);
-        int panelHeight = panelRect.bottom - panelRect.top - (THUMBNAIL_PADDING * 2);
+        int panelLeft = panelRect.left - rootRect.left + totalPadding;
+        int panelTop = panelRect.top - rootRect.top + totalPadding;
+        int panelWidth = panelRect.right - panelRect.left - (totalPadding * 2);
+        int panelHeight = panelRect.bottom - panelRect.top - (totalPadding * 2);
 
         // Calculate aspect-ratio-preserving destination rect, centered
         double scaleX = (double)panelWidth / sourceSize.cx;
@@ -1839,6 +1857,20 @@ public class Win32Window
         };
 
         DwmUpdateThumbnailProperties(_thumbnailId, ref props);
+
+        // Store thumbnail rect in _previewHwnd local coordinates for border drawing
+        GetWindowRect(_previewHwnd, out RECT previewRect);
+        int localX = offsetX - (previewRect.left - rootRect.left);
+        int localY = offsetY - (previewRect.top - rootRect.top);
+        const int borderGap = 4;
+        _thumbnailLocalRect = new RECT
+        {
+            left = localX - borderGap,
+            top = localY - borderGap,
+            right = localX + destWidth + borderGap,
+            bottom = localY + destHeight + borderGap
+        };
+
         Interlocked.Exchange(ref _previewType, PreviewType.Thumbnail);
         InvalidateRect(_previewHwnd, IntPtr.Zero, true);
     }

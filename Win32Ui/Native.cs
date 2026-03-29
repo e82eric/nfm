@@ -120,6 +120,14 @@ internal static class Native
     [DllImport("gdi32.dll")]
     internal static extern bool Rectangle(IntPtr hdc, int nLeftRect, int nTopRect, int nRightRect, int nBottomRect);
 
+    [DllImport("gdi32.dll")]
+    internal static extern bool RoundRect(IntPtr hdc, int nLeftRect, int nTopRect, int nRightRect, int nBottomRect, int nWidth, int nHeight);
+
+    [DllImport("gdi32.dll")]
+    internal static extern IntPtr GetStockObject(int fnObject);
+
+    internal const int NULL_BRUSH = 5;
+
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     internal static extern bool SetWindowText(IntPtr hWnd, string lpString);
 

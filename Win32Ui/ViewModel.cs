@@ -852,6 +852,12 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         return Task.CompletedTask;
     }
 
+    public void RefreshPreview()
+    {
+        _lastPreviewPath = string.Empty;
+        _previewSignal.Set();
+    }
+
     public void TogglePreview()
     {
         _showPreview = !_showPreview;
