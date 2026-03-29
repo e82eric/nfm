@@ -57,6 +57,7 @@ public class MenuDefinition
     public Func<string, int, (string parsedSearchString, object? state)>? ParseFunc { get; init; } = null;
     public Func<object?, int, List<TerminalEscapedLine>>? AutoCompleteSuggestionsFunc { get; init; }
     public Func<(string fullSearchString, object state, string selectedSuggestion), string> ApplySelectedSuggestion { get; set; }
+    public Func<object, IntPtr>? GetIconFunc { get; init; } = null;
     public int? X { get; init; } = null;
     public int? Y { get; init; } = null;
 }

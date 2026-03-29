@@ -29,6 +29,7 @@ public class Snapshot
     public bool ShowGap { get; set; }
     public int StartLinesToClip { get; set; }
     public bool WrapLines { get; set; }
+    public Func<object, IntPtr>? GetIconFunc { get; set; }
 }
 
 [SupportedOSPlatform("windows")]
@@ -158,6 +159,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             snapshot.ShowGap = _definition.ShowGap;
             snapshot.StartLinesToClip = ViewPort.StartLinesToClip;
             snapshot.WrapLines = _definition.Wrap;
+            snapshot.GetIconFunc = _definition.GetIconFunc;
         }
     }
 
@@ -466,8 +468,14 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
     {
         RenderText(new List<List<TextSegment>>(), 0);
         _showPreview = definition.HasPreview;
-        if (definition.X.HasValue) RequestedX = definition.X;
-        if (definition.Y.HasValue) RequestedY = definition.Y;
+        if (definition.X.HasValue)
+        {
+            RequestedX = definition.X;
+        }
+        if (definition.Y.HasValue)
+        {
+            RequestedY = definition.Y;
+        }
         View.Show(definition.HasPreview);
         _chunks.Clear();
         _chunks.Add(new Chunk());

@@ -30,6 +30,15 @@ public class ListWindows
         public required string ProcessName { get; init; }
         public required string ClassName { get; init; }
         public required string Title { get; init; }
+        public IntPtr IconHandle { get; set; }
+    }
+
+    public class ListWindowsItem
+    {
+        public required string Text { get; init; }
+        public IntPtr IconHandle { get; init; }
+        public IntPtr Hwnd { get; init; }
+        public override string ToString() => Text;
     }
 
     const uint GA_ROOTOWNER = 3;
@@ -328,7 +337,13 @@ public class ListWindows
         {
             string line = string.Format("{0:X8} {1,8} {2,-" + workspace.MaxProcessNameLen + "} {3}",
                 c.Data.Hwnd.ToInt64(), c.Data.ProcessId, c.Data.ProcessName, c.Data.Title);
-            await writer.WriteAsync(line);
+            var item = new ListWindowsItem
+            {
+                Text = line,
+                IconHandle = GetWindowIcon(c.Data.Hwnd),
+                Hwnd = c.Data.Hwnd
+            };
+            await writer.WriteAsync(item);
             c = c.Next;
             numberOfResults++;
         }
@@ -350,4 +365,38 @@ public class ListWindows
 
     [DllImport("user32.dll")]
     static extern IntPtr GetDesktopWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam,
+        uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassLongPtr")]
+    static extern IntPtr GetClassLongPtr(IntPtr hWnd, int nIndex);
+
+    const uint WM_GETICON = 0x007F;
+    const int ICON_SMALL = 0;
+    const int ICON_BIG = 1;
+    const int ICON_SMALL2 = 2;
+    const uint SMTO_ABORTIFHUNG = 0x0002;
+    const int GCL_HICON = -14;
+    const int GCL_HICONSM = -34;
+
+    static IntPtr GetWindowIcon(IntPtr hwnd)
+    {
+        IntPtr icon;
+        SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out icon);
+        if (icon != IntPtr.Zero) return icon;
+
+        SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_SMALL, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out icon);
+        if (icon != IntPtr.Zero) return icon;
+
+        SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_BIG, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out icon);
+        if (icon != IntPtr.Zero) return icon;
+
+        icon = GetClassLongPtr(hwnd, GCL_HICONSM);
+        if (icon != IntPtr.Zero) return icon;
+
+        icon = GetClassLongPtr(hwnd, GCL_HICON);
+        return icon;
+    }
 }

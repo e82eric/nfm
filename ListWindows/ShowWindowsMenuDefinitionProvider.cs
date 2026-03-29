@@ -18,10 +18,11 @@ public class ShowWindowsMenuDefinitionProvider2(IResultHandler resultHandler, Ac
             OnClosed = onClosed,
             ScoreFunc = (sObj, pattern, slab) =>
             {
-                var s = (string)sObj;
+                var s = sObj is ListWindows.ListWindowsItem lwi ? lwi.Text : (string)sObj;
                 var score = FuzzySearcher.GetScore(s, pattern, slab);
                 return (s.Length, score);
             },
+            GetIconFunc = obj => obj is ListWindows.ListWindowsItem lwi ? lwi.IconHandle : IntPtr.Zero,
             Comparer = Comparers.ScoreLengthAndValue,
             FinalComparer = Comparers.ScoreLengthAndValue,
         };

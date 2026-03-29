@@ -339,6 +339,23 @@ public class Win32Window
 
                         SetTextColor(hNewDc, TEXT_COLOR);
 
+                        var iconOffset = 0;
+                        if (snapshot.GetIconFunc != null)
+                        {
+                            var iconHandle = snapshot.GetIconFunc(item.Item);
+                            if (iconHandle != IntPtr.Zero)
+                            {
+                                int iconW = GetSystemMetrics(SM_CXSMICON);
+                                int iconH = GetSystemMetrics(SM_CYSMICON);
+                                int iconPaddingLeft = 4;
+                                int iconPaddingRight = 8;
+                                int iconX = itemXOffset + iconPaddingLeft;
+                                int iconY = rcItem.top + (totalHeight - iconH) / 2;
+                                DrawIconEx(hNewDc, iconX, iconY, iconHandle, iconW, iconH, 0, IntPtr.Zero, DI_NORMAL);
+                                iconOffset = iconPaddingLeft + iconW + iconPaddingRight;
+                            }
+                        }
+
                         if (i < snapshot.Items.Count)
                         {
                             for (var iIndex = 0; iIndex < itemLines; iIndex++)
@@ -358,7 +375,7 @@ public class Win32Window
                                     SetTextColor(hNewDc, colorRef);
                                     TextOut(
                                         hNewDc,
-                                        itemXOffset + xOffset,
+                                        itemXOffset + iconOffset + xOffset,
                                         centeredY,
                                         segment.Text,
                                         segment.Text.Length);
@@ -373,7 +390,7 @@ public class Win32Window
                                     GetTextExtentPoint32(hNewDc, line.LineText(), pos, out sz);
                                     TextOut(
                                         hNewDc,
-                                        sz.cx + itemXOffset,
+                                        sz.cx + itemXOffset + iconOffset,
                                         centeredY,
                                         line.LineText()[pos].ToString(),
                                         1);

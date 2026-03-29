@@ -43,19 +43,10 @@ public static class NativeBridge
     {
         public Task HandleAsync(object objOutput)
         {
-            var output = (string)objOutput;
-            if (output.Length >= 8)
+            if (objOutput is ListWindows.ListWindows.ListWindowsItem lwi)
             {
-                if (int.TryParse(
-                        output.Substring(0, 8),
-                        NumberStyles.HexNumber,
-                        CultureInfo.InvariantCulture,
-                        out var hwnd))
-                {
-                    var hwndPtr = new IntPtr(hwnd);
-                    var callback = onSelect;
-                    callback(hwndPtr, state);
-                }
+                var callback = onSelect;
+                callback(lwi.Hwnd, state);
             }
 
             return Task.CompletedTask;
