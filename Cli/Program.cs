@@ -94,7 +94,13 @@ class Program
         args = args.Where(a => a != "--debug" && a != "-d").ToArray();
         var log = loggerFactory.CreateLogger<Program>();
         log.LogDebug("Starting");
-        
+
+        if (args.Length > 0 && (args[0] == "--help" || args[0] == "-h"))
+        {
+            PrintHelp(args.Length > 1 ? args[1] : null);
+            return;
+        }
+
         var viewModel = new ViewModel(loggerFactory);
         viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_C), ClipboardHelper.CopyStringToClipboard);
         viewModel.GlobalKeyBindings.Add((ModifierKeys.LCtl, VirtualKeyCodes.VK_P), (_, _) =>
@@ -183,6 +189,12 @@ class Program
             }
         }
         
+        if (args.Length == 0)
+        {
+            PrintHelp(null);
+            return;
+        }
+
         if (args.Length > 0)
         {
             if (args[0] == "filesystem")
@@ -262,6 +274,13 @@ class Program
             }
             else if (args[0] == "windows")
             {
+                if (args.Length > 1)
+                {
+                    Console.Error.WriteLine($"Unknown argument: {args[1]}");
+                    Console.Error.WriteLine();
+                    PrintHelp("windows");
+                    return;
+                }
                 var windowsProvider = new ShowWindowsMenuDefinitionProvider2(
                     new StdOutResultHandler(viewModel), null);
                 var window = new Win32Window(loggerFactory, viewModel, () =>
@@ -280,9 +299,94 @@ class Program
                 });
                 window.Run();
             }
+            else
+            {
+                Console.Error.WriteLine($"Unknown command: {args[0]}");
+                Console.Error.WriteLine();
+                PrintHelp(null);
+            }
         }
     }
-    
+
+    private static void PrintHelp(string? subcommand)
+    {
+        switch (subcommand)
+        {
+            case "filesystem":
+                Console.WriteLine(@"Usage: nfm filesystem [options]
+
+Options:
+  --rootdirectory <path>              Root directory to search (default: current directory)
+  --maxdepth <n>                      Maximum directory depth
+  --directoriesonly                    Show only directories
+  --filesonly                          Show only files
+  --showpreview                        Show file preview panel
+  --wrap                               Wrap long lines in preview
+  --gap                                Show gap between items
+  --delimiter <char>                   Field delimiter character
+  --previewstartlinecommand <cmd>      Command to determine preview start line
+  --previewstartlineoffsetcommand <cmd> Command to determine preview start line offset
+  --searchstring <text>                Initial search string
+  --searchdirectoryonselect            Search selected directory on enter
+  --exclude-topmost, --no-topmost      Don't set window as topmost");
+                break;
+            case "csv":
+                Console.WriteLine(@"Usage: <input> | nfm csv [options]
+
+Options:
+  --columns <cols>        Columns to display (comma-separated indices or names)
+  --headers <names>       Column header names (comma-separated)
+  --delimiter <char>      Field delimiter (default: ,)
+  --no-header             Input has no header row
+  --disable-preview       Disable preview panel
+  --exclude-topmost, --no-topmost  Don't set window as topmost");
+                break;
+            case "processes":
+                Console.WriteLine(@"Usage: nfm processes [options]
+
+Options:
+  --sort-cpu              Sort by CPU time
+  --sort-private-bytes    Sort by private bytes
+  --sort-working-set      Sort by working set
+  --sort-pid              Sort by process ID
+  --exclude-topmost, --no-topmost  Don't set window as topmost");
+                break;
+            case "windows":
+                Console.WriteLine("Usage: nfm windows\n\nList open windows with thumbnail preview.");
+                break;
+            default:
+                Console.WriteLine(@"Usage: nfm [command] [options]
+
+Commands:
+  filesystem    Browse and search files
+  csv           Fuzzy search over CSV input from stdin
+  processes     List and search running processes
+  windows       List open windows with preview
+
+Stdin mode:
+  <input> | nfm [options]   Fuzzy search over piped input
+
+Global options:
+  -d, --debug     Enable debug logging
+  -h, --help      Show this help (use --help <command> for details)
+
+Stdin options:
+  --header <text>                      Header text
+  --showpreview                        Show preview panel
+  --previewcommand <cmd>               Command to generate preview
+  --previewstartlinecommand <cmd>      Command to determine preview start line
+  --previewstartlineoffsetcommand <cmd> Command to determine preview start line offset
+  --delimiter <char>                   Field delimiter character
+  --searchstring <text>                Initial search string
+  --wrap                               Wrap long lines in preview
+  --gap                                Show gap between items
+  --nolengthsort                       Don't sort by length
+  --linecontinuation <char>            Line continuation character
+  --exclude-topmost, --no-topmost      Don't set window as topmost");
+                break;
+        }
+    }
+
     private static StdInOptions? ParseStdInOptions(string[] args, ILogger log)
     {
         var options = new StdInOptions();
@@ -358,14 +462,16 @@ class Program
             else
             {
                 Console.Error.WriteLine($"Unknown argument: {args[i]}");
+                Console.Error.WriteLine();
+                PrintHelp(null);
                 return null;
             }
         }
-        
+
         log.LogDebug("Parsed stdin options: {options}", options);
         return options;
     }
-    
+
     private static FileSystemOptions? ParseFileSystemOptions(string[] args, ILogger log)
     {
         var options = new FileSystemOptions();
@@ -443,6 +549,8 @@ class Program
             else
             {
                 Console.Error.WriteLine($"Unknown argument: {args[i]}");
+                Console.Error.WriteLine();
+                PrintHelp("filesystem");
                 return null;
             }
         }
@@ -540,7 +648,9 @@ class Program
             }
             else
             {
-                Console.Error.WriteLine($"Unknown CSV argument: {args[i]}");
+                Console.Error.WriteLine($"Unknown argument: {args[i]}");
+                Console.Error.WriteLine();
+                PrintHelp("csv");
                 return null;
             }
         }
@@ -576,7 +686,9 @@ class Program
             }
             else
             {
-                Console.Error.WriteLine($"Unknown processes argument: {args[i]}");
+                Console.Error.WriteLine($"Unknown argument: {args[i]}");
+                Console.Error.WriteLine();
+                PrintHelp("processes");
                 return null;
             }
         }

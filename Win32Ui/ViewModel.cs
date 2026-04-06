@@ -466,7 +466,15 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
 
     public async Task RunDefinitionAsync(MenuDefinition definition)
     {
-        RenderText(new List<List<TextSegment>>(), 0);
+        if (definition.HasPreview)
+        {
+            var loadingLine = new List<TextSegment> { new() { State = new AnsiState(), Text = "Loading..." } };
+            RenderText(new List<List<TextSegment>> { loadingLine }, 0);
+        }
+        else
+        {
+            RenderText(new List<List<TextSegment>>(), 0);
+        }
         _showPreview = definition.HasPreview;
         if (definition.X.HasValue)
         {
