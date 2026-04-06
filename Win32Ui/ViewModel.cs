@@ -532,7 +532,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                 {
                     return;
                 }
-            
+
                 numberOfItems++;
                 if (!currentChunk.TryAdd(line))
                 {
@@ -551,6 +551,12 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                     }
 
                     NumberOfItems = numberOfItems;
+                }
+
+                if (numberOfItems == 1 && _definition is { HasPreview: true, PreviewHandler: { } handler })
+                {
+                    _ = handler.Handle(this, line, _previewHeight, CancellationToken.None);
+                    _lastPreviewPath = line.ToString() ?? string.Empty;
                 }
             }
         }
