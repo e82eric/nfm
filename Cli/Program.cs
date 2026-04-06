@@ -6,6 +6,7 @@ using nfm.Ui.Core;
 using nfm.Win32Ui;
 using nfm.ListProcesses;
 using nfm.ListWindows;
+using nfzf;
 
 namespace nfm.Cli;
 
@@ -42,7 +43,18 @@ internal sealed record FileSystemOptions(
 );
 
 internal sealed record CommandOptions(
-    IEnumerable<string>? Command
+    string Command,
+    string? Header = null,
+    bool ShowPreview = false,
+    string? PreviewCommand = null,
+    char? Delimiter = null,
+    string? PreviewStartLineCommand = null,
+    string? PreviewStartLineOffsetCommand = null,
+    bool ShowGap = false,
+    bool WrapLines = false,
+    string? SearchString = null,
+    bool NoLengthSort = false,
+    bool ExcludeTopmost = false
 );
 
 internal sealed record CsvOptions(
@@ -241,12 +253,51 @@ class Program
             }
             else if (args[0] == "command")
             {
-                var commandOptions = ParseCommandOptions(args);
+                var commandOptions = ParseCommandOptions(args, log);
                 if (commandOptions != null)
                 {
-                    //BuildCommandApp(string.Join(" ", commandOptions.Command))
-                    //    .Start((application, strings) => Run(application, false), args);
-                    //return;
+                    var definition = new MenuDefinition
+                    {
+                        AsyncFunction = (writer, ct) => ProcessRunner.RunCommand(commandOptions.Command, writer),
+                        Header = commandOptions.Header,
+                        HasPreview = commandOptions.ShowPreview,
+                        PreviewHandler = commandOptions.PreviewCommand != null
+                            ? new CommandPreviewHandler(commandOptions.PreviewCommand, commandOptions.Delimiter, commandOptions.PreviewStartLineCommand, commandOptions.PreviewStartLineOffsetCommand)
+                            : new PreviewHandler(
+                                "bat --style=numbers --color=always --theme=gruvbox-dark --paging=never {0}",
+                                "pwsh -C dir {0}",
+                                commandOptions.Delimiter,
+                                commandOptions.PreviewStartLineCommand,
+                                commandOptions.PreviewStartLineOffsetCommand),
+                        ResultHandler = new StdOutResultHandler(viewModel),
+                        MinScore = 0,
+                        QuitOnEscape = true,
+                        ScoreFunc = (sObj, pattern, slab) =>
+                        {
+                            var s = sObj is TerminalEscapedLine escapedLine ? escapedLine.ToString() : (string)sObj;
+                            var score = FuzzySearcher.GetScore(s, pattern, slab);
+                            return (s.Length, score);
+                        },
+                        Comparer = commandOptions.NoLengthSort ? Comparers.ScoreOnly : Comparers.ScoreLengthAndValue,
+                        ShowGap = commandOptions.ShowGap,
+                        Wrap = commandOptions.WrapLines,
+                        SearchString = commandOptions.SearchString ?? string.Empty,
+                    };
+                    var window = new Win32Window(loggerFactory, viewModel, () =>
+                    {
+                        Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await viewModel.RunDefinitionAsync(definition);
+                            }
+                            catch (Exception e)
+                            {
+                                log.LogError(e, "Error running command definition");
+                            }
+                        });
+                    }, commandOptions.ExcludeTopmost);
+                    window.Run();
                 }
             }
             else if (args[0] == "processes")
@@ -351,6 +402,29 @@ Options:
   --sort-pid              Sort by process ID
   --exclude-topmost, --no-topmost  Don't set window as topmost");
                 break;
+            case "command":
+                Console.WriteLine(@"Usage: nfm command [options] <command> [args...]
+
+Run a command and fuzzy search its output. Use -- to separate nfm
+options from the command if the command has flags that conflict.
+
+Examples:
+  nfm command git log --oneline
+  nfm command --showpreview -- dir /s /b
+
+Options:
+  --header <text>                      Header text
+  --showpreview                        Show preview panel
+  --previewcommand <cmd>               Command to generate preview
+  --previewstartlinecommand <cmd>      Command to determine preview start line
+  --previewstartlineoffsetcommand <cmd> Command to determine preview start line offset
+  --delimiter <char>                   Field delimiter character
+  --searchstring <text>                Initial search string
+  --wrap                               Wrap long lines in preview
+  --gap                                Show gap between items
+  --nolengthsort                       Don't sort by length
+  --exclude-topmost, --no-topmost      Don't set window as topmost");
+                break;
             case "windows":
                 Console.WriteLine("Usage: nfm windows\n\nList open windows with thumbnail preview.");
                 break;
@@ -360,6 +434,7 @@ Options:
 Commands:
   filesystem    Browse and search files
   csv           Fuzzy search over CSV input from stdin
+  command       Run a command and fuzzy search its output
   processes     List and search running processes
   windows       List open windows with preview
 
@@ -576,15 +651,114 @@ Stdin options:
         return options;
     }
     
-    private static CommandOptions? ParseCommandOptions(string[] args)
+    private static CommandOptions? ParseCommandOptions(string[] args, ILogger log)
     {
-        var command = args.Skip(1).ToList();
-        if (!command.Any())
+        var commandParts = new List<string>();
+        string? header = null;
+        bool showPreview = false;
+        string? previewCommand = null;
+        char? delimiter = null;
+        string? previewStartLineCommand = null;
+        string? previewStartLineOffsetCommand = null;
+        bool showGap = false;
+        bool wrapLines = false;
+        string? searchString = null;
+        bool noLengthSort = false;
+        bool excludeTopmost = false;
+        bool parsingOptions = true;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            if (parsingOptions && args[i] == "--")
+            {
+                parsingOptions = false;
+            }
+            else if (parsingOptions && args[i] == "--header" && i + 1 < args.Length)
+            {
+                header = args[++i];
+            }
+            else if (parsingOptions && args[i] == "--showpreview")
+            {
+                showPreview = true;
+            }
+            else if (parsingOptions && args[i] == "--previewcommand" && i + 1 < args.Length)
+            {
+                previewCommand = args[++i];
+            }
+            else if (parsingOptions && args[i] == "--delimiter" && i + 1 < args.Length)
+            {
+                if (args[i + 1].Length == 1)
+                {
+                    delimiter = args[i + 1][0];
+                }
+                i++;
+            }
+            else if (parsingOptions && args[i] == "--previewstartlinecommand" && i + 1 < args.Length)
+            {
+                previewStartLineCommand = args[++i];
+            }
+            else if (parsingOptions && args[i] == "--previewstartlineoffsetcommand" && i + 1 < args.Length)
+            {
+                previewStartLineOffsetCommand = args[++i];
+            }
+            else if (parsingOptions && args[i] == "--gap")
+            {
+                showGap = true;
+            }
+            else if (parsingOptions && args[i] == "--wrap")
+            {
+                wrapLines = true;
+            }
+            else if (parsingOptions && args[i] == "--searchstring" && i + 1 < args.Length)
+            {
+                searchString = args[++i];
+            }
+            else if (parsingOptions && args[i] == "--nolengthsort")
+            {
+                noLengthSort = true;
+            }
+            else if (parsingOptions && (args[i] == "--exclude-topmost" || args[i] == "--no-topmost"))
+            {
+                excludeTopmost = true;
+            }
+            else if (parsingOptions && args[i].StartsWith("--"))
+            {
+                Console.Error.WriteLine($"Unknown argument: {args[i]}");
+                Console.Error.WriteLine();
+                PrintHelp("command");
+                return null;
+            }
+            else
+            {
+                parsingOptions = false;
+                commandParts.Add(args[i]);
+            }
+        }
+
+        if (commandParts.Count == 0)
         {
             Console.Error.WriteLine("Error: No command specified.");
+            Console.Error.WriteLine();
+            PrintHelp("command");
             return null;
         }
-        var options = new CommandOptions(command);
+
+        var options = new CommandOptions(
+            Command: string.Join(" ", commandParts),
+            Header: header,
+            ShowPreview: showPreview,
+            PreviewCommand: previewCommand,
+            Delimiter: delimiter,
+            PreviewStartLineCommand: previewStartLineCommand,
+            PreviewStartLineOffsetCommand: previewStartLineOffsetCommand,
+            ShowGap: showGap,
+            WrapLines: wrapLines,
+            SearchString: searchString,
+            NoLengthSort: noLengthSort,
+            ExcludeTopmost: excludeTopmost
+        );
+
+        log.LogDebug("Parsed command options: {options}", options);
         return options;
     }
 
