@@ -54,6 +54,9 @@ public class ListWindows
     public delegate bool PropEnumProcEx(IntPtr hwnd, IntPtr lpszString, IntPtr hData, IntPtr dwData);
 
     [DllImport("user32.dll")]
+    static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
     static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
 
     [DllImport("user32.dll")]
@@ -132,8 +135,12 @@ public class ListWindows
             string? propName = Marshal.PtrToStringUni(lpszString);
             if (propName == "ApplicationViewCloakType")
             {
-                bool hasAppropriateApplicationViewCloakType = hData == IntPtr.Zero;
-                Marshal.WriteInt32(dwData, hasAppropriateApplicationViewCloakType ? 1 : 0);
+                GCHandle handle = GCHandle.FromIntPtr(dwData);
+                if (handle.Target is BoolWrapper wrapper)
+                {
+                    wrapper.Value = hData == IntPtr.Zero;
+                }
+
                 return false;
             }
         }
@@ -169,7 +176,14 @@ public class ListWindows
         GetClassName(hwnd, className, className.Capacity);
         if (className.ToString().Contains("ApplicationFrameWindow"))
         {
-            BoolWrapper hasCorrectCloakedProperty = new BoolWrapper();
+            StringBuilder title = new StringBuilder(1024);
+            GetWindowText(hwnd, title, title.Capacity);
+            if (title.Length == 0)
+            {
+                return false;
+            }
+
+            BoolWrapper hasCorrectCloakedProperty = new BoolWrapper { Value = true };
             GCHandle gcHandle = GCHandle.Alloc(hasCorrectCloakedProperty);
             PropEnumProcEx callback = new PropEnumProcEx(ListWindowsPropEnumCallback);
             EnumPropsEx(hwnd, callback, GCHandle.ToIntPtr(gcHandle));
@@ -337,10 +351,14 @@ public class ListWindows
         {
             string line = string.Format("{0:X8} {1,8} {2,-" + workspace.MaxProcessNameLen + "} {3}",
                 c.Data.Hwnd.ToInt64(), c.Data.ProcessId, c.Data.ProcessName, c.Data.Title);
+            IntPtr iconHwnd = c.Data.ClassName.Contains("ApplicationFrameWindow")
+                ? FindHostedAppWindow(c.Data.Hwnd, c.Data.ProcessId)
+                : c.Data.Hwnd;
+            if (iconHwnd == IntPtr.Zero) iconHwnd = c.Data.Hwnd;
             var item = new ListWindowsItem
             {
                 Text = line,
-                IconHandle = GetWindowIcon(c.Data.Hwnd),
+                IconHandle = GetWindowIcon(iconHwnd),
                 Hwnd = c.Data.Hwnd
             };
             await writer.WriteAsync(item);
@@ -372,6 +390,22 @@ public class ListWindows
 
     [DllImport("user32.dll", EntryPoint = "GetClassLongPtr")]
     static extern IntPtr GetClassLongPtr(IntPtr hWnd, int nIndex);
+
+    static IntPtr FindHostedAppWindow(IntPtr frameHwnd, uint frameProcessId)
+    {
+        IntPtr result = IntPtr.Zero;
+        EnumChildWindows(frameHwnd, (hwnd, _) =>
+        {
+            GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid != frameProcessId)
+            {
+                result = hwnd;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return result;
+    }
 
     const uint WM_GETICON = 0x007F;
     const int ICON_SMALL = 0;
