@@ -5,7 +5,8 @@ namespace nfm.NfmDir;
 
 internal sealed record Options(
     string RootDirectory,
-    bool IncludeFiles
+    bool IncludeFiles,
+    int MaxDepth
 );
 
 class Program
@@ -42,7 +43,7 @@ class Program
         var scanTask = walker.StartScanForDirectoriesAsync(
             new[] { options.RootDirectory },
             channel.Writer,
-            maxDepth: int.MaxValue,
+            maxDepth: options.MaxDepth,
             directoriesOnly: !options.IncludeFiles,
             filesOnly: false,
             cts.Token);
@@ -64,6 +65,7 @@ class Program
     {
         string? root = null;
         bool includeFiles = false;
+        int maxDepth = int.MaxValue;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -71,6 +73,15 @@ class Program
             if (a == "--include-files" || a == "-f")
             {
                 includeFiles = true;
+            }
+            else if ((a == "--max-depth" || a == "-m") && i + 1 < args.Length)
+            {
+                if (!int.TryParse(args[i + 1], out maxDepth) || maxDepth < 1)
+                {
+                    Console.Error.WriteLine("Error: --max-depth must be a positive integer.");
+                    return null;
+                }
+                i++;
             }
             else if (a == "--help" || a == "-h")
             {
@@ -92,14 +103,15 @@ class Program
             root = Directory.GetCurrentDirectory();
         }
 
-        return new Options(root, includeFiles);
+        return new Options(root, includeFiles, maxDepth);
     }
 
     private static void PrintUsage()
     {
-        Console.Error.WriteLine("Usage: filewalker [directory] [--include-files|-f]");
+        Console.Error.WriteLine("Usage: nfmdir [directory] [--include-files|-f] [--max-depth|-m N]");
         Console.Error.WriteLine();
         Console.Error.WriteLine("  directory         starting directory (defaults to current directory)");
         Console.Error.WriteLine("  --include-files   include files in output (directories only by default)");
+        Console.Error.WriteLine("  --max-depth N     maximum recursion depth (defaults to unlimited)");
     }
 }
