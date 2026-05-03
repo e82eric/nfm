@@ -1,5 +1,7 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
@@ -231,7 +233,12 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             }
         }
     }
-    
+
+    private static long ElapsedMicroseconds(long startTimestamp, long endTimestamp)
+    {
+        return (endTimestamp - startTimestamp) * 1_000_000 / Stopwatch.Frequency;
+    }
+
     private ThreadLocalData GetLocalResultFromPool()
     {
         if (_localResultsPool.TryTake(out var result))
@@ -273,6 +280,9 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
             }
         }
     }
+    
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    internal static extern void OutputDebugString(string lpOutputString);
 
     private void Search()
     {
@@ -357,11 +367,13 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         };
 
         var ct = CancellationToken.None;
+        var totalStartTimestamp = Stopwatch.GetTimestamp();
 
         var pattern = FuzzySearcher.ParsePattern(CaseMode.CaseSmart, currentSearchString, true);
+        var parseEndTimestamp = Stopwatch.GetTimestamp();
         var numberOfItemsWithScores = 0;
-        Parallel.ForEach(completeChunks.Select((chunk, index) => (chunk, chunkNumber: index)), parallelOptions, 
-            GetLocalResultFromPool, 
+        Parallel.ForEach(completeChunks.Select((chunk, index) => (chunk, chunkNumber: index)), parallelOptions,
+            GetLocalResultFromPool,
             (chunkWithIndex, _, localData) =>
             {
                 for (var i = 0; i < chunkWithIndex.chunk.Size; i++)
@@ -389,10 +401,11 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
                             localData.Entries,
                             _definition.Comparer);
                     }
-                    
+
                 }
                 return localData;
             }, ReturnLocalResultToPool);
+        var matchEndTimestamp = Stopwatch.GetTimestamp();
 
         NumberOfScoredItems = numberOfItemsWithScores;
 
@@ -417,6 +430,7 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         }
 
         var topEntries = globalList.Take(MaxItems).ToList();
+        var sortEndTimestamp = Stopwatch.GetTimestamp();
 
         lock (_snapshotLock)
         {
@@ -439,10 +453,22 @@ public class ViewModel : IMainViewModel, IPreviewRenderer
         }
 
         View.SetListBoxItems();
+        var appendEndTimestamp = Stopwatch.GetTimestamp();
         _previewSignal.Set();
 
         Searching = false;
         Interlocked.Exchange(ref _lastSearchVersion, currentSearchVersion);
+
+        var totalUs = ElapsedMicroseconds(totalStartTimestamp, appendEndTimestamp);
+        var parseUs = ElapsedMicroseconds(totalStartTimestamp, parseEndTimestamp);
+        var matchUs = ElapsedMicroseconds(parseEndTimestamp, matchEndTimestamp);
+        var sortUs = ElapsedMicroseconds(matchEndTimestamp, sortEndTimestamp);
+        var appendUs = ElapsedMicroseconds(sortEndTimestamp, appendEndTimestamp);
+        var timingMessage = $"[NFM] matcher=nfm fuzzy total={totalUs}us parse={parseUs}us match={matchUs}us sort={sortUs}us fg_switch=0us append={appendUs}us items={NumberOfItems} matched={NumberOfScoredItems} shown={topEntries.Count}";
+
+        //Console.WriteLine(timingMessage);
+        //_logger.LogDebug(timingMessage);
+        OutputDebugString(timingMessage);
     }
 
     void SortAction(object node, int length, int score, int i, List<Entry> results, IComparer<Entry>? comparer)
